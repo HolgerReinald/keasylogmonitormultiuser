@@ -1,0 +1,26 @@
+{
+  "lastRun": "2026-06-18T14:20:55.358Z",
+  "results": {
+    "loc_742ab2a6": {
+      "label": "Lokales Backup",
+      "status": "ok",
+      "time": "2026-06-18T14:20:54.729Z",
+      "file": "keasy-backup-2026-06-18T14-20-54.zip",
+      "size": 7723
+    },
+    "loc_hysrorp8": {
+      "label": "Cloud / Sync-Ordner",
+      "status": "ok",
+      "time": "2026-06-18T14:20:54.730Z",
+      "file": "keasy-backup-2026-06-18T14-20-54.zip",
+      "size": 7723
+    },
+    "ftp": {
+      "status": "ok",
+      "time": "2026-06-18T14:20:55.357Z",
+      "file": "keasy-backup-2026-06-18T14-20-54.zip",
+      "size": 7723
+    }
+  },
+  "nextScheduled": "2026-06-18T20:10:00.000Z"
+}

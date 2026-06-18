@@ -1,0 +1,527 @@
+/**
+ * Keasy Log Monitor — Smoke Tests
+ * Blackbox-Tests gegen den laufenden Server.
+ * Keine Dependencies — nur Node.js built-ins.
+ *
+ * Usage: node test/smoke.js [port]
+ */
+
+const http = require('http');
+const WebSocket = require('ws');
+
+const PORT = parseInt(process.argv[2]) || 3847;
+const BASE = `http://localhost:${PORT}`;
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition, msg) {
+  if (condition) {
+    passed++;
+    console.log(`  ✅ ${msg}`);
+  } else {
+    failed++;
+    console.error(`  ❌ ${msg}`);
+  }
+}
+
+function fetch(urlPath, options = {}) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlPath, BASE);
+    const opts = {
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+    };
+    const req = http.request(opts, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+    });
+    req.on('error', reject);
+    if (options.body) req.write(options.body);
+    req.end();
+  });
+}
+
+function parseJSON(body) {
+  try { return JSON.parse(body); } catch { return null; }
+}
+
+async function testHTTP() {
+  console.log('\n📡 HTTP-Tests:');
+
+  // Startseite
+  const index = await fetch('/');
+  assert(index.status === 200, 'GET / → 200');
+  assert(index.body.includes('Keasy Log Monitor'), 'Startseite enthält Titel');
+
+  // Static files
+  const css = await fetch('/style.css');
+  assert(css.status === 200, 'GET /style.css → 200');
+
+  const js = await fetch('/js/boot.js');
+  assert(js.status === 200, 'GET /js/boot.js → 200');
+}
+
+async function testAPI() {
+  console.log('\n🔌 API-Tests:');
+
+  // /api/config
+  const config = await fetch('/api/config');
+  assert(config.status === 200, 'GET /api/config → 200');
+  const cfg = parseJSON(config.body);
+  assert(cfg && typeof cfg.port === 'number', '/api/config liefert port als Number');
+  assert(cfg && Array.isArray(cfg.watchPaths), '/api/config liefert watchPaths als Array');
+  assert(cfg && Array.isArray(cfg.filterPatterns), '/api/config liefert filterPatterns als Array');
+
+  // /api/errors
+  const errors = await fetch('/api/errors');
+  assert(errors.status === 200, 'GET /api/errors → 200');
+  const errData = parseJSON(errors.body);
+  assert(errData && typeof errData === 'object', '/api/errors liefert Objekt');
+
+  // /api/trash
+  const trash = await fetch('/api/trash');
+  assert(trash.status === 200, 'GET /api/trash → 200');
+  const trashData = parseJSON(trash.body);
+  assert(trashData && typeof trashData === 'object', '/api/trash liefert Objekt');
+
+  // /api/errors (prüfe nur Status)
+  const status = await fetch('/api/errors');
+  assert(status.status === 200, 'GET /api/errors wiederholt → 200');
+}
+
+async function testConfigSaveReload() {
+  console.log('\n💾 Config Save/Reload-Test:');
+
+  // Aktuelle Config laden
+  const before = await fetch('/api/config');
+  const cfg = parseJSON(before.body);
+  assert(cfg !== null, 'Config laden erfolgreich');
+
+  // Speichern (gleiche Werte zurückschreiben)
+  const save = await fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  });
+  assert(save.status === 200, 'POST /api/config → 200');
+
+  // Erneut laden und vergleichen
+  const after = await fetch('/api/config');
+  const cfg2 = parseJSON(after.body);
+  assert(cfg2 && cfg2.port === cfg.port, 'Config-Port nach Save unverändert');
+  assert(cfg2 && cfg2.maxErrorsPerFile === cfg.maxErrorsPerFile, 'maxErrorsPerFile nach Save unverändert');
+}
+
+async function testWatcherRestart() {
+  console.log('\n🔄 Watcher-Restart-Test:');
+
+  const res = await fetch('/api/restart-watcher', { method: 'POST' });
+  assert(res.status === 200, 'POST /api/restart-watcher → 200');
+  const data = parseJSON(res.body);
+  assert(data && data.ok === true, 'Watcher-Restart liefert ok: true');
+}
+
+async function testAnalyze() {
+  console.log('\n📂 Analyse-Tests:');
+
+  // Cancel (sollte immer funktionieren, auch ohne laufende Analyse)
+  const cancel = await fetch('/api/analyze-cancel', { method: 'POST' });
+  assert(cancel.status === 200, 'POST /api/analyze-cancel → 200');
+}
+
+async function testClearAll() {
+  console.log('\n🗑️ Clear-All-Test:');
+
+  const res = await fetch('/api/clear-all', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(res.status === 200, 'POST /api/clear-all → 200');
+}
+
+async function testBackup() {
+  console.log('\n🗄️ Backup-Tests:');
+
+  // Status-Endpoint
+  const status = await fetch('/api/backup/status');
+  assert(status.status === 200, 'GET /api/backup/status → 200');
+  const statusData = parseJSON(status.body);
+  assert(statusData && typeof statusData === 'object', '/api/backup/status liefert Objekt');
+
+  // List-Endpoint
+  const list = await fetch('/api/backup/list');
+  assert(list.status === 200, 'GET /api/backup/list → 200');
+  const listData = parseJSON(list.body);
+  assert(listData && Array.isArray(listData.backups), '/api/backup/list liefert backups-Array');
+  assert(listData && Array.isArray(listData.targets), '/api/backup/list liefert targets-Array');
+
+  // Test-Connection (lokal, ohne konfigurierten Pfad → Fehler erwartet)
+  const testLocal = await fetch('/api/backup/test-connection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: 'loc_nonexistent' }),
+  });
+  assert(testLocal.status === 200, 'POST /api/backup/test-connection (local) → 200');
+  const testLocalData = parseJSON(testLocal.body);
+  assert(testLocalData && testLocalData.ok === false, 'test-connection ohne gültiges Ziel → ok: false');
+
+  // Test-Connection (FTP — Ergebnis hängt von Config ab)
+  const testFtp = await fetch('/api/backup/test-connection', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: 'ftp' }),
+  });
+  assert(testFtp.status === 200, 'POST /api/backup/test-connection (ftp) → 200');
+  const testFtpData = parseJSON(testFtp.body);
+  assert(testFtpData && typeof testFtpData.ok === 'boolean', 'test-connection (ftp) liefert ok-Boolean');
+
+  // Run-Backup (Ergebnis hängt von Config ab)
+  const run = await fetch('/api/backup/run', { method: 'POST' });
+  assert(run.status === 200, 'POST /api/backup/run → 200');
+  const runData = parseJSON(run.body);
+  assert(runData && typeof runData.ok === 'boolean', 'backup/run liefert ok-Boolean');
+
+  // Preview (ungültiger Dateiname → Fehler erwartet)
+  const preview = await fetch('/api/backup/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'local', filename: 'keasy-backup-test.zip' }),
+  });
+  assert(preview.status === 500, 'POST /api/backup/preview mit ungültigem Backup → 500');
+
+  // Config enthält Backup-Sektion
+  const config = await fetch('/api/config');
+  const cfg = parseJSON(config.body);
+  assert(cfg && cfg.backup && typeof cfg.backup === 'object', '/api/config enthält backup-Sektion');
+  assert(cfg && cfg.backup && cfg.backup.ftp && typeof cfg.backup.ftp === 'object', 'Config enthält FTP-Sektion');
+  assert(cfg && cfg.backup && Array.isArray(cfg.backup.locals), 'Config enthält locals-Array');
+
+  // FTP-Passwort ist maskiert (wenn gesetzt)
+  if (cfg && cfg.backup && cfg.backup.ftp && cfg.backup.ftp._hasPassword) {
+    assert(cfg.backup.ftp.pass === '••••••••', 'FTP-Passwort ist maskiert');
+  } else {
+    assert(true, 'FTP-Passwort nicht gesetzt (kein Masking nötig)');
+  }
+}
+
+async function testBackupWithFixture() {
+  console.log('\n📦 Backup Fixture-Test (lokales Backup erstellen + auflisten):');
+
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+
+  // Temp-Verzeichnis als Backup-Ziel
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'keasy-backup-test-'));
+
+  try {
+    // Config mit temporärem lokalen Backup-Pfad speichern
+    const configResp = await fetch('/api/config');
+    const cfg = parseJSON(configResp.body);
+    const origLocals = JSON.parse(JSON.stringify(cfg.backup?.locals || []));
+    cfg.backup = cfg.backup || {};
+    const testLocalId = 'loc_smoke_test';
+    cfg.backup.locals = [{ id: testLocalId, enabled: true, label: 'Smoke-Test', path: tmpDir }];
+    cfg.backup.ftp = cfg.backup.ftp || {};
+    cfg.backup.ftp.enabled = false;
+
+    const save = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(save.status === 200, 'Config mit Temp-Backup-Pfad gespeichert');
+
+    // Verbindungstest
+    const test = await fetch('/api/backup/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: 'local:' + testLocalId }),
+    });
+    const testData = parseJSON(test.body);
+    assert(testData && testData.ok === true, 'test-connection (local) mit Temp-Pfad → ok: true');
+
+    // Backup ausführen
+    const run = await fetch('/api/backup/run', { method: 'POST' });
+    const runData = parseJSON(run.body);
+    assert(runData && runData.ok === true, 'backup/run mit Temp-Pfad → ok: true');
+
+    // ZIP-Datei existiert?
+    const zipFiles = fs.readdirSync(tmpDir).filter(f => f.endsWith('.zip'));
+    assert(zipFiles.length > 0, 'ZIP-Datei im Backup-Verzeichnis erstellt');
+
+    // Backup-Liste enthält das neue Backup
+    const list = await fetch('/api/backup/list');
+    const listData = parseJSON(list.body);
+    const backups = listData && listData.backups ? listData.backups : [];
+    assert(backups.length > 0, 'backup/list enthält mindestens 1 Backup');
+
+    if (backups.length > 0) {
+      const newest = backups[0];
+      assert(newest.source === 'local', 'Neuestes Backup Quelle = local');
+      assert(newest.size > 0, 'Neuestes Backup Größe > 0');
+      assert(newest.content && newest.content.files, 'Neuestes Backup enthält Inhaltsbeschreibung');
+
+      // Preview testen
+      const preview = await fetch('/api/backup/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: newest.source, sourceId: newest.sourceId, filename: newest.filename }),
+      });
+      assert(preview.status === 200, 'POST /api/backup/preview → 200');
+      const previewData = parseJSON(preview.body);
+      assert(previewData && Array.isArray(previewData.files), 'Preview liefert files-Array');
+      assert(previewData && previewData.files.includes('config.json'), 'Preview enthält config.json');
+      assert(previewData && previewData.files.includes('style.css'), 'Preview enthält style.css');
+      assert(previewData && previewData.manifest, 'Preview enthält Manifest');
+      assert(previewData && previewData.manifest && previewData.manifest.schemaVersion === 1, 'Manifest schemaVersion = 1');
+      assert(previewData && Array.isArray(previewData.overwrites), 'Preview enthält overwrites-Liste');
+    }
+
+    // Status nach Backup
+    const status = await fetch('/api/backup/status');
+    const statusData = parseJSON(status.body);
+    assert(statusData && statusData.lastRun !== null, 'Status lastRun ist gesetzt nach Backup');
+    const hasLocalResult = statusData && statusData.results && Object.values(statusData.results).some(r => r.status === 'ok');
+    assert(hasLocalResult, 'Status enthält mindestens ein ok-Ergebnis');
+
+    // Config zurücksetzen (Original-locals wiederherstellen)
+    cfg.backup.locals = origLocals;
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+
+  } finally {
+    // Temp-Verzeichnis aufräumen
+    try {
+      const files = fs.readdirSync(tmpDir);
+      for (const f of files) fs.unlinkSync(path.join(tmpDir, f));
+      fs.rmdirSync(tmpDir);
+    } catch { /* ignore cleanup errors */ }
+  }
+}
+
+function testWebSocket() {
+  return new Promise((resolve) => {
+    console.log('\n🌐 WebSocket-Test:');
+
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    let initReceived = false;
+    const timeout = setTimeout(() => {
+      assert(false, 'WebSocket init-Event innerhalb 5s empfangen');
+      ws.close();
+      resolve();
+    }, 5000);
+
+    ws.on('message', (data) => {
+      if (initReceived) return;
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === 'init') {
+          initReceived = true;
+          clearTimeout(timeout);
+          assert(true, 'WebSocket init-Event empfangen');
+          assert(typeof msg.data === 'object', 'init enthält data-Objekt');
+          assert(typeof msg.version === 'string', 'init enthält version-String');
+          ws.close();
+          resolve();
+        }
+      } catch { /* ignore non-JSON */ }
+    });
+
+    ws.on('error', (err) => {
+      clearTimeout(timeout);
+      assert(false, `WebSocket Verbindung (${err.message})`);
+      resolve();
+    });
+  });
+}
+
+async function testStaticFileSecurity() {
+  console.log('\n🔒 Static-File-Sicherheitstests:');
+
+  // Path Traversal mit ../
+  const traversal1 = await fetch('/../config.js');
+  assert(traversal1.status === 403 || traversal1.status === 404, 'GET /../config.js → 403/404 (Path Traversal blockiert)');
+
+  // Path Traversal mit encoded ../
+  const traversal2 = await fetch('/%2e%2e/config.js');
+  assert(traversal2.status === 403 || traversal2.status === 404, 'GET /%2e%2e/config.js → 403/404 (encoded Path Traversal blockiert)');
+
+  // Path Traversal mit doppeltem ../
+  const traversal3 = await fetch('/../../package.js');
+  assert(traversal3.status === 403 || traversal3.status === 404, 'GET /../../package.js → 403/404 (doppelter Path Traversal blockiert)');
+
+  // Nicht existierende Datei
+  const notFound = await fetch('/nonexistent.js');
+  assert(notFound.status === 404, 'GET /nonexistent.js → 404');
+
+  // Valide Datei funktioniert weiterhin
+  const valid = await fetch('/js/state.js');
+  assert(valid.status === 200, 'GET /js/state.js → 200 (valide Datei funktioniert)');
+}
+
+async function testBackupDeleteSecurity() {
+  console.log('\n🔒 Backup-Delete-Sicherheitstests:');
+
+  // Ohne Dateiname
+  const noFile = await fetch('/api/backup/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(noFile.status === 400, 'DELETE ohne filename → 400');
+
+  // Path Traversal im Dateinamen
+  const traversal = await fetch('/api/backup/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: '../../../config.js', source: 'local' }),
+  });
+  assert(traversal.status === 400, 'DELETE mit Path Traversal → 400');
+
+  // Ungültiges Dateinamensformat
+  const invalidName = await fetch('/api/backup/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: 'evil-file.zip', source: 'local' }),
+  });
+  assert(invalidName.status === 400, 'DELETE mit ungültigem Dateiname → 400');
+}
+
+async function testOpenFileEndpoints() {
+  console.log('\n📂 Open-File-Endpoint-Tests:');
+
+  // open-folder ohne filePath
+  const noPath1 = await fetch('/api/open-folder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(noPath1.status === 400, 'POST /api/open-folder ohne filePath → 400');
+
+  // open-file ohne filePath
+  const noPath2 = await fetch('/api/open-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(noPath2.status === 400, 'POST /api/open-file ohne filePath → 400');
+
+  // open-file-at-line ohne filePath
+  const noPath3 = await fetch('/api/open-file-at-line', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(noPath3.status === 400, 'POST /api/open-file-at-line ohne filePath → 400');
+}
+
+async function testUnknownRoutes() {
+  console.log('\n❓ Unbekannte Routen:');
+
+  const unknown = await fetch('/api/nonexistent');
+  assert(unknown.status === 404, 'GET /api/nonexistent → 404');
+
+  const unknownPost = await fetch('/api/nonexistent', { method: 'POST' });
+  assert(unknownPost.status === 404, 'POST /api/nonexistent → 404');
+
+  // Malformed URL (decodeURIComponent-Schutz)
+  const malformed = await fetch('/%ZZ.js');
+  assert(malformed.status === 400 || malformed.status === 404, 'GET /%ZZ.js → 400/404 (malformed URL abgefangen)');
+}
+
+async function testThresholdRules() {
+  console.log('\n📊 Schwellwert-Regeln-Tests:');
+
+  // 1. Config laden und prüfen ob thresholdRules existiert
+  const before = await fetch('/api/config');
+  const cfg = parseJSON(before.body);
+  assert(cfg && Array.isArray(cfg.thresholdRules), 'Config enthält thresholdRules Array');
+
+  // 2. Originale Regeln sichern (deep copy)
+  const origRules = JSON.parse(JSON.stringify(cfg.thresholdRules));
+
+  try {
+    // 3. Testregel setzen und speichern
+    cfg.thresholdRules = [
+      { name: 'TestRule', contains: 'WorkingSet:', before: 'MB', operator: '>', value: 1000 }
+    ];
+    const save = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(save.status === 200, 'Schwellwert-Testregel speichern → 200');
+
+    // 4. Config neu laden und Regel prüfen
+    const after = await fetch('/api/config');
+    const cfg2 = parseJSON(after.body);
+    assert(cfg2 && cfg2.thresholdRules.length === 1, 'Testregel gespeichert (1 Regel)');
+    assert(cfg2 && cfg2.thresholdRules[0].name === 'TestRule', 'Regelname korrekt');
+    assert(cfg2 && cfg2.thresholdRules[0].contains === 'WorkingSet:', 'contains korrekt');
+    assert(cfg2 && cfg2.thresholdRules[0].operator === '>', 'operator korrekt');
+    assert(cfg2 && cfg2.thresholdRules[0].value === 1000, 'value korrekt');
+
+    // 5. Leere Regeln speichern
+    cfg.thresholdRules = [];
+    const saveEmpty = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(saveEmpty.status === 200, 'Leere thresholdRules speichern → 200');
+    const afterEmpty = await fetch('/api/config');
+    const cfg3 = parseJSON(afterEmpty.body);
+    assert(cfg3 && cfg3.thresholdRules.length === 0, 'Leere Regeln gespeichert');
+
+  } finally {
+    // 6. Originale Regeln wiederherstellen
+    cfg.thresholdRules = origRules;
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+  }
+}
+
+async function run() {
+  console.log(`\n🧪 Keasy Log Monitor Smoke-Tests (Port: ${PORT})`);
+  console.log('═'.repeat(50));
+
+  try {
+    await testHTTP();
+    await testStaticFileSecurity();
+    await testAPI();
+    await testConfigSaveReload();
+    await testWatcherRestart();
+    await testAnalyze();
+    await testClearAll();
+    await testBackup();
+    await testBackupWithFixture();
+    await testBackupDeleteSecurity();
+    await testOpenFileEndpoints();
+    await testUnknownRoutes();
+    await testThresholdRules();
+    await testWebSocket();
+  } catch (err) {
+    console.error(`\n💥 Unerwarteter Fehler: ${err.message || err}`);
+    if (err.stack) console.error(err.stack);
+    failed++;
+  }
+
+  console.log('\n' + '═'.repeat(50));
+  console.log(`Ergebnis: ${passed} bestanden, ${failed} fehlgeschlagen`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+run();

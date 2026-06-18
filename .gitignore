@@ -1,0 +1,8 @@
+node_modules/
+config.js
+config.js.bak
+config - Kopie.js
+email.log
+*.log
+users.json
+users/

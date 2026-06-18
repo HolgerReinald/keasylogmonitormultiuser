@@ -1,0 +1,568 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keasy Log Monitor</title>
+  <link rel="stylesheet" href="style.css">
+  <style id="live-style"></style>
+</head>
+<body class="theme-light">
+  <!-- Login Overlay -->
+  <div id="loginOverlay" class="login-overlay" style="display:none">
+    <form id="loginForm" class="login-box">
+      <h2>🔐 Keasy Log Monitor</h2>
+      <p class="login-subtitle">Bitte anmelden</p>
+      <div class="login-field">
+        <label for="loginUsername">Benutzername</label>
+        <input type="text" id="loginUsername" autocomplete="username" autofocus>
+      </div>
+      <div class="login-field">
+        <label for="loginPassword">Passwort</label>
+        <input type="password" id="loginPassword" autocomplete="current-password">
+      </div>
+      <div id="loginError" class="login-error"></div>
+      <button type="submit" id="loginSubmit" class="login-submit-btn">Anmelden</button>
+    </form>
+  </div>
+
+  <header>
+    <h3>🔍 Keasy Log Monitor <span id="appVersion" style="font-size:0.5em;color:#888;font-weight:normal"></span></h3>
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Verbinde...</span>
+      <span class="error-count" id="totalCount" title="Gesamtanzahl der angezeigten Fehler">0</span>
+      <div id="userInfo" class="user-info" style="display:none">
+        <span id="currentUsername" class="current-username"></span>
+        <span id="userRoleBadge" class="role-badge"></span>
+        <button class="header-btn logout-btn" onclick="doLogout()" title="Abmelden">🚪</button>
+      </div>
+      <button id="stopBtn" class="header-btn stop-btn" onclick="stopServer()" title="Monitor beenden" data-admin-only>⏹️ Monitor beenden</button>
+      <button id="restartWatcherBtn" class="header-btn restart-btn" onclick="restartWatcher()" title="FileWatcher neu starten" data-admin-only>🔄 Watcher neu starten</button>
+      <button class="header-btn" onclick="toggleAnalyzePanel()" title="Log-Dateien analysieren">📂 Log-Analyse</button>
+      <button class="header-btn config-toggle-btn" onclick="toggleConfigPanel()" title="Einstellungen">⚙️ Einstellungen</button>
+    </div>
+  </header>
+
+  <!-- Preload Progress Banner -->
+  <div id="preloadBanner" class="preload-banner" style="display:none">
+    <span id="preloadText"></span>
+    <div class="preload-bar-container">
+      <div class="preload-bar" id="preloadBar"></div>
+    </div>
+  </div>
+
+  <!-- Analyse Panel -->
+  <div class="config-panel" id="analyzePanel">
+    <div class="config-section active" id="config-analyze">
+      <div class="config-field">
+        <label>Pfad (Datei oder Ordner):</label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="analyzePath" placeholder="C:\Logs oder C:\Logs\app.log" style="flex:1;" onkeydown="if(event.key==='Enter')addAnalyzePath()">
+          <button class="config-save-btn" onclick="addAnalyzePath()" style="padding:6px 12px;">➕ Hinzufügen</button>
+        </div>
+        <span id="analyzePathError" style="color:#ef4444; font-size:0.8em; display:none;"></span>
+      </div>
+      <div id="analyzePathList" style="margin:8px 0;"></div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <button class="config-reset-btn" onclick="toggleAnalyzeImport()">📥 Import</button>
+      </div>
+      <div id="analyzeImportArea" style="display:none; margin-bottom:12px;">
+        <div id="analyzeDropZone" style="position:relative; border:2px dashed var(--border-color); border-radius:6px; padding:4px; transition: border-color 0.2s, background 0.2s;">
+          <textarea id="analyzeImportText" rows="6" style="width:100%; font-family:monospace; font-size:0.9em; background:var(--bg-secondary); color:var(--text-primary); border:none; border-radius:4px; padding:8px; resize:vertical; box-sizing:border-box;"
+            placeholder="Pfade einfügen (ein Pfad pro Zeile)&#10;# Kommentare mit # werden ignoriert&#10;C:\Logs\App1&#10;C:\Logs\App2&#10;&#10;Oder CSV/TXT/Excel-Datei hierher ziehen..."></textarea>
+          <div id="analyzeDropOverlay" style="display:none; position:absolute; inset:0; background:rgba(46,160,67,0.15); border-radius:6px; pointer-events:none; align-items:center; justify-content:center;">
+            <span style="font-size:1.5em;">📄 Datei ablegen</span>
+          </div>
+        </div>
+        <div style="margin-top:6px; display:flex; gap:8px; align-items:center;">
+          <button class="config-save-btn" onclick="importAnalyzePaths()" style="padding:6px 16px;">✅ Importieren</button>
+          <button class="config-reset-btn" onclick="toggleAnalyzeImport()">✕ Abbrechen</button>
+          <span id="analyzeImportPreview" style="font-size:0.85em; color:var(--text-secondary);"></span>
+        </div>
+      </div>
+      <div class="config-field">
+        <label>Max. Fehler pro Datei:</label>
+        <input type="number" id="analyzeMaxErrors" value="100" min="1" max="10000" style="width:80px;">
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button class="config-save-btn" id="analyzeStartBtn" onclick="startAnalysis()">🔍 Analyse starten</button>
+        <button class="config-reset-btn" id="analyzeCancelBtn" onclick="cancelAnalysis()" style="display:none;">⏹ Abbrechen</button>
+        <button class="config-reset-btn" id="analyzeClearBtn" onclick="clearAnalysis()">🗑️ Ergebnisse löschen</button>
+        <button class="config-save-btn" id="analyzeSaveBtn" onclick="saveAnalyzePaths()" style="background:#10b981;">💾 Pfade speichern</button>
+      </div>
+      <span id="analyzeSaveMessage" style="font-size:0.85em; display:none; margin-top:4px;"></span>
+      <div id="analyzeProgress" style="margin-top:10px; display:none;">
+        <div style="background:var(--bg-tertiary); border-radius:4px; overflow:hidden; height:20px;">
+          <div id="analyzeProgressBar" style="background:var(--accent-color); height:100%; width:0%; transition:width 0.3s;"></div>
+        </div>
+        <span id="analyzeStatus" style="font-size:0.85em; color:var(--text-secondary);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Panel -->
+  <div class="config-panel" id="configPanel">
+    <div class="config-tabs">
+      <button class="config-tab active" onclick="switchConfigTab('general')">⚙️ Allgemein</button>
+      <button class="config-tab" onclick="switchConfigTab('watchpaths')" title="Pfadüberwachung">🕵️ Monitor</button>
+      <button class="config-tab" onclick="switchConfigTab('email')" data-admin-only>✉️ E-Mail</button>
+
+      <button class="config-tab" onclick="switchConfigTab('emaillog')">📧 E-Mail Log</button>
+      <button class="config-tab" onclick="switchConfigTab('csseditor')" data-admin-only>🎨 CSS-Style</button>
+      <button class="config-tab" onclick="switchConfigTab('backup')" data-admin-only>🗄️ Backup</button>
+      <button class="config-tab" onclick="switchConfigTab('systemcheck')" data-admin-only>🧪 System-Check</button>
+      <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
+      <button class="config-tab" onclick="switchConfigTab('users')" data-admin-only>👥 Benutzer</button>
+    </div>
+
+    <div class="config-section active" id="config-general">
+      <div class="config-columns">
+        <div class="config-column">
+          <h4 class="config-column-title">🖥️ Server</h4>
+          <div class="config-group">
+            <div class="config-field">
+              <label>Port:</label>
+              <input type="text" id="cfg-port" maxlength="5" pattern="[0-9]*" inputmode="numeric" style="width:70px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" data-admin-only>
+            </div>
+            <div class="config-field config-field-checkbox">
+              <label><input type="checkbox" id="cfg-autoOpen" data-admin-only> Browser auto-öffnen</label>
+            </div>
+            <div class="config-field config-field-checkbox">
+              <label><input type="checkbox" id="cfg-debugLogging" data-admin-only> Debug-Logging (Timing)</label>
+            </div>
+            <p class="config-subnote">⚠️ Port- und Debug-Logging-Änderungen erfordern einen Neustart.</p>
+          </div>
+        </div>
+        <div class="config-column">
+          <h4 class="config-column-title">📄 Dateien & Fehler</h4>
+          <div class="config-group">
+            <div class="config-field">
+              <label>Max. Fehler pro Datei:</label>
+              <input type="text" id="cfg-maxErrors" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:50px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" data-admin-only>
+            </div>
+            <div class="config-field">
+              <label>Datei-Pattern:</label>
+              <input type="text" id="cfg-filePattern" placeholder="**/*.log" data-admin-only>
+            </div>
+            <div class="config-field config-field-checkbox">
+              <label><input type="checkbox" id="cfg-loadExistingErrors" data-admin-only> Bestehende Fehler beim Start einlesen</label>
+            </div>
+            <div class="config-field">
+              <label>Max. Log-Dateigröße (MB):</label>
+              <input type="text" id="cfg-maxLogFileSizeMB" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:50px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="Erlaubt: 1–99 MB. Dateien über diesem Limit werden nur ab dem Startzeitpunkt überwacht." data-admin-only>
+            </div>
+          </div>
+          <div class="config-group">
+            <h5 class="config-group-title">🗑️ Papierkorb</h5>
+            <div class="config-field">
+              <label>Auto-Cleanup (Std.):</label>
+              <input type="text" id="cfg-trashAutoCleanupHours" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:45px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="0 = nie automatisch leeren. Gelöschte Einträge werden nach dieser Zeit endgültig entfernt." data-admin-only>
+              <span class="config-hint" title="Gelöschte Fehler-Einträge werden in den Papierkorb verschoben und nach dieser Zeit automatisch entfernt.">ℹ️</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="config-section" id="config-email">
+      <div class="config-field">
+        <label>E-Mail aktiv:</label>
+        <input type="checkbox" id="cfg-emailEnabled">
+      </div>
+      <div class="config-field">
+        <label>Sende-Intervall (Min.):</label>
+        <input type="number" id="cfg-emailInterval" min="1" max="60">
+      </div>
+      <div class="config-field">
+        <label>Duplikat-Schutz (Min.):</label>
+        <input type="number" id="cfg-deduplicateMin" min="1" max="1440">
+      </div>
+      <div class="config-field">
+        <label>SMTP Host:</label>
+        <input type="text" id="cfg-smtpHost">
+      </div>
+      <div class="config-field">
+        <label>SMTP Port:</label>
+        <input type="number" id="cfg-smtpPort" min="1" max="65535">
+      </div>
+      <div class="config-field">
+        <label>SMTP SSL/TLS:</label>
+        <input type="checkbox" id="cfg-smtpSecure">
+      </div>
+      <div class="config-field">
+        <label>IPv4 erzwingen:</label>
+        <input type="checkbox" id="cfg-smtpIPv4">
+      </div>
+      <div class="config-field">
+        <label>SMTP Benutzer:</label>
+        <input type="text" id="cfg-smtpUser">
+      </div>
+      <div class="config-field">
+        <label>SMTP Passwort:</label>
+        <input type="password" id="cfg-smtpPass" placeholder="••••••••">
+      </div>
+      <div class="config-field">
+        <label>Absender (From):</label>
+        <input type="text" id="cfg-emailFrom">
+      </div>
+      <div class="config-field">
+        <label>Betreff-Template:</label>
+        <input type="text" id="cfg-emailSubject" placeholder="[Keasy Monitor] Fehler in: {label}">
+      </div>
+    </div>
+
+    <div class="config-section" id="config-watchpaths">
+      <div class="config-columns config-columns-monitor">
+        <div class="config-column">
+          <h4 class="config-column-title">📂 Überwachte Pfade</h4>
+          <table class="config-watchpaths-table">
+            <thead>
+              <tr><th>Pfad</th><th>Label</th><th>E-Mail an</th><th title="Für Netzlaufwerke aktivieren insbesondere bei VPN (prüft alle 5 Sek. statt Echtzeit-Events). Beim Import wird Polling automatisch aktiviert.">Polling ℹ️</th><th></th></tr>
+            </thead>
+            <tbody id="cfg-watchpaths-body"></tbody>
+          </table>
+          <button class="config-reset-btn" onclick="addWatchPathRow()" data-admin-only>+ Pfad hinzufügen</button>
+          <button class="config-reset-btn config-btn-secondary" onclick="toggleWatchPathImport()" data-admin-only>📥 Import</button>
+
+          <div id="watchPathImportArea" style="display:none; margin-top:12px;">
+            <div id="watchPathDropZone" style="position:relative; border:2px dashed var(--border-color); border-radius:6px; padding:4px; transition: border-color 0.2s, background 0.2s;">
+              <textarea id="watchPathImportText" rows="6" style="width:100%; font-family:monospace; font-size:0.9em; background:var(--bg-secondary); color:var(--text-primary); border:none; border-radius:4px; padding:8px; resize:vertical; box-sizing:border-box;"
+                placeholder="Pfade einfügen oder CSV/Excel-Datei hierher ziehen &#10;Polling wird automatisch aktiviert.&#10;&#10;Format: Pfad  oder  Pfad;Label;Email&#10;&#10;C:\Users\hr\AppData\Local\Keasy\Logs;Keasy Holger;hr@vfm.de&#10;Y:\;VFMService Dienst"></textarea>
+              <div id="watchPathDropOverlay" style="display:none; position:absolute; inset:0; background:rgba(46,160,67,0.15); border-radius:6px; pointer-events:none; display:none; align-items:center; justify-content:center;">
+                <span style="font-size:1.1em; font-weight:600; color:var(--text-primary);">📄 Datei hier ablegen</span>
+              </div>
+            </div>
+            <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button class="config-save-btn" onclick="importWatchPaths()" style="padding:6px 16px;">✅ Importieren</button>
+              <button class="config-reset-btn" onclick="toggleWatchPathImport()">✕ Abbrechen</button>
+              <span id="watchPathImportPreview" style="font-size:0.85em; color:var(--text-secondary);"></span>
+              <span style="font-size:0.8em; color:var(--text-secondary); margin-left:auto;">CSV · Excel · TXT</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-column">
+          <h4 class="config-column-title">🤖 Copilot-Export</h4>
+          <div class="config-group">
+            <div class="config-field">
+              <label>Working-Pfad Develop:</label>
+              <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Pfad zum Develop-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
+              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
+              <span class="config-hint" title="Fehler werden per 🤖-Button als Markdown-Datei in dieses Develop-Verzeichnis exportiert.">ℹ️</span>
+            </div>
+            <div class="config-field">
+              <label>Working-Pfad Release:</label>
+              <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Pfad zum Release-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
+              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
+              <span class="config-hint" title="Fehler werden per 🚀-Button als Markdown-Datei in dieses Release-Verzeichnis exportiert.">ℹ️</span>
+            </div>
+          </div>
+          <div class="config-filter-section">
+            <h4 class="config-column-title">⚠️ Fehlererkennung</h4>
+            <div class="config-filter-list-wrap">
+              <div class="config-list" id="cfg-filter-list"></div>
+            </div>
+            <div class="config-field config-filter-add">
+              <input type="text" id="cfg-filter-new" placeholder="Neues Pattern..." onkeydown="if(event.key==='Enter')addFilterPattern()" data-admin-only>
+              <button class="config-reset-btn" onclick="addFilterPattern()" data-admin-only>+ Hinzufügen</button>
+            </div>
+          </div>
+          <div class="config-filter-section">
+            <h4 class="config-column-title">📊 Schwellwertregeln</h4>
+            <p class="config-hint-text">Erkennt Fehler wenn ein Zahlenwert in einer Log-Zeile einen Schwellwert über-/unterschreitet.<br>
+            Beispiel: Log-Zeile <code>[Memory] WorkingSet: 4523,7 MB</code> → Zeile enthält: <code>WorkingSet:</code>, Einheit: <code>MB</code>, Alarm wenn &gt; <code>4000</code></p>
+            <div id="cfg-threshold-list"></div>
+            <button class="config-reset-btn" onclick="addThresholdRule()" data-admin-only>+ Schwellwertregel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="config-section" id="config-docs">
+      <div class="docs-toolbar">
+        <button class="config-reset-btn" onclick="toggleAllDocs(true)">▼ Alle aufklappen</button>
+        <button class="config-reset-btn" onclick="toggleAllDocs(false)">▲ Alle einklappen</button>
+
+      </div>
+      <div class="docs-content" id="docsContent">
+        <p style="color:var(--text-muted)">Lade Dokumentation...</p>
+      </div>
+    </div>
+
+    <div class="config-section" id="config-emaillog">
+      <div class="docs-toolbar">
+        <button class="config-reset-btn" onclick="loadEmailLog()">🔄 Aktualisieren</button>
+        <button class="config-reset-btn" id="clearEmailLogBtn" onclick="clearEmailLog()" style="color:var(--badge-bg)" disabled data-admin-only>🗑️ Log löschen</button>
+      </div>
+      <pre class="emaillog-content" id="emailLogContent">Lade E-Mail Log...</pre>
+    </div>
+
+    <div class="config-section" id="config-csseditor">
+      <div class="docs-toolbar">
+        <button class="config-save-btn" id="cssSaveBtn" onclick="saveCss()" disabled data-admin-only>💾 Speichern</button>
+        <button class="config-reset-btn" onclick="resetCssEditor()" data-admin-only>↩️ Zurücksetzen</button>
+        <button class="config-reset-btn" onclick="restoreDefaultCss()" data-admin-only>🔄 Standard wiederherstellen</button>
+        <span class="config-message" id="cssMessage"></span>
+      </div>
+      <textarea id="css-editor" spellcheck="false" style="width:100%; height:400px; font-family:'Cascadia Code','Consolas',monospace; font-size:12px; resize:vertical; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px; padding:8px; tab-size:2;" oninput="onCssInput()"></textarea>
+    </div>
+
+
+    <!-- Backup-Tab -->
+    <div class="config-section" id="config-backup">
+      <!-- Zeitplan -->
+      <div class="backup-schedule-section" style="background:var(--bg-secondary); border-radius:8px; padding:16px; margin-bottom:16px; border:1px solid var(--border-color);">
+        <h4 style="margin:0 0 12px 0; color:var(--text-primary);">⏰ Zeitplan</h4>
+        <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="backupScheduleEnabled" onchange="markConfigDirty()"> Automatisches Backup
+          </label>
+          <label style="display:flex; align-items:center; gap:6px;">
+            Täglich um: <input type="time" id="backupScheduleTime" value="02:00" style="width:90px;" onchange="markConfigDirty()">
+          </label>
+          <label style="display:flex; align-items:center; gap:6px;">
+            Max. Backups pro Ziel: <input type="number" id="backupMaxPerTarget" value="10" min="1" max="100" style="width:60px;" onchange="markConfigDirty()">
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="backupIncludeEmailLog" checked onchange="markConfigDirty()"> E-Mail-Log mitsichern
+          </label>
+        </div>
+      </div>
+
+      <!-- Lokale Backup-Ziele (dynamisch) -->
+      <div id="backupLocalCards" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:16px; margin-bottom:12px;">
+        <!-- Karten werden per JS gerendert -->
+      </div>
+      <div style="margin-bottom:16px;">
+        <button class="config-save-btn" onclick="addLocalTarget()" style="padding:6px 16px; font-size:0.9em;">➕ Lokales Ziel hinzufügen</button>
+      </div>
+
+      <!-- FTP-Backup (statisch) -->
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:16px; margin-bottom:16px;">
+        <div class="backup-card" id="backupCardFtp" style="border:1px solid var(--border-color); border-radius:8px; overflow:hidden;">
+          <div class="backup-card-header" style="padding:12px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleBackupCard('ftp')">
+            <span style="font-weight:600;">🌐 FTP-Backup</span>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="event.stopPropagation()">
+              <input type="checkbox" id="backupFtpEnabled" onchange="onBackupCardToggle('ftp'); markConfigDirty()"> Aktiv
+            </label>
+          </div>
+          <div class="backup-card-body" id="backupCardFtpBody" style="padding:16px; display:none;">
+            <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:8px;">
+              <div class="config-field">
+                <label>Host:</label>
+                <input type="text" id="backupFtpHost" placeholder="ftp.example.com" style="width:100%;" oninput="markConfigDirty()">
+              </div>
+              <div class="config-field">
+                <label>Port:</label>
+                <input type="number" id="backupFtpPort" value="21" style="width:70px;" onchange="markConfigDirty()">
+              </div>
+            </div>
+            <div class="config-field" style="margin-bottom:8px;">
+              <label>Benutzer:</label>
+              <input type="text" id="backupFtpUser" placeholder="ftpuser" style="width:100%;" oninput="markConfigDirty()">
+            </div>
+            <div class="config-field" style="margin-bottom:8px;">
+              <label>Passwort:</label>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="password" id="backupFtpPass" placeholder="Passwort" style="flex:1;" oninput="markConfigDirty()">
+                <span id="backupFtpPassStatus" style="font-size:0.85em; color:var(--text-secondary);"></span>
+              </div>
+            </div>
+            <div class="config-field" style="margin-bottom:8px;">
+              <label>Remote-Pfad:</label>
+              <input type="text" id="backupFtpRemotePath" value="/backups" style="width:100%;" oninput="markConfigDirty()">
+            </div>
+            <div class="config-field" style="margin-bottom:8px;">
+              <label>Verschlüsselung:</label>
+              <select id="backupFtpSecure" style="padding:4px 8px;" onchange="updateFtpSecureWarning(); markConfigDirty()">
+                <option value="none">Keine (unverschlüsselt)</option>
+                <option value="explicit" selected>Explizites FTP über TLS (STARTTLS)</option>
+                <option value="implicit">Implizites FTPS (Port 990)</option>
+              </select>
+            </div>
+            <div id="backupFtpInsecureWarning" style="display:none; background:#fef3c7; color:#92400e; padding:6px 10px; border-radius:4px; font-size:0.85em; margin-bottom:8px;">
+              ⚠️ Ohne FTPS werden Daten unverschlüsselt übertragen!
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+              <span id="backupFtpLastStatus" style="font-size:0.85em; color:var(--text-secondary);"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button class="config-save-btn" onclick="testBackupConnection('ftp')" style="padding:4px 12px; font-size:0.85em;">🔍 Prüfen</button>
+              <span id="backupFtpTestResult" style="font-size:0.85em;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aktionen: Jetzt sichern -->
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap;">
+        <button class="config-save-btn" id="backupRunBtn" onclick="runBackupNow()" style="padding:8px 20px;">💾 Jetzt sichern</button>
+        <span id="backupRunStatus" style="font-size:0.9em; color:var(--text-secondary);">Bereit</span>
+      </div>
+
+      <!-- Wiederherstellen -->
+      <div style="border:1px solid var(--border-color); border-radius:8px; overflow:hidden;">
+        <div style="padding:12px 16px; background:var(--bg-secondary); border-bottom:1px solid var(--border-color);">
+          <h4 style="margin:0; color:var(--text-primary);">⚠️ Wiederherstellen</h4>
+        </div>
+        <div style="padding:16px;">
+          <div id="backupTargetWarnings" style="display:none; margin-bottom:12px;"></div>
+          <table id="backupRestoreTable" style="width:100%; border-collapse:collapse; font-size:0.9em;">
+            <thead>
+              <tr style="text-align:left; border-bottom:2px solid var(--border-color);">
+                <th style="padding:6px;"></th>
+                <th style="padding:6px;">Datum</th>
+                <th style="padding:6px;">Quelle</th>
+                <th style="padding:6px;">Größe</th>
+                <th style="padding:6px;">Inhalt</th>
+                <th style="padding:6px;">Version</th>
+                <th style="padding:6px;">Aktion</th>
+              </tr>
+            </thead>
+            <tbody id="backupRestoreList">
+              <tr><td colspan="7" style="padding:12px; color:var(--text-secondary); text-align:center;">Lade Backups...</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;">
+            <button class="config-reset-btn" id="backupRestoreBtn" onclick="restoreSelectedBackup()" disabled style="background:#ef4444; color:white; border:none; padding:8px 16px; cursor:pointer; border-radius:4px;">
+              ⚠️ Wiederherstellen
+            </button>
+            <button class="config-save-btn" onclick="loadBackupList()" style="padding:6px 12px; margin-left:8px; font-size:0.85em;">🔄 Aktualisieren</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System-Check Tab -->
+    <div class="config-section" id="config-systemcheck">
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+        <button class="config-save-btn" id="systemCheckRunBtn" onclick="runSystemCheck()" style="padding:8px 20px; font-size:1em;">🧪 Check starten</button>
+        <span id="systemCheckSummary" style="color:var(--text-secondary); font-size:0.9em;">Noch kein Check ausgeführt</span>
+      </div>
+      <div id="systemCheckResults" style="border:1px solid var(--border-color); border-radius:8px; overflow:hidden; display:none;">
+        <div id="systemCheckContent" style="padding:16px; font-family:inherit; font-size:0.9em; line-height:1.8;"></div>
+        <div id="systemCheckFooter" style="padding:10px 16px; border-top:1px solid var(--border-color); background:var(--bg-secondary); font-size:0.85em; color:var(--text-secondary);"></div>
+      </div>
+    </div>
+
+    <!-- Benutzer Tab (Admin only) -->
+    <div class="config-section" id="config-users">
+      <h4>👥 Benutzerverwaltung</h4>
+
+      <!-- Eigenes Passwort ändern (für alle) -->
+      <div class="config-group" style="margin-bottom: 24px;">
+        <h5 style="margin-bottom: 8px; color: var(--text-secondary);">🔑 Eigenes Passwort ändern</h5>
+        <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+          <div class="config-field" style="margin-bottom:0">
+            <label>Aktuelles Passwort:</label>
+            <input type="password" id="ownOldPassword" autocomplete="current-password" style="width: 160px;">
+          </div>
+          <div class="config-field" style="margin-bottom:0">
+            <label>Neues Passwort:</label>
+            <input type="password" id="ownNewPassword" autocomplete="new-password" style="width: 160px;">
+          </div>
+          <div class="config-field" style="margin-bottom:0">
+            <label>Bestätigen:</label>
+            <input type="password" id="ownConfirmPassword" autocomplete="new-password" style="width: 160px;">
+          </div>
+          <button class="config-save-btn" onclick="userPanel_changeOwnPassword()" style="padding: 6px 16px; height: fit-content;">Ändern</button>
+        </div>
+      </div>
+
+      <!-- Benutzer erstellen (Admin) -->
+      <div class="config-group admin-user-section" data-admin-only style="margin-bottom: 16px;">
+        <h5 style="margin-bottom: 8px; color: var(--text-secondary);">➕ Neuer Benutzer</h5>
+        <div style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+          <div class="config-field" style="margin-bottom:0">
+            <label>Benutzername:</label>
+            <input type="text" id="newUsername" placeholder="z.B. sandra" style="width: 150px;">
+          </div>
+          <div class="config-field" style="margin-bottom:0">
+            <label>Passwort:</label>
+            <input type="password" id="newPassword" placeholder="min. 3 Zeichen" style="width: 150px;">
+          </div>
+          <div class="config-field" style="margin-bottom:0">
+            <label>Rolle:</label>
+            <select id="newUserRole" style="width: 100px; padding: 6px;">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="config-save-btn" onclick="userPanel_createUser()" style="padding: 6px 16px; height: fit-content;">Erstellen</button>
+        </div>
+      </div>
+
+      <!-- Benutzer-Liste (Admin) -->
+      <div class="config-group admin-user-section" data-admin-only>
+        <h5 style="margin-bottom: 8px; color: var(--text-secondary);">📋 Benutzer</h5>
+        <div id="userList" class="user-list"></div>
+      </div>
+    </div>
+
+    <div class="config-actions">
+      <button class="config-save-btn" id="configSaveBtn" onclick="saveConfig()" disabled>💾 Speichern</button>
+      <button class="config-reset-btn" onclick="resetConfig()" data-admin-only>↺ Zurücksetzen</button>
+      <span class="config-message" id="configMessage"></span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label for="dateFrom">Von:</label>
+    <input type="date" id="dateFrom" onchange="onDateFilterChange()">
+    <label for="dateTo">Bis:</label>
+    <input type="date" id="dateTo" onchange="onDateFilterChange()">
+    <span class="controls-separator"></span>
+    <button class="time-filter-btn" onclick="setTimeFilter(1)" title="Fehler der letzten Stunde (nur Live-Monitoring)">1h</button>
+    <button class="time-filter-btn" onclick="setTimeFilter(2)" title="Fehler der letzten 2 Stunden (nur Live-Monitoring)">2h</button>
+    <button class="time-filter-btn" onclick="setTimeFilter(4)" title="Fehler der letzten 4 Stunden (nur Live-Monitoring)">4h</button>
+    <button class="time-filter-btn" onclick="setTimeFilter(6)" title="Fehler der letzten 6 Stunden (nur Live-Monitoring)">6h</button>
+    <button class="time-filter-btn" onclick="setTimeFilter(12)" title="Fehler der letzten 12 Stunden (nur Live-Monitoring)">12h</button>
+    <button class="time-filter-btn active" onclick="setTimeFilter(0)" title="Alle Fehler von heute (nur Live-Monitoring)">Heute</button>
+    <span class="controls-separator"></span>
+    <button id="clearAllBtn" onclick="clearAll()" title="Alle Einträge löschen (nur Live-Monitoring)" data-admin-only>🗑️ Alle löschen</button>
+    <button onclick="pauseToggle()" id="pauseBtn" title="Live-Aktualisierung pausieren (nur Live-Monitoring)">⏸️ Pause</button>
+    <input type="text" id="searchInput" placeholder="Suche in Fehler & Dateiname... (Strg+K)" title="Strg+K: Suchfeld fokussieren | Escape: Suche leeren | Wildcard: * (z.B. Exc*tion, KeasyServer*)" oninput="onSearch(this.value)">
+    <select id="themeSelect" onchange="onThemeChange(this.value)">
+      <option value="theme-light">☀️ Hell</option>
+      <option value="theme-dark">🌙 Dunkel</option>
+      <option value="theme-blue">🔵 Blau</option>
+    </select>
+    <button id="notifToggle" onclick="toggleNotifications()" title="Desktop-Benachrichtigungen ein/aus">🔔</button>
+  </div>
+
+  <div id="container">
+    <div class="empty-state" id="emptyState">
+      <h2>✅ Keine Fehler</h2>
+      <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
+    </div>
+  </div>
+
+  <!-- Papierkorb -->
+  <div id="trashContainer" style="display:none"></div>
+  <div id="trashStatus" class="trash-status" style="display:none" aria-live="polite"></div>
+
+  <script src="js/confirmDialog.js" defer></script>
+  <script src="js/utils.js" defer></script>
+  <script src="js/state.js" defer></script>
+  <script src="js/render.js" defer></script>
+  <script src="js/actions.js" defer></script>
+  <script src="js/docsPanel.js" defer></script>
+  <script src="js/cssEditorPanel.js" defer></script>
+  <script src="js/watchPathsPanel.js" defer></script>
+  <script src="js/thresholdPanel.js" defer></script>
+  <script src="js/folderPicker.js" defer></script>
+  <script src="js/configPanel.js" defer></script>
+  <script src="js/analyzePanel.js" defer></script>
+  <script src="js/backupTargetsPanel.js" defer></script>
+  <script src="js/backupRestorePanel.js" defer></script>
+  <script src="js/backupPanel.js" defer></script>
+  <script src="js/systemCheckPanel.js" defer></script>
+  <script src="js/trashPanel.js" defer></script>
+  <script src="js/userPanel.js" defer></script>
+  <script src="js/loginPanel.js" defer></script>
+  <script src="js/wsClient.js" defer></script>
+  <script src="js/boot.js" defer></script>
+</body>
+</html>
