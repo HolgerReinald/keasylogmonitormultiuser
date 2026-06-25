@@ -4,10 +4,21 @@
  */
 
 const crypto = require('crypto');
+const configStore = require('./configStore');
 
 const sessions = new Map();
 const SESSION_COOKIE = 'keasy-session';
 const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 Stunden
+
+// Implizite Admin-Session für den Auth-Off-Modus (Einzelbenutzer-Verhalten).
+const IMPLICIT_ADMIN = { username: 'admin', role: 'admin' };
+
+// Effektive Session: bei deaktiviertem Rechtesystem immer impliziter Admin,
+// sonst die echte Cookie-Session. Zentral, damit HTTP- und WS-Pfad identisch sind.
+function getEffectiveSession(req) {
+  if (!configStore.isAuthEnabled()) return IMPLICIT_ADMIN;
+  return getSession(req);
+}
 
 // --- Session erstellen ---
 
@@ -74,4 +85,4 @@ function requireAdmin(req) {
   return session.role === 'admin' ? session : false;
 }
 
-module.exports = { createSession, destroySession, getSession, requireAuth, requireAdmin };
+module.exports = { createSession, destroySession, getSession, getEffectiveSession, requireAuth, requireAdmin, IMPLICIT_ADMIN };

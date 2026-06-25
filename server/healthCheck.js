@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const WebSocket = require('ws');
-const { config } = require('./configStore');
+const { config, isAuthEnabled } = require('./configStore');
 
 const TIMEOUT_LOCAL = 5000;
 const TIMEOUT_NETWORK = 10000;
@@ -84,7 +84,11 @@ function serverHttpChecks() {
       timeout: TIMEOUT_LOCAL,
       run: async () => {
         const res = await httpGet('/api/errors');
-        if (res.status !== 200) throw new Error(`Status ${res.status}`);
+        // Bei aktivem Rechtesystem ist 401 das erwartete, gesunde Ergebnis:
+        // erreichbar UND Auth-Guard greift. Ohne Rechtesystem muss 200 kommen.
+        const ok = res.status === 200 || (isAuthEnabled() && res.status === 401);
+        if (!ok) throw new Error(`Status ${res.status}`);
+        if (res.status === 401) return { status: 'ok', message: 'erreichbar (Auth aktiv: 401)' };
       }
     }
   ];
@@ -111,19 +115,26 @@ function webSocketChecks() {
       run: async () => {
         return new Promise((resolve, reject) => {
           const ws = new WebSocket(`ws://127.0.0.1:${config.port}`);
+          let settled = false;
           ws.on('message', (data) => {
             try {
               const msg = JSON.parse(data);
               if (msg.type === 'init' && msg.version) {
-                ws.close();
-                resolve();
+                settled = true; ws.close(); resolve();
               } else {
-                ws.close();
-                reject(new Error('Init-Event ohne Version'));
+                settled = true; ws.close(); reject(new Error('Init-Event ohne Version'));
               }
-            } catch (e) { ws.close(); reject(new Error('Ungültiges JSON')); }
+            } catch (e) { settled = true; ws.close(); reject(new Error('Ungültiges JSON')); }
           });
-          ws.on('error', reject);
+          ws.on('close', (code) => {
+            // Bei aktivem Rechtesystem schließt der Server unauthentifizierte WS mit 4401 —
+            // erwartetes, gesundes Verhalten (es kommt bewusst kein init ohne Session).
+            if (!settled && isAuthEnabled() && code === 4401) {
+              settled = true;
+              resolve({ status: 'ok', message: 'Auth aktiv: WS-Handshake 4401 (erwartet)' });
+            }
+          });
+          ws.on('error', (err) => { if (!settled) reject(err); });
         });
       }
     }

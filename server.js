@@ -60,12 +60,17 @@ function applyConfigChanges(newConfig) {
     activeWatchersRef.current = startWatching();
   }
 
+  // Rechtesystem gerade aktiviert (false→true)? → sicherstellen, dass ein Admin existiert (Aussperr-Schutz)
+  if (oldConfig.authEnabled === false && newConfig.authEnabled !== false) {
+    userStore.ensureDefaultAdmin().catch(err => console.error('⚠️  ensureDefaultAdmin:', err.message));
+  }
+
   // config-changed pro Client senden: emailConfigured hängt an den per-User-Subscriptions
   for (const client of clients) {
     if (client.readyState !== 1) continue;
     const emailConfigured = client.username ? emailConfiguredForUser(client.username, client.visibleLabels) : [];
     try {
-      client.send(JSON.stringify({ type: 'config-changed', data: { emailConfigured, maxLogFileSizeMB: newConfig.maxLogFileSizeMB } }));
+      client.send(JSON.stringify({ type: 'config-changed', data: { emailConfigured, maxLogFileSizeMB: newConfig.maxLogFileSizeMB, authEnabled: configStore.isAuthEnabled() } }));
     } catch (_) { /* Client ggf. getrennt */ }
   }
   // Große-Datei-Markierung gegen den (ggf. geänderten) Schwellwert neu bewerten
@@ -86,8 +91,8 @@ const wss = new WebSocketServer({ server });
 wss.on('connection', (ws, req) => {
   try {
   // Auth-Check für WebSocket
-  const { getSession } = require('./server/sessionMiddleware');
-  const session = getSession(req);
+  const { getEffectiveSession } = require('./server/sessionMiddleware');
+  const session = getEffectiveSession(req);
   if (!session) {
     ws.close(4401, 'Nicht angemeldet');
     return;
@@ -113,6 +118,7 @@ wss.on('connection', (ws, req) => {
     data: filteredErrors,
     oversizedFiles: filterOversizedByLabels(getOversizedFiles(), ws.visibleLabels),
     maxLogFileSizeMB: config.maxLogFileSizeMB,
+    authEnabled: configStore.isAuthEnabled(),
     analyzeData: analyzeData,
     analyzeRunning: au.running,
     analyzeUser: session.username,

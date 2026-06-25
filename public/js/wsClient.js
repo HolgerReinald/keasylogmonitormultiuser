@@ -50,6 +50,7 @@ function connect() {
       state.visibleLabels = msg.visibleLabels || null; // null = alle sichtbar
       state.oversizedFiles = msg.oversizedFiles || {};
       state.maxLogFileSizeMB = msg.maxLogFileSizeMB ?? state.maxLogFileSizeMB;
+      state.authEnabled = msg.authEnabled !== false;
       if (msg.version) {
         document.getElementById('appVersion').textContent = 'v' + msg.version;
       }
@@ -173,6 +174,11 @@ function connect() {
       }
       if (msg.data.maxLogFileSizeMB != null) {
         state.maxLogFileSizeMB = msg.data.maxLogFileSizeMB;
+      }
+      if (msg.data.authEnabled != null) {
+        const newAuth = msg.data.authEnabled !== false;
+        if (newAuth !== state.authEnabled) { window.location.reload(); return; }
+        state.authEnabled = newAuth;
       }
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'oversized-files') {

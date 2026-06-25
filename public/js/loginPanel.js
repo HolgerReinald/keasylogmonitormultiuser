@@ -19,6 +19,7 @@
         const data = await res.json();
         if (data.ok && data.user) {
           Keasy.state.currentUser = data.user;
+          Keasy.state.authEnabled = data.authEnabled !== false;
           hideLogin();
           return true;
         }
@@ -106,6 +107,28 @@
         hint.remove();
       }
     }
+
+    // Auth-Off-Modus: Benutzerkonzept komplett ausblenden (wie Einzelbenutzer-App)
+    const authOff = Keasy.state.authEnabled === false;
+    const userInfoEl = document.getElementById('userInfo');
+    if (userInfoEl) userInfoEl.style.display = authOff ? 'none' : 'flex';
+    const usersTab = document.getElementById('tab-users');
+    if (usersTab) {
+      if (authOff) {
+        // R2: aktiven Users-Tab vor dem Ausblenden defensiv verlassen
+        if (usersTab.classList.contains('active')) {
+          document.querySelectorAll('#configPanel .config-tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('#configPanel .config-section').forEach(s => s.classList.remove('active'));
+          const generalTab = document.querySelector('#configPanel .config-tab[onclick*="\'general\'"]');
+          if (generalTab) generalTab.classList.add('active');
+          const generalSection = document.getElementById('config-general');
+          if (generalSection) generalSection.classList.add('active');
+        }
+        usersTab.style.display = 'none';
+      } else {
+        usersTab.style.display = '';
+      }
+    }
   }
 
   async function doLogin() {
@@ -148,6 +171,11 @@
   }
 
   async function doLogout() {
+    // R3: Im Auth-Off-Modus gibt es keine echte Session — nur neu laden
+    if (Keasy.state.authEnabled === false) {
+      window.location.reload();
+      return;
+    }
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch (e) { /* ignore */ }

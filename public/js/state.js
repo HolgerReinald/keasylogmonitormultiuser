@@ -62,5 +62,6 @@ window.Keasy.state = {
   preloadHideTimer: null,
 
   // Auth
-  currentUser: null
+  currentUser: null,
+  authEnabled: true
 };

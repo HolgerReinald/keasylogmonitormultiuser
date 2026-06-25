@@ -5,7 +5,8 @@
 
 const parseJsonBody = require('../parseJsonBody');
 const { verifyPassword } = require('../userStore');
-const { createSession, destroySession, getSession } = require('../sessionMiddleware');
+const { createSession, destroySession, getSession, getEffectiveSession } = require('../sessionMiddleware');
+const configStore = require('../configStore');
 
 module.exports = function authRoutes() {
   return {
@@ -43,14 +44,14 @@ module.exports = function authRoutes() {
     },
 
     'GET /api/auth/me': (req, res) => {
-      const session = getSession(req);
+      const session = getEffectiveSession(req);
       if (!session) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, message: 'Nicht angemeldet' }));
         return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, user: { username: session.username, role: session.role } }));
+      res.end(JSON.stringify({ ok: true, user: { username: session.username, role: session.role }, authEnabled: configStore.isAuthEnabled() }));
     }
   };
 };

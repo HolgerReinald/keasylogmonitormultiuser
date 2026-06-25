@@ -113,7 +113,7 @@
       <button class="config-tab" onclick="switchConfigTab('backup')" data-admin-only>🗄️ Backup</button>
       <button class="config-tab" onclick="switchConfigTab('systemcheck')" data-admin-only>🧪 System-Check</button>
       <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
-      <button class="config-tab" onclick="switchConfigTab('users')" data-admin-only>👥 Benutzer</button>
+      <button class="config-tab" onclick="switchConfigTab('users')" id="tab-users" data-admin-only>👥 Benutzer</button>
     </div>
 
     <div class="config-section active" id="config-general">
@@ -131,6 +131,10 @@
             <div class="config-field config-field-checkbox">
               <label><input type="checkbox" id="cfg-debugLogging" data-admin-only> Debug-Logging (Timing)</label>
             </div>
+            <div class="config-field config-field-checkbox">
+              <label><input type="checkbox" id="cfg-authEnabled" data-admin-only> 🔐 Rechtesystem aktivieren</label>
+            </div>
+            <p class="config-subnote">🔐 Aus = kein Login, alles als Admin (nur im vertrauenswürdigen Netz). Änderung lädt die Seite neu.</p>
             <p class="config-subnote">⚠️ Port- und Debug-Logging-Änderungen erfordern einen Neustart.</p>
           </div>
         </div>

@@ -407,6 +407,18 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-06-19 — Optionales Rechtesystem: Checkbox 'Rechtesystem aktivieren' (eine Codebasis statt zwei Varianten)
+
+- Neues Flag authEnabled in der Config + Checkbox (Tab Allgemein). Aus = kein Login, alles als impliziter Admin (Einzelbenutzer-Verhalten); An = bisheriges Mehrbenutzer-Verhalten (Default, nicht brechend)
+- Zentrale getEffectiveSession() (sessionMiddleware): bei deaktiviertem System impliziter Admin {admin}, wiederverwendet bestehende users/admin/config.json (emailTo-Abos etc.) — nichts geht verloren
+- HTTP-Guard, WebSocket und /api/auth/me nutzen die effektive Session; init/config-changed senden authEnabled; Umschalten löst Client-Reload aus
+- Bei auth-off: Header-Benutzerblock (Name/Rolle/Logout) + Benutzer-Tab ausgeblendet, Logout = nur Reload (R2/R3)
+- ensureDefaultAdmin() prüft jetzt 'existiert ein Admin?' statt 'gibt es User?' (Aussperr-Schutz, R1); Aufruf beim Aktivieren des Rechtesystems
+- ENV-Override KEASY_AUTH=on|off (mutiert config.js nicht) für getrennte Smoke-Test-Läufe; neuer test/smoke-auth-on.js + testAuthOff in test/smoke.js (R4)
+- System-Check auth-bewusst: 'API erreichbar' akzeptiert 401 und 'Init-Event' den WS-Close 4401 als gesund, wenn das Rechtesystem aktiv ist (18/18 in beiden Modi)
+
+**Dateien:** server/configStore.js, server/sessionMiddleware.js, server/httpRouter.js, server.js, server/routes/authRoutes.js, server/userStore.js, server/healthCheck.js, public/index.html, public/js/configPanel.js, public/js/state.js, public/js/loginPanel.js, public/js/wsClient.js, test/smoke.js, test/smoke-auth-on.js
+
 ### 2026-06-18 — Bugfix: E-Mail-Versand-Anzeige (📧-Countdown) in Mehrbenutzer-Variante
 
 - emailConfigured wurde aus der globalen normalizedWatchPaths.emailTo berechnet — in der Mehrbenutzer-Variante immer leer, da Empfänger per-User in users/<name>/config.json liegen

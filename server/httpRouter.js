@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getSession } = require('./sessionMiddleware');
+const { getEffectiveSession } = require('./sessionMiddleware');
 
 // --- Auth-Guard Konfiguration ---
 
@@ -108,7 +108,7 @@ module.exports = function createRouter(deps) {
     if (handler) {
       // Auth-Guard: Prüfe Authentifizierung und Berechtigung
       if (!PUBLIC_ROUTES.has(key)) {
-        const session = getSession(req);
+        const session = getEffectiveSession(req);
         if (!session) {
           res.writeHead(401, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, message: 'Nicht angemeldet' }));

@@ -1,9 +1,15 @@
 /**
- * Keasy Log Monitor — Smoke Tests
+ * Keasy Log Monitor — Smoke Tests (Auth-OFF-Lauf)
  * Blackbox-Tests gegen den laufenden Server.
- * Keine Dependencies — nur Node.js built-ins.
+ * Keine Dependencies — nur Node.js built-ins (+ ws).
  *
- * Usage: node test/smoke.js [port]
+ * Diese Suite erwartet ein DEAKTIVIERTES Rechtesystem (impliziter Admin, kein Login).
+ * Server entsprechend starten:
+ *   KEASY_AUTH=off node server.js
+ * Dann:
+ *   node test/smoke.js [port]
+ *
+ * Den Auth-ON-Betriebsmodus deckt test/smoke-auth-on.js ab (eigener Lauf).
  */
 
 const http = require('http');
@@ -494,12 +500,26 @@ async function testThresholdRules() {
   }
 }
 
+async function testAuthOff() {
+  console.log('\n🔓 Auth-OFF-Modus-Tests:');
+
+  const me = await fetch('/api/auth/me');
+  assert(me.status === 200, 'GET /api/auth/me → 200 (Rechtesystem aus)');
+  const meData = parseJSON(me.body);
+  assert(meData && meData.user && meData.user.role === 'admin', '/api/auth/me liefert impliziten Admin');
+  assert(meData && meData.authEnabled === false, '/api/auth/me meldet authEnabled=false');
+  if (!(meData && meData.authEnabled === false)) {
+    console.error('  ⚠️  Server läuft offenbar MIT Rechtesystem — diese Suite mit "KEASY_AUTH=off node server.js" starten.');
+  }
+}
+
 async function run() {
   console.log(`\n🧪 Keasy Log Monitor Smoke-Tests (Port: ${PORT})`);
   console.log('═'.repeat(50));
 
   try {
     await testHTTP();
+    await testAuthOff();
     await testStaticFileSecurity();
     await testAPI();
     await testConfigSaveReload();

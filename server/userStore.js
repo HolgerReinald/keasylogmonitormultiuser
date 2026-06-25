@@ -35,8 +35,8 @@ function loadUsers() {
 
 async function ensureDefaultAdmin() {
   loadUsers();
-  if (_users.length === 0) {
-    console.log('[UserStore] Keine Benutzer gefunden — erstelle Default-Admin (admin/admin)');
+  if (!_users.some(u => u.role === 'admin')) {
+    console.log('[UserStore] Kein Admin vorhanden — erstelle Default-Admin (admin/admin)');
     await createUser('admin', 'admin', 'admin');
     console.log('⚠️  Standard-Admin erstellt: admin / admin — Bitte Passwort ändern!');
   }

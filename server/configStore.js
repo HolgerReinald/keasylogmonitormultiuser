@@ -93,6 +93,15 @@ function replaceConfig(newConfig) {
   _config = migrateBackupLocals(newConfig);
 }
 
+// Effektiver Auth-Status: ENV-Override (KEASY_AUTH=on|off) für Tests, sonst persistierter Wert.
+// Mutiert _config NICHT (config.js bleibt unberührt; die Checkbox zeigt weiterhin den echten Wert).
+function isAuthEnabled() {
+  const env = process.env.KEASY_AUTH;
+  if (env === 'off') return false;
+  if (env === 'on') return true;
+  return _config.authEnabled !== false; // fehlend ⇒ aktiviert (nicht brechend)
+}
+
 function writeConfig(newConfig) {
   // Migration + Validierung
   newConfig = migrateBackupLocals(newConfig);
@@ -107,4 +116,4 @@ function writeConfig(newConfig) {
   fs.writeFileSync(configPath, configContent, 'utf8');
 }
 
-module.exports = { config, replaceConfig, writeConfig, configPath, generateLocalId };
+module.exports = { config, replaceConfig, writeConfig, configPath, generateLocalId, isAuthEnabled };
