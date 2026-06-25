@@ -123,6 +123,15 @@ function renderAll() {
       const oversizeClass = ovInfo ? ' file-oversize' : '';
       const oversizeTitle = ovInfo ? ` title="${ovInfo.sizeMB} MB > ${state.maxLogFileSizeMB || 6} MB — große Datei, zuletzt eingelesen"` : '';
 
+      // Zeitpunkt des neuesten angezeigten Fehlers (filtered ist chronologisch, ältester zuerst)
+      const lastTs = filtered[filtered.length - 1]?.timestamp;
+      const lastErrLabel = lastTs
+        ? new Date(lastTs).toLocaleString('de-DE', {
+            day: '2-digit', month: '2-digit', year: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          })
+        : '';
+
       groupHtml += `
         <div class="file-group">
           <div class="file-header" onclick="toggleGroup(this)">
@@ -131,6 +140,7 @@ function renderAll() {
               <div class="file-path">${escapeHtml(filePath)}</div>
             </div>
             <div class="file-actions">
+              ${lastErrLabel ? `<span class="file-last-error" title="Zeitpunkt des letzten Fehlers">🕒 ${lastErrLabel}</span>` : ''}
               <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
               <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
               <span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>

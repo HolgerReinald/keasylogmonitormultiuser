@@ -407,6 +407,15 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-06-25 — Zeitpunkt des letzten Fehlers im Datei-Header
+
+- Im Live-Monitoring zeigt jeder Datei-Header jetzt **vor** dem 📂-Button den Zeitpunkt des neuesten Fehlers an (`🕒 TT.MM.JJ HH:MM:SS`) — man erkennt auf einen Blick, wann zuletzt ein Fehler in die jeweilige Log-Datei kam, ohne sie aufzuklappen
+- Bezieht sich auf den neuesten **angezeigten** Fehler, also konsistent mit aktivem Datums-/Suchfilter und dem Anzahl-Badge
+- Reine Frontend-Änderung: das `timestamp`-Feld pro Fehler war bereits vorhanden; Server/WebSocket/Datenmodell unverändert. Analyse-Ansicht nicht betroffen
+- Smoke-Tests unverändert: Auth-OFF 83/83
+
+**Dateien:** public/js/render.js, public/style.css
+
 ### 2026-06-19 — Optionales Rechtesystem: Checkbox 'Rechtesystem aktivieren' (eine Codebasis statt zwei Varianten)
 
 - Neues Flag authEnabled in der Config + Checkbox (Tab Allgemein). Aus = kein Login, alles als impliziter Admin (Einzelbenutzer-Verhalten); An = bisheriges Mehrbenutzer-Verhalten (Default, nicht brechend)
