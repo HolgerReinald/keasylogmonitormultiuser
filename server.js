@@ -11,7 +11,7 @@ const { broadcast, clients, broadcastTrash, disconnectUser } = require('./server
 const configStore = require('./server/configStore');
 const { config } = configStore;
 const { getVisibleLabels, mergeConfigForUser } = require('./server/userConfigStore');
-const { rebuildFilterRegex, rebuildThresholdRules } = require('./server/logParser');
+const { rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules } = require('./server/logParser');
 const { getTrashSnapshot } = require('./server/trashService');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
@@ -42,6 +42,9 @@ function applyConfigChanges(newConfig) {
 
   // Filter-Regex neu erstellen
   rebuildFilterRegex(newConfig.filterPatterns);
+
+  // Ausschluss-Regex neu erstellen
+  rebuildExcludeRegex(newConfig.excludePatterns);
 
   // Schwellwert-Regeln aktualisieren
   rebuildThresholdRules(newConfig.thresholdRules);

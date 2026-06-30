@@ -184,6 +184,10 @@ module.exports = {
     'disposed'
   ],
 
+  excludePatterns: [
+    'ValidationException'      // Hinweis-Meldungen, die trotz Filter-Treffer NICHT als Fehler gelten
+  ],
+
   contextLinesBefore: 5,
   loadExistingErrors: true,   // Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen
   maxLogFileSizeMB: 6         // Dateien über 6 MB werden übersprungen
@@ -200,6 +204,7 @@ module.exports = {
 | `watchPaths[].emailTo` | E-Mail-Empfänger: kommagetrennt (`'a@x.de, b@x.de'`), Array (`['a@x.de', 'b@x.de']`) oder `null` (kein Versand) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
 | `filterPatterns` | Array von Suchbegriffen (case-insensitive) |
+| `excludePatterns` | Array von Suchbegriffen (case-insensitive). Zeilen, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. Patterns spezifisch halten, sonst werden echte Fehler unterdrückt |
 | `maxErrorsPerFile` | Wie viele letzte Fehler pro Datei angezeigt werden |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
@@ -406,6 +411,17 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-06-30 — Ausschluss-Patterns: ValidationException als Hinweis statt Fehler
+
+- Neue, GUI-pflegbare Liste **excludePatterns** (Tab Allgemein, Abschnitt „🚫 Ausschluss-Patterns") analog zur Filter-Liste mit Hinzufügen/Entfernen
+- Zeilen, die ein Ausschluss-Pattern enthalten, gelten **nicht** als Fehler — auch wenn sie ein `filterPatterns`-Pattern (z.B. `Exception`) treffen. Der Ausschluss gewinnt
+- Anwendungsfall: `ValidationException` ist ein Anwender-Hinweis (etwas fehlt zum Abschluss eines Vorgangs), kein echter Fehler, und kommt nur in Anwender-Logs vor → globaler Ausschluss genügt, ohne die Quelle durchreichen zu müssen
+- Greift zentral in `matchesFilter` und damit in Live-Monitoring **und** Analyse gleichermaßen; Hot-Reload ohne Neustart
+- Leere Ausschluss-Liste = kein Ausschluss (Schutz gegen `RegExp('')`, das sonst alles matchen würde). Patterns spezifisch halten — ein zu allgemeines Pattern (`Exception`) würde echte Fehler unterdrücken
+- Logik verifiziert: `ValidationException` → kein Fehler, `NullReferenceException`/`Fehler` → weiterhin Treffer
+
+**Dateien:** server/logParser.js, server.js, public/index.html, public/js/configPanel.js, README.md
 
 ### 2026-06-25 — Zeitpunkt des letzten Fehlers im Datei-Header
 

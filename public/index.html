@@ -273,6 +273,17 @@
             </div>
           </div>
           <div class="config-filter-section">
+            <h4 class="config-column-title">🚫 Ausschluss-Patterns</h4>
+            <p class="config-hint-text">Zeilen mit diesen Begriffen gelten <strong>nicht</strong> als Fehler, auch wenn sie ein Fehlererkennungs-Pattern enthalten (z.B. <code>ValidationException</code> als Anwender-Hinweis). Patterns spezifisch halten – ein zu allgemeines Pattern (z.B. <code>Exception</code>) würde echte Fehler unterdrücken.</p>
+            <div class="config-filter-list-wrap">
+              <div class="config-list" id="cfg-exclude-list"></div>
+            </div>
+            <div class="config-field config-filter-add">
+              <input type="text" id="cfg-exclude-new" placeholder="Neues Ausschluss-Pattern..." onkeydown="if(event.key==='Enter')addExcludePattern()" data-admin-only>
+              <button class="config-reset-btn" onclick="addExcludePattern()" data-admin-only>+ Hinzufügen</button>
+            </div>
+          </div>
+          <div class="config-filter-section">
             <h4 class="config-column-title">📊 Schwellwertregeln</h4>
             <p class="config-hint-text">Erkennt Fehler wenn ein Zahlenwert in einer Log-Zeile einen Schwellwert über-/unterschreitet.<br>
             Beispiel: Log-Zeile <code>[Memory] WorkingSet: 4523,7 MB</code> → Zeile enthält: <code>WorkingSet:</code>, Einheit: <code>MB</code>, Alarm wenn &gt; <code>4000</code></p>

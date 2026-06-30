@@ -153,6 +153,9 @@ function populateConfigForm(cfg) {
   state.configFilterPatterns = [...(cfg.filterPatterns || [])];
   renderFilterList();
 
+  state.configExcludePatterns = [...(cfg.excludePatterns || [])];
+  renderExcludeList();
+
   state.configThresholdRules = JSON.parse(JSON.stringify(cfg.thresholdRules || []));
   Keasy.threshold.renderThresholdRules();
 
@@ -195,6 +198,34 @@ function removeFilterPattern(index) {
   markConfigDirty();
 }
 
+function renderExcludeList() {
+  const container = document.getElementById('cfg-exclude-list');
+  container.innerHTML = state.configExcludePatterns.map((p, i) =>
+    `<span class="config-list-item">${escapeHtml(p)}<button class="remove-item" onclick="removeExcludePattern(${i})" data-admin-only>✕</button></span>`
+  ).join('');
+  // Re-apply admin-only restrictions
+  if (window.Keasy && window.Keasy.auth && window.Keasy.auth.applyUserRole) {
+    window.Keasy.auth.applyUserRole();
+  }
+}
+
+function addExcludePattern() {
+  const input = document.getElementById('cfg-exclude-new');
+  const val = input.value.trim();
+  if (val && !state.configExcludePatterns.includes(val)) {
+    state.configExcludePatterns.push(val);
+    renderExcludeList();
+    markConfigDirty();
+  }
+  input.value = '';
+}
+
+function removeExcludePattern(index) {
+  state.configExcludePatterns.splice(index, 1);
+  renderExcludeList();
+  markConfigDirty();
+}
+
 function buildConfigFromForm() {
   const cfg = {
     port: parseInt(document.getElementById('cfg-port').value) || 3847,
@@ -222,6 +253,7 @@ function buildConfigFromForm() {
     watchPaths: Keasy.watchPaths.getWatchPathsFromTable(),
     filePattern: document.getElementById('cfg-filePattern').value.trim() || '**/*.log',
     filterPatterns: [...state.configFilterPatterns],
+    excludePatterns: [...state.configExcludePatterns],
     thresholdRules: Keasy.threshold.getThresholdRulesFromForm(),
     analyzePaths: [...state.analyzePaths],
     analyzeMaxErrors: parseInt(document.getElementById('analyzeMaxErrors').value) || 100,
@@ -345,13 +377,15 @@ window.Keasy.config = {
   markConfigDirty, toggleConfigPanel, switchConfigTab,
   resetConfig, loadEmailLog, clearEmailLog, loadConfig, populateConfigForm,
   renderFilterList, addFilterPattern, removeFilterPattern,
+  renderExcludeList, addExcludePattern, removeExcludePattern,
   buildConfigFromForm, saveConfig, showConfigMessage,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner
 };
 
 Object.assign(window, {
   toggleConfigPanel, switchConfigTab,
-  addFilterPattern, removeFilterPattern, saveConfig, resetConfig,
+  addFilterPattern, removeFilterPattern,
+  addExcludePattern, removeExcludePattern, saveConfig, resetConfig,
   loadEmailLog, clearEmailLog, markConfigDirty,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
   showConfigMessage, loadConfig, populateConfigForm

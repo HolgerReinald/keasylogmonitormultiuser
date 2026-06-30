@@ -11,6 +11,14 @@ let filterRegex = new RegExp(
   'i'
 );
 
+// Ausschluss-Regex aus Config initialisieren (leere Liste ⇒ null, sonst würde RegExp('') alles matchen)
+function buildExcludeRegex(patterns) {
+  const list = (patterns || []).filter(p => p && p.trim());
+  if (list.length === 0) return null;
+  return new RegExp(list.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'i');
+}
+let excludeRegex = buildExcludeRegex(config.excludePatterns);
+
 // Schwellwert-Regeln aus Config
 let thresholdRules = config.thresholdRules || [];
 
@@ -46,6 +54,7 @@ function matchesThresholdRule(text) {
 }
 
 function matchesFilter(text) {
+  if (excludeRegex && excludeRegex.test(text)) return false;
   return filterRegex.test(text) || matchesThresholdRule(text) !== null;
 }
 
@@ -54,6 +63,10 @@ function rebuildFilterRegex(patterns) {
     patterns.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
     'i'
   );
+}
+
+function rebuildExcludeRegex(patterns) {
+  excludeRegex = buildExcludeRegex(patterns);
 }
 
 function rebuildThresholdRules(rules) {
@@ -124,4 +137,4 @@ function parseLogEntries(text, opts = {}) {
   return { entries, pending };
 }
 
-module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries };
+module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries };
