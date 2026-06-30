@@ -57,7 +57,8 @@
           <label>Pfad:</label>
           <div style="display:flex; align-items:center; gap:6px; flex:1; min-width:0;">
             <input type="text" data-field="path" value="${esc(loc.path || '')}" placeholder="C:\\Backups\\keasy oder \\\\server\\share" maxlength="600" style="flex:1; min-width:0; width:auto; max-width:none;" oninput="markConfigDirty()">
-            <button class="config-save-btn" data-open-folder onclick="openBackupFolder(this)" style="padding:4px 8px; font-size:0.95em; display:${loc.label === 'Cloud / Sync-Ordner' ? 'none' : 'inline-block'};" title="Ordner im Explorer öffnen">📂</button>
+            <button type="button" class="folder-picker-btn" onclick="pickBackupFolder(this)" title="Ordner auswählen">📂</button>
+            <button class="config-save-btn" data-open-folder onclick="openBackupFolder(this)" style="padding:4px 8px; font-size:0.95em; display:${loc.label === 'Cloud / Sync-Ordner' ? 'none' : 'inline-block'};" title="Ordner im Explorer öffnen">↗️</button>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
@@ -108,6 +109,17 @@
       const preset = LABEL_PRESETS.find(p => p.value === select.value);
       display.textContent = (preset ? preset.icon : '📁') + ' ' + select.value;
       if (folderBtn) folderBtn.style.display = select.value === 'Cloud / Sync-Ordner' ? 'none' : 'inline-block';
+    }
+  }
+
+  async function pickBackupFolder(btn) {
+    const card = btn.closest('.backup-card');
+    const input = card.querySelector('[data-field="path"]');
+    if (typeof showFolderPicker !== 'function') return;
+    const chosen = await showFolderPicker(input.value.trim() || '');
+    if (chosen) {
+      input.value = chosen;
+      if (typeof markConfigDirty === 'function') markConfigDirty();
     }
   }
 
@@ -215,7 +227,7 @@
 
   // Window-Globals für onclick-Handler
   Object.assign(window, {
-    onLocalCardToggle, onLocalLabelChange, openBackupFolder,
+    onLocalCardToggle, onLocalLabelChange, openBackupFolder, pickBackupFolder,
     addLocalTarget, removeLocalTarget, testLocalConnection, collectBackupConfig
   });
 
