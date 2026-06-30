@@ -225,14 +225,20 @@ async function testBackupWithFixture() {
 
   // Temp-Verzeichnis als Backup-Ziel
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'keasy-backup-test-'));
+  const statusPath = path.join(__dirname, '..', 'backup-status.json');
+
+  // Vor try deklarieren, damit das finally die Config zuverlässig zurücksetzen kann
+  const testLocalId = 'loc_smoke_test';
+  let cfg = null;
+  let origLocals = [];
 
   try {
     // Config mit temporärem lokalen Backup-Pfad speichern
     const configResp = await fetch('/api/config');
-    const cfg = parseJSON(configResp.body);
-    const origLocals = JSON.parse(JSON.stringify(cfg.backup?.locals || []));
+    cfg = parseJSON(configResp.body);
+    // Eventuelle Reste eines früheren (abgebrochenen) Smoke-Tests herausfiltern
+    origLocals = JSON.parse(JSON.stringify(cfg.backup?.locals || [])).filter(l => l.id !== testLocalId);
     cfg.backup = cfg.backup || {};
-    const testLocalId = 'loc_smoke_test';
     cfg.backup.locals = [{ id: testLocalId, enabled: true, label: 'Smoke-Test', path: tmpDir }];
     cfg.backup.ftp = cfg.backup.ftp || {};
     cfg.backup.ftp.enabled = false;
@@ -297,15 +303,32 @@ async function testBackupWithFixture() {
     const hasLocalResult = statusData && statusData.results && Object.values(statusData.results).some(r => r.status === 'ok');
     assert(hasLocalResult, 'Status enthält mindestens ein ok-Ergebnis');
 
-    // Config zurücksetzen (Original-locals wiederherstellen)
-    cfg.backup.locals = origLocals;
-    await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfg),
-    });
-
   } finally {
+    // Config zurücksetzen (Original-locals wiederherstellen) — auch bei
+    // fehlgeschlagenen Asserts/Fehlern, damit kein veralteter Temp-Pfad zurückbleibt
+    if (cfg) {
+      try {
+        cfg.backup = cfg.backup || {};
+        cfg.backup.locals = origLocals;
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg),
+        });
+      } catch { /* Server evtl. nicht erreichbar — Cleanup best effort */ }
+    }
+
+    // Smoke-Test-Eintrag aus backup-status.json entfernen
+    try {
+      if (fs.existsSync(statusPath)) {
+        const status = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+        if (status.results && status.results[testLocalId]) {
+          delete status.results[testLocalId];
+          fs.writeFileSync(statusPath, JSON.stringify(status, null, 2), 'utf8');
+        }
+      }
+    } catch { /* ignore cleanup errors */ }
+
     // Temp-Verzeichnis aufräumen
     try {
       const files = fs.readdirSync(tmpDir);
