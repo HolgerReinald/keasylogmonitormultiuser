@@ -98,6 +98,9 @@ function renderAll() {
     const filePaths = groups[label];
     let groupHtml = '';
     let groupCount = 0;
+    // Die filePaths sind bereits absteigend nach neuestem Fehler sortiert;
+    // die erste tatsächlich angezeigte Datei ist die mit dem aktuellsten Datum.
+    let firstShownInGroup = true;
 
     for (const filePath of filePaths) {
       const fileErrors = state.errors[filePath];
@@ -119,6 +122,10 @@ function renderAll() {
       if (filtered.length === 0) continue;
       groupCount += filtered.length;
 
+      // Aktuellste Datei je Watchpath farblich hervorheben
+      const newestClass = firstShownInGroup ? ' file-group-newest' : '';
+      firstShownInGroup = false;
+
       const ovInfo = state.oversizedFiles && state.oversizedFiles[filePath];
       const oversizeClass = ovInfo ? ' file-oversize' : '';
       const oversizeTitle = ovInfo ? ` title="${ovInfo.sizeMB} MB > ${state.maxLogFileSizeMB || 6} MB — große Datei, zuletzt eingelesen"` : '';
@@ -133,7 +140,7 @@ function renderAll() {
         : '';
 
       groupHtml += `
-        <div class="file-group">
+        <div class="file-group${newestClass}">
           <div class="file-header" onclick="toggleGroup(this)">
             <div>
               <div class="file-name${oversizeClass}"${oversizeTitle}>📄 ${escapeHtml(fileName)}</div>

@@ -567,6 +567,19 @@ body.theme-blue .analyze-header {
   background: var(--file-header-hover);
 }
 
+/* Aktuellste Datei je Watchpath farblich hervorheben */
+.file-group-newest {
+  border-left: 4px solid var(--accent);
+}
+
+.file-group-newest > .file-header {
+  background: color-mix(in srgb, var(--accent) 28%, var(--file-header-bg));
+}
+
+.file-group-newest > .file-header:hover {
+  background: color-mix(in srgb, var(--accent) 38%, var(--file-header-bg));
+}
+
 .file-name {
   font-weight: 600;
   color: var(--file-name-color);

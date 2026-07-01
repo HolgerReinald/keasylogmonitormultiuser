@@ -412,6 +412,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-01 — Aktuellste Datei je Watchpath farblich hervorheben
+
+- Im Live-Monitoring wird pro Watchpath (Quelle) die Datei mit dem **neuesten** Fehler farblich hervorgehoben: Header mit kräftiger Accent-Hinterlegung + Accent-Rand links (4px)
+- Nutzt die bestehende Sortierung (Dateien je Quelle sind absteigend nach neuestem Fehler sortiert) — die oberste angezeigte Datei erhält die CSS-Klasse `file-group-newest`
+- Bezieht sich auf den neuesten **angezeigten** Fehler, also konsistent mit aktivem Datums-/Suchfilter, dem 🕒-Zeitstempel und dem Anzahl-Badge
+- Farbanteil per `color-mix` gegen die themespezifische `--file-header-bg` → passt automatisch in Hell/Dunkel/Blau (Hell #0077cc, Dunkel #00d4ff)
+- Reine Frontend-Änderung; Server/WebSocket/Datenmodell unverändert. Analyse-Ansicht nicht betroffen
+
+**Dateien:** public/js/render.js, public/style.css
+
 ### 2026-06-30 — Ausschluss-Patterns: ValidationException als Hinweis statt Fehler
 
 - Neue, GUI-pflegbare Liste **excludePatterns** (Tab Allgemein, Abschnitt „🚫 Ausschluss-Patterns") analog zur Filter-Liste mit Hinzufügen/Entfernen
