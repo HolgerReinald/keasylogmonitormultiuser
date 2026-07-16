@@ -1,10 +1,13 @@
-# Keasy Log Monitor - Multiuservariante
+# Keasy Log Monitor (Multiuservariante mit Rechten aktivierbar)
 
-Diese Version ist nicht dazu gedacht lokal auf seinem PC einzusetzen. Deshalb werden die überwachten Pfade vom Admin freigegeben und man kann
-noch selbst entscheiden, an welche E-Mail-Adresse die Überwachung "E-Mail an" gehen soll.
-Lokales Echtzeit-Monitoring-Dashboard für Keasy Log-Dateien. Überwacht mehrere Log-Dateien gleichzeitig und zeigt Fehler live im Browser an.  
+## Hinweis Multiuservariante (Rechte)
+Diese Version ist nicht dazu gedacht lokal auf seinem PC einzusetzen. Deshalb werden die überwachten Pfade vom Admin freigegeben. Mann kann aber selbst entscheiden, an welche E-Mail-Adresse die Überwachung "E-Mail an" gehen soll.
+
+## Lokales Echtzeit-Monitoring-Dashboard für Keasy Log-Dateien.
+Überwacht mehrere Log-Dateien gleichzeitig und zeigt Fehler live im Browser an.  
 Neue Fehler erscheinen typischerweise nach **~4,3s** (2s Polling + 100ms Debounce + 2,2s Stack-Trace-Pufferung). Polling ist Standard für alle Pfade (2s lokal, 5s Netzwerk), da Windows `fs.watch` Events verschlucken kann. Die Stack-Trace-Pufferung wartet bewusst länger als das Polling-Intervall (pollInterval + 200ms), damit mehrzeilige Einträge über Poll-Zyklen hinweg korrekt zusammengefasst werden.
 Die Dokumentation wird über die Funktion update_docs (Extension) über die Konsole aktualisiert mit Versions Historie und Versionsnummer (nach Neustart).
+Dann gibt es noch die Performance-Gap-Erkennung. Dazu gibt es ein eigene Erklärung.
 
 ### Tagesaktuelle Log-Dateien
 
@@ -416,6 +419,14 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-16 — README: Einleitung überarbeitet (Multiuser-Hinweis, Gap-Verweis)
+
+- Einleitung in eigene Abschnitte gegliedert: Hinweis Multiuservariante (Rechte) und Dashboard-Beschreibung
+- Verweis auf die Performance-Gap-Erkennung ergänzt
+- Erste inhaltliche Bearbeitung direkt über den neuen Doku-Editor im Dashboard
+
+**Dateien:** README.md
 
 ### 2026-07-16 — 📝 Doku-Tab: Markdown-Editor mit Live-Vorschau
 
