@@ -204,14 +204,47 @@ process.on('SIGTERM', shutdown);
 
 // Crash-Protection: Server am Leben halten bei unbehandelten Fehlern
 const crashLogPath = path.join(__dirname, 'crash.log');
-function logCrash(type, err) {
-  const ts = new Date().toISOString();
-  const msg = `[${ts}] ${type}: ${err && err.message || err}\n${err && err.stack || ''}\n\n`;
-  console.error(`⚠️  ${type} (Server läuft weiter):`, err && err.message || err);
-  if (err && err.stack) console.error(err.stack);
-  try { fs.appendFileSync(crashLogPath, msg, 'utf8'); } catch (_) {}
+const CRASH_LOG_MAX_BYTES = 5 * 1024 * 1024;
+
+// EPIPE auf stdout/stderr (Terminal/Pipe weg) direkt am Stream schlucken —
+// sonst wird jedes console.log zur uncaughtException und der Crash-Handler,
+// der selbst console.error aufruft, schaukelt sich zur Endlos-Schleife auf
+// (so ist crash.log auf 1,4 GB gewachsen).
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on('error', (err) => {
+    if (err && err.code === 'EPIPE') return;
+    throw err;
+  });
 }
-process.on('uncaughtException', (err) => logCrash('Unbehandelte Exception', err));
+
+let crashLogging = false; // Rekursionsschutz: logCrash darf sich nicht selbst auslösen
+function logCrash(type, err) {
+  if (crashLogging) return;
+  crashLogging = true;
+  try {
+    const ts = new Date().toISOString();
+    const msg = `[${ts}] ${type}: ${err && err.message || err}\n${err && err.stack || ''}\n\n`;
+    try {
+      console.error(`⚠️  ${type} (Server läuft weiter):`, err && err.message || err);
+      if (err && err.stack) console.error(err.stack);
+    } catch (_) { /* Konsole tot — nur in Datei loggen */ }
+    try {
+      // Größenlimit: eine Generation rotieren statt unbegrenzt wachsen
+      if (fs.existsSync(crashLogPath) && fs.statSync(crashLogPath).size > CRASH_LOG_MAX_BYTES) {
+        try { fs.rmSync(crashLogPath + '.old', { force: true }); } catch (_) {}
+        fs.renameSync(crashLogPath, crashLogPath + '.old');
+      }
+    } catch (_) {}
+    try { fs.appendFileSync(crashLogPath, msg, 'utf8'); } catch (_) {}
+  } finally {
+    crashLogging = false;
+  }
+}
+process.on('uncaughtException', (err) => {
+  // Broken-Pipe beim Schreiben nicht als Crash werten (siehe Stream-Guard oben)
+  if (err && err.code === 'EPIPE' && err.syscall === 'write') return;
+  logCrash('Unbehandelte Exception', err);
+});
 process.on('unhandledRejection', (reason) => logCrash('Unbehandelte Promise-Rejection', reason));
 process.on('exit', (code) => {
   if (code !== 0) {

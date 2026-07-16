@@ -349,6 +349,9 @@
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
             <input type="checkbox" id="backupIncludeEmailLog" checked onchange="markConfigDirty()"> E-Mail-Log mitsichern
           </label>
+          <label style="display:flex; align-items:center; gap:6px; cursor:pointer;" title="Sichert zusätzlich das gesamte Programmverzeichnis (inkl. node_modules) als keasy-full-*.zip — für den Katastrophenfall: entpacken und starten. Wiederherstellung erfolgt manuell, nicht über die Oberfläche.">
+            <input type="checkbox" id="backupIncludeFullBackup" onchange="markConfigDirty()"> Komplett-Backup (gesamtes Verzeichnis) zusätzlich erstellen
+          </label>
         </div>
       </div>
 

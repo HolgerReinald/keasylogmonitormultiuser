@@ -211,6 +211,7 @@
       },
       maxBackupsPerTarget: parseInt(document.getElementById('backupMaxPerTarget').value) || 10,
       includeEmailLog: document.getElementById('backupIncludeEmailLog').checked,
+      includeFullBackup: document.getElementById('backupIncludeFullBackup').checked,
       locals,
       ftp: {
         enabled: document.getElementById('backupFtpEnabled').checked,

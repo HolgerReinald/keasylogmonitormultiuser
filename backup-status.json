@@ -1,5 +1,20 @@
 {
-  "lastRun": "2026-06-30T09:29:03.874Z",
-  "results": {},
-  "nextScheduled": "2026-06-30T20:10:00.000Z"
+  "lastRun": "2026-07-16T09:08:28.913Z",
+  "results": {
+    "loc_jtl87kvm": {
+      "label": "Lokales Backup",
+      "status": "ok",
+      "time": "2026-07-16T09:08:28.901Z",
+      "file": "keasy-backup-2026-07-16T09-08-27.zip",
+      "size": 8144
+    },
+    "full:loc_jtl87kvm": {
+      "label": "Lokales Backup (Komplett)",
+      "status": "ok",
+      "time": "2026-07-16T09:08:28.912Z",
+      "file": "keasy-full-2026-07-16T09-08-27.zip",
+      "size": 3418388
+    }
+  },
+  "nextScheduled": "2026-07-16T20:10:00.000Z"
 }

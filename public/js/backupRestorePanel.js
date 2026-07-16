@@ -41,16 +41,17 @@
 
       tbody.innerHTML = '';
       for (const b of list) {
+        const isFull = b.type === 'full' || (b.filename || '').startsWith('keasy-full-');
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid var(--border-color)';
-        tr.style.cursor = 'pointer';
-        tr.onclick = () => selectBackup(b, tr);
+        tr.style.cursor = isFull ? 'default' : 'pointer';
+        if (!isFull) tr.onclick = () => selectBackup(b, tr);
 
         const date = b.date ? new Date(b.date).toLocaleString('de-DE') : '—';
         const sourceIcon = b.source === 'ftp' ? '🌐' : '📁';
         const sourceLabel = b.sourceLabel || (b.source === 'ftp' ? 'FTP' : 'Lokal');
         const size = formatSize(b.size);
-        const content = b.content ? b.content.files : '—';
+        const content = b.content ? b.content.files : (isFull ? 'Komplett' : '—');
         const version = b.content ? (b.content.version || '—') : '—';
         const val = `${b.source}|${b.filename}|${b.sourceId || ''}`;
         const escSrc = (b.source || '').replace(/'/g, "\\'");
@@ -58,8 +59,13 @@
         const escFn = (b.filename || '').replace(/'/g, "\\'");
         const escDate = date.replace(/'/g, "\\'");
 
+        // Komplett-Backups: kein UI-Restore (manuell entpacken), daher keine Auswahl
+        const selectCell = isFull
+          ? `<span title="Komplett-Backup — Wiederherstellung durch manuelles Entpacken des ZIP">🗂️</span>`
+          : `<input type="radio" name="backupSelect" value="${val}">`;
+
         tr.innerHTML = `
-          <td style="padding:6px;"><input type="radio" name="backupSelect" value="${val}"></td>
+          <td style="padding:6px;">${selectCell}</td>
           <td style="padding:6px;">${date}</td>
           <td style="padding:6px;">${sourceIcon} ${sourceLabel}</td>
           <td style="padding:6px;">${size}</td>

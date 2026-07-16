@@ -27,6 +27,10 @@ const ALLOWED_FILES = ['config.json', 'style.css', 'email.log', 'backup-manifest
 const REQUIRED_FILES = ['config.json', 'style.css', 'backup-manifest.json'];
 const SCHEMA_VERSION = 1;
 
+// Komplett-Backup: ausgeschlossene Verzeichnisse (relativ zu ROOT) und Dateimuster
+const FULL_EXCLUDE_DIRS = new Set(['temp-backup', 'temp-ftp', 'temp-restore']);
+const FULL_EXCLUDE_FILES = /^(crash\.log(\.old)?|keasy-(backup|full|safety)-.*\.zip)$/;
+
 let schedulerTimer = null;
 let backupRunning = false; // Run-Lock (Mutex)
 
@@ -95,6 +99,68 @@ function createBackup() {
   });
 }
 
+// ─── Komplett-Backup erstellen ──────────────────────────────
+
+// Alle Dateien des Programmverzeichnisses rekursiv sammeln (mit Ausschlussliste)
+function collectFullBackupFiles(dir, base, result) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return; // Zugriffsfehler überspringen
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const rel = path.relative(base, fullPath).replace(/\\/g, '/');
+    if (entry.isDirectory()) {
+      if (FULL_EXCLUDE_DIRS.has(rel)) continue;
+      collectFullBackupFiles(fullPath, base, result);
+    } else if (entry.isFile()) {
+      // crash.log und Backup-ZIPs (auch in Unterordnern, falls ein Ziel im Verzeichnis liegt) auslassen
+      if (FULL_EXCLUDE_FILES.test(entry.name)) continue;
+      result.push({ fullPath, rel });
+    }
+  }
+}
+
+function createFullBackup() {
+  return new Promise((resolve, reject) => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `keasy-full-${timestamp}.zip`;
+    const tmpPath = path.join(ROOT, 'temp-backup');
+
+    if (!fs.existsSync(tmpPath)) fs.mkdirSync(tmpPath, { recursive: true });
+
+    const zipPath = path.join(tmpPath, filename);
+    const output = fs.createWriteStream(zipPath);
+    const archive = new ZipArchive({ zlib: { level: 9 } });
+
+    output.on('close', () => resolve({ zipPath, filename, size: archive.pointer() }));
+    archive.on('error', reject);
+    archive.pipe(output);
+
+    const files = [];
+    collectFullBackupFiles(ROOT, ROOT, files);
+    for (const f of files) {
+      archive.file(f.fullPath, { name: f.rel });
+    }
+
+    // Manifest: kennzeichnet den Typ — bewusst OHNE die Pflichtdateien des
+    // Settings-Backups, damit der UI-Restore Komplett-Backups nicht akzeptiert
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    const manifest = {
+      version: pkg.version,
+      created: new Date().toISOString(),
+      type: 'full',
+      fileCount: files.length,
+      schemaVersion: SCHEMA_VERSION
+    };
+    archive.append(JSON.stringify(manifest, null, 2), { name: 'backup-manifest.json' });
+
+    archive.finalize();
+  });
+}
+
 // ─── Backup verteilen ───────────────────────────────────────
 
 async function runBackup() {
@@ -116,6 +182,17 @@ async function runBackup() {
     const { zipPath, filename, size } = await createBackup();
     const results = {};
 
+    // Optional: Komplett-Backup des Programmverzeichnisses zusätzlich erstellen
+    const includeFull = backupCfg.includeFullBackup === true;
+    let full = null;
+    if (includeFull) {
+      try {
+        full = await createFullBackup();
+      } catch (err) {
+        results.full = { label: 'Komplett-Backup', status: 'error', time: new Date().toISOString(), error: err.message };
+      }
+    }
+
     // Lokale Ziele
     for (const loc of activeLocals) {
       try {
@@ -123,6 +200,14 @@ async function runBackup() {
         results[loc.id] = { label: loc.label, status: 'ok', time: new Date().toISOString(), file: filename, size };
       } catch (err) {
         results[loc.id] = { label: loc.label, status: 'error', time: new Date().toISOString(), error: err.message };
+      }
+      if (full) {
+        try {
+          await saveLocal(full.zipPath, full.filename, loc);
+          results[`full:${loc.id}`] = { label: `${loc.label} (Komplett)`, status: 'ok', time: new Date().toISOString(), file: full.filename, size: full.size };
+        } catch (err) {
+          results[`full:${loc.id}`] = { label: `${loc.label} (Komplett)`, status: 'error', time: new Date().toISOString(), error: err.message };
+        }
       }
     }
 
@@ -134,10 +219,19 @@ async function runBackup() {
       } catch (err) {
         results.ftp = { status: 'error', time: new Date().toISOString(), error: err.message };
       }
+      if (full) {
+        try {
+          await saveToFtp(full.zipPath, full.filename, backupCfg.ftp);
+          results['full:ftp'] = { label: 'FTP (Komplett)', status: 'ok', time: new Date().toISOString(), file: full.filename, size: full.size };
+        } catch (err) {
+          results['full:ftp'] = { label: 'FTP (Komplett)', status: 'error', time: new Date().toISOString(), error: err.message };
+        }
+      }
     }
 
-    // Temp-ZIP aufräumen
+    // Temp-ZIPs aufräumen
     try { fs.unlinkSync(zipPath); } catch { /* ignore */ }
+    if (full) { try { fs.unlinkSync(full.zipPath); } catch { /* ignore */ } }
     try { fs.rmdirSync(path.dirname(zipPath)); } catch { /* ignore */ }
 
     // Status speichern
@@ -146,15 +240,21 @@ async function runBackup() {
     status.results = results;
     writeStatus(status);
 
-    // Alte Backups rotieren
+    // Alte Backups rotieren (Settings- und Komplett-Backups getrennt)
     const maxPerTarget = backupCfg.maxBackupsPerTarget || 10;
     for (const loc of activeLocals) {
       if (results[loc.id] && results[loc.id].status === 'ok') {
-        try { await rotateLocalBackups(loc, maxPerTarget); } catch { /* ignore */ }
+        try { await rotateLocalBackups(loc, maxPerTarget, 'keasy-backup-'); } catch { /* ignore */ }
+      }
+      if (results[`full:${loc.id}`] && results[`full:${loc.id}`].status === 'ok') {
+        try { await rotateLocalBackups(loc, maxPerTarget, 'keasy-full-'); } catch { /* ignore */ }
       }
     }
     if (ftpEnabled && results.ftp && results.ftp.status === 'ok') {
-      try { await rotateFtpBackups(maxPerTarget, backupCfg.ftp); } catch { /* ignore */ }
+      try { await rotateFtpBackups(maxPerTarget, backupCfg.ftp, 'keasy-backup-'); } catch { /* ignore */ }
+    }
+    if (ftpEnabled && results['full:ftp'] && results['full:ftp'].status === 'ok') {
+      try { await rotateFtpBackups(maxPerTarget, backupCfg.ftp, 'keasy-full-'); } catch { /* ignore */ }
     }
 
     const allOk = Object.values(results).every(r => r.status === 'ok');
@@ -230,11 +330,11 @@ async function retryOperation(fn, maxRetries = 3, delayMs = 15000) {
 
 // ─── Backup-Rotation ────────────────────────────────────────
 
-async function rotateLocalBackups(localCfg, maxPerTarget) {
+async function rotateLocalBackups(localCfg, maxPerTarget, prefix = 'keasy-backup-') {
   const dir = localCfg.path;
   if (!dir || !fs.existsSync(dir)) return;
   const files = fs.readdirSync(dir)
-    .filter(f => f.startsWith('keasy-backup-') && f.endsWith('.zip'))
+    .filter(f => f.startsWith(prefix) && f.endsWith('.zip'))
     .map(f => ({ filename: f, mtime: fs.statSync(path.join(dir, f)).mtime }))
     .sort((a, b) => b.mtime - a.mtime);
   if (files.length <= maxPerTarget) return;
@@ -243,8 +343,8 @@ async function rotateLocalBackups(localCfg, maxPerTarget) {
   }
 }
 
-async function rotateFtpBackups(maxPerTarget, ftpCfg) {
-  const backups = await listFtpBackups(ftpCfg);
+async function rotateFtpBackups(maxPerTarget, ftpCfg, prefix = 'keasy-backup-') {
+  const backups = (await listFtpBackups(ftpCfg)).filter(b => b.filename.startsWith(prefix));
   if (backups.length <= maxPerTarget) return;
   const toDelete = backups.slice(maxPerTarget);
   const client = new ftp.Client();
@@ -283,12 +383,13 @@ async function listBackups(target) {
       }
       targets.push({ source: 'local', sourceId: loc.id, label: loc.label || 'Lokal', reachable: true });
       const files = fs.readdirSync(loc.path)
-        .filter(f => f.startsWith('keasy-backup-') && f.endsWith('.zip'));
+        .filter(f => (f.startsWith('keasy-backup-') || f.startsWith('keasy-full-')) && f.endsWith('.zip'));
       for (const f of files) {
         try {
           const stat = fs.statSync(path.join(loc.path, f));
           backups.push({
             filename: f,
+            type: f.startsWith('keasy-full-') ? 'full' : 'settings',
             source: 'local',
             sourceId: loc.id,
             sourceLabel: loc.label || 'Lokal',
@@ -347,7 +448,7 @@ async function listFtpBackups(ftpCfg) {
     const remotePath = ftpCfg.remotePath || '/backups';
     const list = await client.list(remotePath);
     for (const item of list) {
-      if (item.name.startsWith('keasy-backup-') && item.name.endsWith('.zip')) {
+      if ((item.name.startsWith('keasy-backup-') || item.name.startsWith('keasy-full-')) && item.name.endsWith('.zip')) {
         let content = null;
         try {
           const tmpDir = path.join(ROOT, 'temp-ftp');
@@ -359,6 +460,7 @@ async function listFtpBackups(ftpCfg) {
         } catch { /* ignore */ }
         backups.push({
           filename: item.name,
+          type: item.name.startsWith('keasy-full-') ? 'full' : 'settings',
           source: 'ftp',
           sourceId: 'ftp',
           sourceLabel: 'FTP',
@@ -377,19 +479,24 @@ function getZipContentSummary(zipPath) {
   try {
     const zip = new AdmZip(zipPath);
     const entries = zip.getEntries().map(e => e.entryName);
+    // Version/Typ aus Manifest
+    const manifestEntry = zip.getEntry('backup-manifest.json');
+    let version = null;
+    let manifest = null;
+    if (manifestEntry) {
+      try {
+        manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
+        version = manifest.version;
+      } catch { /* ignore */ }
+    }
+    if (manifest && manifest.type === 'full') {
+      const count = manifest.fileCount || entries.length;
+      return { files: `Komplett (${count} Dateien)`, version };
+    }
     const parts = [];
     if (entries.includes('config.json')) parts.push('Config');
     if (entries.includes('style.css')) parts.push('CSS');
     if (entries.includes('email.log')) parts.push('Mail-Log');
-    // Version aus Manifest
-    const manifestEntry = zip.getEntry('backup-manifest.json');
-    let version = null;
-    if (manifestEntry) {
-      try {
-        const manifest = JSON.parse(manifestEntry.getData().toString('utf8'));
-        version = manifest.version;
-      } catch { /* ignore */ }
-    }
     return { files: parts.join('+'), version };
   } catch { return null; }
 }
@@ -460,6 +567,9 @@ async function testConnection(target, formData) {
 // ─── Restore Preview ────────────────────────────────────────
 
 async function previewRestore(source, filename, sourceId) {
+  if (filename && filename.startsWith('keasy-full-')) {
+    throw new Error('Komplett-Backups können nicht über die Oberfläche wiederhergestellt werden — ZIP manuell in ein Verzeichnis entpacken.');
+  }
   const zipPath = await getZipPath(source, filename, sourceId);
 
   // Zip-Slip-Prüfung + Whitelist
@@ -518,6 +628,9 @@ async function previewRestore(source, filename, sourceId) {
 // ─── Restore ausführen ──────────────────────────────────────
 
 async function restoreBackup(source, filename, sourceId) {
+  if (filename && filename.startsWith('keasy-full-')) {
+    throw new Error('Komplett-Backups können nicht über die Oberfläche wiederhergestellt werden — ZIP manuell in ein Verzeichnis entpacken.');
+  }
   const zipPath = await getZipPath(source, filename, sourceId);
   const zip = new AdmZip(zipPath);
 
@@ -730,8 +843,8 @@ function checkMissedBackup() {
 // ─── Backup löschen ──────────────────────────────────────────
 
 async function deleteBackup(source, sourceId, filename) {
-  // Strenge Validierung: exaktes Dateiformat
-  if (!/^keasy-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/.test(filename)) {
+  // Strenge Validierung: exaktes Dateiformat (Settings- oder Komplett-Backup)
+  if (!/^keasy-(backup|full)-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.zip$/.test(filename)) {
     const err = new Error('Ungültiger Dateiname');
     err.statusCode = 400;
     throw err;
@@ -787,6 +900,7 @@ async function deleteBackup(source, sourceId, filename) {
 
 module.exports = {
   createBackup,
+  createFullBackup,
   runBackup,
   listBackups,
   deleteBackup,

@@ -19,6 +19,7 @@
     document.getElementById('backupScheduleTime').value = schedule.time || '02:00';
     document.getElementById('backupMaxPerTarget').value = b.maxBackupsPerTarget || 10;
     document.getElementById('backupIncludeEmailLog').checked = b.includeEmailLog !== false;
+    document.getElementById('backupIncludeFullBackup').checked = b.includeFullBackup === true;
 
     // Lokale Ziele rendern (delegiert an targets-Modul)
     Keasy.backup.targets.renderLocalCards(b.locals || []);

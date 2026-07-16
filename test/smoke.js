@@ -231,6 +231,7 @@ async function testBackupWithFixture() {
   const testLocalId = 'loc_smoke_test';
   let cfg = null;
   let origLocals = [];
+  let origIncludeFull;
 
   try {
     // Config mit temporärem lokalen Backup-Pfad speichern
@@ -242,6 +243,8 @@ async function testBackupWithFixture() {
     cfg.backup.locals = [{ id: testLocalId, enabled: true, label: 'Smoke-Test', path: tmpDir }];
     cfg.backup.ftp = cfg.backup.ftp || {};
     cfg.backup.ftp.enabled = false;
+    origIncludeFull = cfg.backup.includeFullBackup;
+    cfg.backup.includeFullBackup = true; // Komplett-Backup im Fixture-Test mitprüfen
 
     const save = await fetch('/api/config', {
       method: 'POST',
@@ -268,14 +271,31 @@ async function testBackupWithFixture() {
     const zipFiles = fs.readdirSync(tmpDir).filter(f => f.endsWith('.zip'));
     assert(zipFiles.length > 0, 'ZIP-Datei im Backup-Verzeichnis erstellt');
 
+    // Komplett-Backup: keasy-full-*.zip muss zusätzlich erstellt worden sein
+    const fullZips = zipFiles.filter(f => f.startsWith('keasy-full-'));
+    assert(fullZips.length === 1, 'Komplett-Backup (keasy-full-*.zip) erstellt');
+    if (fullZips.length === 1) {
+      const fullStat = fs.statSync(path.join(tmpDir, fullZips[0]));
+      assert(fullStat.size > 100000, `Komplett-Backup ist plausibel groß (${Math.round(fullStat.size / 1024)} KB)`);
+
+      // Restore-Preview auf Komplett-Backup muss abgelehnt werden
+      const fullPreview = await fetch('/api/backup/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'local', sourceId: testLocalId, filename: fullZips[0] }),
+      });
+      assert(fullPreview.status !== 200, 'Preview auf Komplett-Backup wird abgelehnt (kein UI-Restore)');
+    }
+
     // Backup-Liste enthält das neue Backup
     const list = await fetch('/api/backup/list');
     const listData = parseJSON(list.body);
     const backups = listData && listData.backups ? listData.backups : [];
     assert(backups.length > 0, 'backup/list enthält mindestens 1 Backup');
+    assert(backups.some(b => b.type === 'full'), 'backup/list enthält Komplett-Backup (type=full)');
 
     if (backups.length > 0) {
-      const newest = backups[0];
+      const newest = backups.find(b => b.type !== 'full') || backups[0]; // neuestes Settings-Backup (Preview gilt nur für diese)
       assert(newest.source === 'local', 'Neuestes Backup Quelle = local');
       assert(newest.size > 0, 'Neuestes Backup Größe > 0');
       assert(newest.content && newest.content.files, 'Neuestes Backup enthält Inhaltsbeschreibung');
@@ -310,6 +330,8 @@ async function testBackupWithFixture() {
       try {
         cfg.backup = cfg.backup || {};
         cfg.backup.locals = origLocals;
+        if (origIncludeFull === undefined) delete cfg.backup.includeFullBackup;
+        else cfg.backup.includeFullBackup = origIncludeFull;
         await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -318,14 +340,18 @@ async function testBackupWithFixture() {
       } catch { /* Server evtl. nicht erreichbar — Cleanup best effort */ }
     }
 
-    // Smoke-Test-Eintrag aus backup-status.json entfernen
+    // Smoke-Test-Einträge aus backup-status.json entfernen
     try {
       if (fs.existsSync(statusPath)) {
         const status = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
-        if (status.results && status.results[testLocalId]) {
-          delete status.results[testLocalId];
-          fs.writeFileSync(statusPath, JSON.stringify(status, null, 2), 'utf8');
+        let dirty = false;
+        for (const key of [testLocalId, `full:${testLocalId}`]) {
+          if (status.results && status.results[key]) {
+            delete status.results[key];
+            dirty = true;
+          }
         }
+        if (dirty) fs.writeFileSync(statusPath, JSON.stringify(status, null, 2), 'utf8');
       }
     } catch { /* ignore cleanup errors */ }
 
