@@ -1,0 +1,9 @@
+# Zeilenenden vereinheitlichen: Repo speichert LF, kein CRLF-Umschreiben beim Checkout
+# (beendet die staendigen "LF will be replaced by CRLF"-Warnungen)
+* text=auto eol=lf
+
+# Batch-Dateien brauchen CRLF (cmd.exe-Eigenheiten bei Labels/mehrzeiligen Befehlen)
+*.bat text eol=crlf
+
+# Archive sind binaer
+*.zip binary

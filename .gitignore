@@ -5,5 +5,10 @@ config - Kopie.js
 README.md.bak
 email.log
 *.log
+crash.log.old
+backup-status.json
+temp-backup/
+temp-ftp/
+temp-restore/
 users.json
 users/
