@@ -16,7 +16,7 @@ const { getTrashSnapshot } = require('./server/trashService');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
 const { getOrCreateAnalyzeUser } = require('./server/runtimeStore');
-const { startWatching, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset } = require('./server/watchService');
+const { startWatching, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus } = require('./server/watchService');
 const createRouter = require('./server/httpRouter');
 const backupService = require('./server/backupService');
 const healthCheck = require('./server/healthCheck');
@@ -134,6 +134,7 @@ wss.on('connection', (ws, req) => {
     nextEmailSendTime: getNextEmailSendTime(),
     trashData: filteredTrash,
     healthCheckLastResult: healthCheck.getState().lastResult,
+    watchPathStatus: getWatchPathStatus().filter(p => !ws.visibleLabels || ws.visibleLabels.includes(p.label)),
     visibleLabels: ws.visibleLabels
   }));
   ws.on('close', () => clients.delete(ws));
@@ -299,6 +300,14 @@ function startServer() {
     console.log('');
 
     activeWatchersRef.current = startWatching();
+
+    // WatchPath-Erreichbarkeit überwachen: Warnung im Dashboard + Auto-Recovery
+    // (Netzlaufwerke können wegfallen — Watcher laufen dann still ins Leere)
+    startReachabilityMonitor(() => {
+      activeWatchersRef.current.forEach(w => w.close());
+      store.resetWatcherRuntime();
+      activeWatchersRef.current = startWatching();
+    });
 
     // Backup-Scheduler starten + verpasste Backups nachholen
     backupService.scheduleBackup();

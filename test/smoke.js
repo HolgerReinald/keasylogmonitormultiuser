@@ -364,6 +364,92 @@ async function testBackupWithFixture() {
   }
 }
 
+async function testWatchPathReachability() {
+  console.log('\n📡 WatchPath-Erreichbarkeits-Test (Warnung + Auto-Recovery):');
+
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'keasy-reach-test-'));
+  const testLabel = 'ReachSmokeTest';
+  let cfg = null;
+  let origWatchPaths = null;
+  let ws = null;
+
+  // Auf eine WS-Nachricht warten, die das Prädikat erfüllt (null bei Timeout)
+  function waitFor(wsConn, predicate, timeoutMs) {
+    return new Promise((resolve) => {
+      const t = setTimeout(() => { wsConn.off('message', handler); resolve(null); }, timeoutMs);
+      const handler = (data) => {
+        try {
+          const msg = JSON.parse(data);
+          if (predicate(msg)) { clearTimeout(t); wsConn.off('message', handler); resolve(msg); }
+        } catch { /* ignore */ }
+      };
+      wsConn.on('message', handler);
+    });
+  }
+
+  const fmtLogTs = (d) => {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+  };
+
+  try {
+    const configResp = await fetch('/api/config');
+    cfg = parseJSON(configResp.body);
+    origWatchPaths = JSON.parse(JSON.stringify(cfg.watchPaths || [])).filter(wp => wp.label !== testLabel);
+    cfg.watchPaths = [...origWatchPaths, { path: tmpDir, label: testLabel, usePolling: true }];
+    const save = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(save.status === 200, 'Config mit Erreichbarkeits-Test-Watchpath gespeichert');
+
+    // WS verbinden — init muss watchPathStatus enthalten
+    ws = new WebSocket(`ws://localhost:${PORT}`);
+    const init = await waitFor(ws, m => m.type === 'init', 10000);
+    assert(init !== null && Array.isArray(init.watchPathStatus), 'init enthält watchPathStatus-Array');
+
+    // 1. Verzeichnis entfernen → Warnung (reachable=false) muss kommen
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    const lost = await waitFor(ws, m =>
+      m.type === 'watchpath-status' && (m.data.paths || []).some(p => p.label === testLabel && p.reachable === false), 30000);
+    assert(lost !== null, 'watchpath-status mit reachable=false nach Entfernen des Pfads');
+
+    // 2. Verzeichnis wiederherstellen → reachable=true + Auto-Recovery
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const back = await waitFor(ws, m =>
+      m.type === 'watchpath-status' && (m.data.paths || []).some(p => p.label === testLabel && p.reachable === true), 30000);
+    assert(back !== null, 'watchpath-status mit reachable=true nach Wiederherstellen');
+
+    // Nachweis Auto-Recovery: neue Fehlerzeile im wiederhergestellten Pfad muss wieder ankommen
+    // (zweistufig: anlegen löst nur 'add' aus, verarbeitet wird erst das folgende 'change')
+    const logFile = path.join(tmpDir, 'reach-test.log');
+    fs.writeFileSync(logFile, `${fmtLogTs(new Date())}  INFO  Datei angelegt\n`);
+    await new Promise(r => setTimeout(r, 4000));
+    const errorPromise = waitFor(ws, m => m.type === 'error' && m.data && m.data.label === testLabel, 30000);
+    fs.appendFileSync(logFile, `${fmtLogTs(new Date())}  ERROR  Exception nach Auto-Recovery\n`);
+    const errMsg = await errorPromise;
+    assert(errMsg !== null, 'Auto-Recovery: Fehler im wiederhergestellten Pfad wird wieder erkannt');
+  } finally {
+    if (ws) { try { ws.close(); } catch { /* ignore */ } }
+    if (cfg) {
+      try {
+        cfg.watchPaths = origWatchPaths;
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg),
+        });
+      } catch { /* Cleanup best effort */ }
+    }
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+}
+
 async function testDocsEditor() {
   console.log('\n📝 Doku-Editor-Tests:');
 
@@ -782,6 +868,7 @@ async function run() {
     await testThresholdRules();
     await testGapConfigRoundtrip();
     await testPerformanceGap();
+    await testWatchPathReachability();
     await testDocsEditor();
     await testWebSocket();
   } catch (err) {

@@ -1425,6 +1425,16 @@ input.user-editable {
   color: var(--text-primary);
 }
 
+/* WatchPath nicht erreichbar — Warnbanner oberhalb der Fehlerliste */
+.watchpath-warning {
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border-left: 4px solid #f59e0b;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
 .preload-bar-container {
   flex: 1;
   height: 6px;

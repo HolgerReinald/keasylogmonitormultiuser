@@ -420,6 +420,15 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — 📡 WatchPath-Erreichbarkeit: Warnbanner + Auto-Recovery
+
+- Server prüft alle 15s die Erreichbarkeit aller WatchPaths (fs.access, überlappungssicher) — Hintergrund: Netzlaufwerke (X:/Y:) können pro Session wegfallen, die Watcher liefen dann still ins Leere
+- Nicht erreichbare Pfade erscheinen als ⚠️-Warnbanner oberhalb der Fehlerliste (pro Quelle, nach sichtbaren Labels gefiltert); Status kommt per WS-Event watchpath-status und im init
+- Auto-Recovery: Wird ein Pfad wieder erreichbar, startet der Server die Watcher automatisch neu (gleiche Semantik wie 'Watcher neu starten' inkl. Preload) — manuelles Eingreifen entfällt
+- Neue Smoke-Tests: Warnung nach Pfad-Wegfall, Status nach Rückkehr, Fehler-Erkennung im wiederhergestellten Pfad
+
+**Dateien:** server/watchService.js, server.js, public/js/wsClient.js, public/index.html, public/style.css, test/smoke.js
+
 ### 2026-07-16 — README: Einleitung überarbeitet (Multiuser-Hinweis, Gap-Verweis)
 
 - Einleitung in eigene Abschnitte gegliedert: Hinweis Multiuservariante (Rechte) und Dashboard-Beschreibung

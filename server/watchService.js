@@ -237,6 +237,87 @@ function broadcastPerformanceSnapshot() {
   );
 }
 
+// --- WatchPath-Erreichbarkeit (Warnung + Auto-Recovery) ---
+
+// path → letzter bekannter Zustand (true/false). Netzlaufwerke können pro Session
+// wegfallen (z. B. getrennte Mappings) — dann läuft der Watcher still ins Leere.
+const watchPathReachability = new Map();
+let reachabilityTimer = null;
+let reachabilityFirstTimer = null;
+let reachabilityRestartCallback = null;
+let reachabilityChecking = false;
+
+function getWatchPathStatus() {
+  return normalizedWatchPaths.map(wp => ({
+    label: wp.label,
+    path: wp.path,
+    reachable: watchPathReachability.get(wp.path) !== false // unbekannt = erreichbar annehmen
+  }));
+}
+
+function broadcastWatchPathStatus() {
+  broadcastFiltered(
+    { type: 'watchpath-status', data: { paths: getWatchPathStatus() } },
+    (msg, visibleLabels) => {
+      if (!visibleLabels) return msg; // null = alle sichtbar
+      return { type: 'watchpath-status', data: { paths: msg.data.paths.filter(p => visibleLabels.includes(p.label)) } };
+    }
+  );
+}
+
+async function checkWatchPathsReachability() {
+  if (reachabilityChecking) return; // Überlappung vermeiden (Netzpfad-Checks können dauern)
+  reachabilityChecking = true;
+  try {
+    let changed = false;
+    let recovered = false;
+    for (const wp of normalizedWatchPaths) {
+      let reachable = true;
+      try {
+        await fs.promises.access(path.resolve(wp.path));
+      } catch {
+        reachable = false;
+      }
+      const prev = watchPathReachability.get(wp.path);
+      watchPathReachability.set(wp.path, reachable);
+      if (prev === undefined) {
+        // Baseline: nur warnen, wenn schon beim ersten Check nicht erreichbar
+        if (!reachable) {
+          changed = true;
+          console.log(`⚠️  WatchPath nicht erreichbar: [${wp.label}] ${wp.path}`);
+        }
+      } else if (prev !== reachable) {
+        changed = true;
+        if (reachable) {
+          recovered = true;
+          console.log(`✅ WatchPath wieder erreichbar: [${wp.label}] ${wp.path}`);
+        } else {
+          console.log(`⚠️  WatchPath nicht mehr erreichbar: [${wp.label}] ${wp.path}`);
+        }
+      }
+    }
+    if (changed) broadcastWatchPathStatus();
+    if (recovered && reachabilityRestartCallback) {
+      console.log('♻️  Auto-Recovery: Watcher werden neu gestartet...');
+      try { reachabilityRestartCallback(); } catch (err) {
+        console.error('⚠️  Auto-Recovery fehlgeschlagen:', err.message);
+      }
+    }
+  } finally {
+    reachabilityChecking = false;
+  }
+}
+
+// Einmal beim Serverstart aufrufen — NICHT bei Watcher-Neustarts (Baseline bleibt erhalten,
+// neue/entfernte Pfade werden über normalizedWatchPaths automatisch mitgeprüft)
+function startReachabilityMonitor(onRecover, intervalMs = 15000) {
+  reachabilityRestartCallback = onRecover || null;
+  if (reachabilityTimer) clearInterval(reachabilityTimer);
+  if (reachabilityFirstTimer) clearTimeout(reachabilityFirstTimer);
+  reachabilityFirstTimer = setTimeout(() => checkWatchPathsReachability(), 3000);
+  reachabilityTimer = setInterval(() => checkWatchPathsReachability(), intervalMs);
+}
+
 // --- File Watcher ---
 
 function getLabelForFile(filePath) {
@@ -598,4 +679,4 @@ function reevaluateOversized() {
   if (changed) broadcastOversized();
 }
 
-module.exports = { startWatching, getLabelForFile, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset };
+module.exports = { startWatching, getLabelForFile, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus };

@@ -25,6 +25,24 @@ function schedulePerformanceRender() {
   }, 300);
 }
 
+// WatchPath-Erreichbarkeits-Warnungen (Banner oberhalb der Fehlerliste)
+function renderWatchPathWarnings(paths) {
+  const el = document.getElementById('watchPathWarnings');
+  if (!el) return;
+  const { escapeHtml } = Keasy.utils;
+  const unreachable = (paths || []).filter(p => p.reachable === false);
+  if (unreachable.length === 0) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  el.style.display = '';
+  el.innerHTML = unreachable.map(p => `
+    <div class="watchpath-warning" title="Der Pfad ist aktuell nicht erreichbar — die Überwachung dieser Quelle läuft ins Leere. Sobald der Pfad wieder erreichbar ist, werden die Watcher automatisch neu gestartet.">
+      ⚠️ <strong>${escapeHtml(p.label || 'Unbekannt')}</strong>: Pfad nicht erreichbar (${escapeHtml(p.path || '')}) — Überwachung unterbrochen, Auto-Recovery aktiv
+    </div>`).join('');
+}
+
 function connect() {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   state.ws = new WebSocket(`${protocol}//${location.host}`);
@@ -121,6 +139,9 @@ function connect() {
       if (msg.healthCheckLastResult && Keasy.systemCheck) {
         Keasy.systemCheck.restoreLastResult(msg.healthCheckLastResult);
       }
+      renderWatchPathWarnings(msg.watchPathStatus || []);
+    } else if (msg.type === 'watchpath-status') {
+      renderWatchPathWarnings((msg.data && msg.data.paths) || []);
     } else if (msg.type === 'error') {
       const { filePath, error, label } = msg.data;
       if (!state.errors[filePath]) state.errors[filePath] = [];
