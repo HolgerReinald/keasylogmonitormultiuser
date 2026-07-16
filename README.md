@@ -420,6 +420,14 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — README: Architektur-Abschnitt auf aktuellen Stand gebracht
+
+- Diagramm vervollständigt: alle 17 Server-Module (u. a. backupService, healthCheck, sessionMiddleware, userStore, markdownHelper, routes/-Ordner) und alle 21 Frontend-Panels
+- Modul-Beschreibungen aktualisiert (watchService inkl. Gap-Erkennung und Erreichbarkeits-Monitor, logParser inkl. Gap-Bewertung, httpRouter als Dispatcher mit Auth-Guards)
+- server.js-Zeilenangabe korrigiert (188 → ~380), Dependencies-Tabelle vervollständigt (archiver, adm-zip, basic-ftp, bcryptjs ergänzt)
+
+**Dateien:** README.md
+
 ### 2026-07-16 — 📡 WatchPath-Erreichbarkeit: Warnbanner + Auto-Recovery
 
 - Server prüft alle 15s die Erreichbarkeit aller WatchPaths (fs.access, überlappungssicher) — Hintergrund: Netzlaufwerke (X:/Y:) können pro Session wegfallen, die Watcher liefen dann still ins Leere
@@ -1407,38 +1415,62 @@ Komplette Modularisierung der Codebasis in 6 Phasen, basierend auf Triple-Review
 └────────┬────────────┘
          │ Datei geändert (Debounce: 100ms)
          ▼
-┌──────────────────────────────────────────────────────┐
-│  Node.js Server (server.js — 188 Zeilen Glue-Code)  │
-│                                                      │
-│  server/                                             │
-│  ├─ runtimeStore.js    State: Maps, Sets, Flags      │
-│  ├─ configStore.js     Config Proxy, Hot-Reload      │
-│  ├─ wsBroadcast.js     WebSocket Broadcast           │
-│  ├─ watchService.js    Chokidar Watcher, Preload     │
-│  ├─ logParser.js       Filter, Timestamp, StackTrace │
-│  ├─ emailService.js    SMTP, Buffer, Dedup, Timer    │
-│  ├─ trashService.js    Papierkorb, Batches, Eviction │
-│  ├─ analysisService.js Log-Analyse, Streaming        │
-│  └─ httpRouter.js      HTTP-Routes, Static Files     │
-└────────┬─────────────────────┬───────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Node.js Server (server.js — ~380 Zeilen Glue-Code)              │
+│                                                                  │
+│  server/                                                         │
+│  ├─ runtimeStore.js       State: Maps, Sets, Flags               │
+│  ├─ configStore.js        Config Proxy, Hot-Reload               │
+│  ├─ wsBroadcast.js        WebSocket-Broadcast (Label-Filter)     │
+│  ├─ watchService.js       Watcher, Preload, Gap-Erkennung,       │
+│  │                        Erreichbarkeit + Auto-Recovery         │
+│  ├─ logParser.js          Filter, Timestamp, Gap, StackTrace     │
+│  ├─ emailService.js       SMTP, Buffer, Dedup, Timer             │
+│  ├─ trashService.js       Papierkorb, Batches, Eviction          │
+│  ├─ analysisService.js    Log-Analyse, Streaming, Gaps           │
+│  ├─ backupService.js      Backup/Restore, FTP, Rotation,         │
+│  │                        Komplett-Backup, Zeitplan              │
+│  ├─ healthCheck.js        System-Check (read-only)               │
+│  ├─ sessionMiddleware.js  Sessions, Auth-Guards                  │
+│  ├─ userStore.js          Benutzer (bcrypt, users.json)          │
+│  ├─ userConfigStore.js    Per-User-Einstellungen                 │
+│  ├─ markdownHelper.js     README → HTML (Doku-Tab)               │
+│  ├─ parseJsonBody.js      JSON-Body-Parser (1-MB-Limit)          │
+│  ├─ httpRouter.js         Dispatcher, Static Files,              │
+│  │                        Auth-/Admin-Routen-Guards              │
+│  └─ routes/               auth, config, backup, analysis,        │
+│                           process, trash, user                   │
+└────────┬─────────────────────┬───────────────────────────────────┘
          │ WebSocket           │ SMTP (alle X Min.)
          ▼                     ▼
-┌─────────────────────────┐  ┌─────────────────┐
-│  Browser Dashboard      │  │  E-Mail an       │
-│  public/                │  │  Empfänger       │
-│  ├─ index.html          │  └─────────────────┘
-│  ├─ style.css           │
-│  └─ js/                 │
-│     ├─ utils.js         │  Hilfsfunktionen
-│     ├─ state.js         │  Keasy.state Objekt
-│     ├─ render.js        │  DOM-Rendering
-│     ├─ actions.js       │  User-Aktionen
-│     ├─ configPanel.js   │  Einstellungen UI
-│     ├─ analyzePanel.js  │  Log-Analyse UI
-│     ├─ trashPanel.js    │  Papierkorb UI
-│     ├─ wsClient.js      │  WebSocket + rAF-Batching
-│     └─ boot.js          │  Init, Filter, Theme
-└─────────────────────────┘
+┌─────────────────────────────────┐  ┌─────────────────┐
+│  Browser Dashboard              │  │  E-Mail an      │
+│  public/                        │  │  Empfänger      │
+│  ├─ index.html                  │  └─────────────────┘
+│  ├─ style.css                   │
+│  └─ js/                         │
+│     ├─ boot.js                  │  Init, Filter, Theme
+│     ├─ state.js                 │  Keasy.state Objekt
+│     ├─ utils.js                 │  Hilfsfunktionen
+│     ├─ wsClient.js              │  WebSocket, rAF-Batching, Banner
+│     ├─ render.js                │  DOM-Rendering (Live/Gaps/Analyse)
+│     ├─ actions.js               │  User-Aktionen
+│     ├─ loginPanel.js            │  Login, Rollen (data-admin-only)
+│     ├─ configPanel.js           │  Einstellungen (Koordinator)
+│     ├─ watchPathsPanel.js       │  WatchPaths-Tabelle inkl. Gaps
+│     ├─ thresholdPanel.js        │  Schwellwert-Regeln
+│     ├─ analyzePanel.js          │  Log-Analyse UI
+│     ├─ trashPanel.js            │  Papierkorb UI
+│     ├─ backupPanel.js           │  Backup: Status, Zeitplan, FTP
+│     ├─ backupTargetsPanel.js    │  Lokale Backup-Ziele
+│     ├─ backupRestorePanel.js    │  Backup-Liste, Restore
+│     ├─ cssEditorPanel.js        │  Live CSS-Editor
+│     ├─ docsPanel.js             │  Doku-Anzeige + Markdown-Editor
+│     ├─ systemCheckPanel.js      │  System-Check UI
+│     ├─ userPanel.js             │  Benutzerverwaltung
+│     ├─ folderPicker.js          │  Ordner-Auswahl-Dialog
+│     └─ confirmDialog.js         │  Bestätigungs-Dialoge
+└─────────────────────────────────┘
 ```
 
 ## Dependencies
@@ -1449,3 +1481,7 @@ Komplette Modularisierung der Codebasis in 6 Phasen, basierend auf Triple-Review
 | `ws` | WebSocket-Server für Live-Updates |
 | `open` | Browser automatisch öffnen |
 | `nodemailer` | E-Mail-Versand per SMTP |
+| `archiver` | Backup-ZIPs erstellen (Settings- und Komplett-Backup) |
+| `adm-zip` | Backup-ZIPs lesen/validieren (Restore-Preview, Inhaltsanzeige) |
+| `basic-ftp` | FTP/FTPS-Upload und -Verwaltung der Backups |
+| `bcryptjs` | Passwort-Hashing für das Rechtesystem |
