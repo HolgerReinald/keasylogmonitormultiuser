@@ -122,6 +122,62 @@ module.exports = function configRoutes(deps) {
       }
     },
 
+    // Doku-Editor: Markdown-Quelltext liefern
+    'GET /api/docs/raw': (req, res) => {
+      const readmePath = path.join(__dirname, '..', '..', 'README.md');
+      try {
+        const md = fs.readFileSync(readmePath, 'utf8');
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(md);
+      } catch (err) {
+        res.writeHead(500);
+        res.end('README.md nicht gefunden');
+      }
+    },
+
+    // Doku-Editor: Live-Vorschau — rendert übergebenes Markdown mit demselben Renderer wie die Anzeige
+    'POST /api/docs/preview': (req, res) => {
+      parseJsonBody(req, (body) => {
+        const md = body && typeof body.md === 'string' ? body.md : null;
+        if (md === null) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'md fehlt' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(markdownToHtml(md));
+      });
+    },
+
+    // Doku-Editor: README.md speichern (admin-only via ADMIN_ONLY_ROUTES)
+    'POST /api/docs': (req, res) => {
+      parseJsonBody(req, (body) => {
+        const md = body && typeof body.md === 'string' ? body.md : null;
+        if (!md || md.length < 100) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'Dokumentation zu kurz (Schutz vor versehentlichem Leeren)' }));
+          return;
+        }
+        if (!md.includes('## Historie')) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: "Abschnitt '## Historie' fehlt — wird von update-docs benötigt" }));
+          return;
+        }
+        const readmePath = path.join(__dirname, '..', '..', 'README.md');
+        try {
+          if (fs.existsSync(readmePath)) {
+            fs.copyFileSync(readmePath, readmePath + '.bak');
+          }
+          fs.writeFileSync(readmePath, md, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: err.message }));
+        }
+      });
+    },
+
     'POST /api/update-docs': (req, res) => {
       parseJsonBody(req, (body) => {
         const title = (body && typeof body.title === 'string') ? body.title.replace(/[\r\n]/g, ' ').trim() : '';

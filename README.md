@@ -417,6 +417,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — 📝 Doku-Tab: Markdown-Editor mit Live-Vorschau
+
+- Neuer Bearbeiten-Modus im Doku-Tab (admin-only): links README-Quelltext, rechts Live-Vorschau — gerendert über denselben Server-Renderer wie die Anzeige (markdownHelper), Vorschau debounced (400 ms)
+- Speichern schreibt README.md mit automatischem Backup (README.md.bak, Muster style.css.bak); Abbrechen warnt bei ungespeicherten Änderungen
+- Schutz-Validierung: Mindestlänge gegen versehentliches Leeren, Abschnitt '## Historie' muss erhalten bleiben (wird von update-docs benötigt)
+- Neue Routen: GET /api/docs/raw, POST /api/docs/preview, POST /api/docs (admin-only via ADMIN_ONLY_ROUTES)
+- Neue Smoke-Tests: raw/preview, Ablehnung zu kurz / ohne Historie, Roundtrip mit Backup-Prüfung
+
+**Dateien:** server/routes/configRoutes.js, server/httpRouter.js, public/js/docsPanel.js, public/index.html, public/style.css, test/smoke.js, .gitignore
+
 ### 2026-07-16 — 🗄️ Komplett-Backup des Programmverzeichnisses + crash.log-Endlosschleife behoben
 
 - Neue Backup-Option 'Komplett-Backup (gesamtes Verzeichnis) zusätzlich erstellen': sichert bei jedem Backup-Lauf das komplette Programmverzeichnis (inkl. node_modules) als `keasy-full-*.zip` an dieselben Ziele (lokal + FTP) — im Katastrophenfall entpacken und `node server.js` starten

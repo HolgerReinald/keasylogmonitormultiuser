@@ -1459,6 +1459,52 @@ input.user-editable {
   margin-bottom: 12px;
 }
 
+/* Doku-Editor (Markdown links, Live-Vorschau rechts) */
+.docs-editor-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.docs-editor-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+#docsEditorText {
+  width: 100%;
+  min-height: 65vh;
+  max-height: 65vh;
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.docs-editor-preview {
+  min-height: 65vh;
+  max-height: 65vh;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0 12px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .docs-editor-split {
+    grid-template-columns: 1fr;
+  }
+}
+
 .docs-content {
   font-size: 14px;
   line-height: 1.6;

@@ -17,6 +17,7 @@ const PUBLIC_ROUTES = new Set([
 const ADMIN_ONLY_ROUTES = new Set([
   // 'POST /api/config' — erlaubt für alle (User-Felder werden gesplittet, globale Config nur für Admins)
   'POST /api/style',
+  'POST /api/docs',
   'POST /api/stop-server',
   'POST /api/restart-watcher',
   'POST /api/update-docs',

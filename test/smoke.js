@@ -364,6 +364,57 @@ async function testBackupWithFixture() {
   }
 }
 
+async function testDocsEditor() {
+  console.log('\n📝 Doku-Editor-Tests:');
+
+  const fs = require('fs');
+  const path = require('path');
+  const readmePath = path.join(__dirname, '..', 'README.md');
+  const bakPath = readmePath + '.bak';
+
+  // Quelltext laden
+  const raw = await fetch('/api/docs/raw');
+  assert(raw.status === 200, 'GET /api/docs/raw → 200');
+  assert(raw.body.includes('# Keasy Log Monitor'), 'Raw-Markdown enthält Titel');
+  assert(raw.body.includes('## Historie'), 'Raw-Markdown enthält Historie-Abschnitt');
+
+  // Live-Vorschau rendert Markdown
+  const preview = await fetch('/api/docs/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ md: '# Vorschau-Test\n\n- Punkt 1' }),
+  });
+  assert(preview.status === 200, 'POST /api/docs/preview → 200');
+  assert(preview.body.includes('Vorschau-Test'), 'Vorschau enthält gerenderten Titel');
+
+  // Schutz: zu kurzer Inhalt wird abgelehnt
+  const tooShort = await fetch('/api/docs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ md: 'zu kurz' }),
+  });
+  assert(tooShort.status === 400, 'Speichern mit zu kurzem Inhalt → 400');
+
+  // Schutz: fehlender Historie-Abschnitt wird abgelehnt
+  const noHistory = await fetch('/api/docs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ md: '# Doku ohne Historie\n\n' + 'x'.repeat(200) }),
+  });
+  assert(noHistory.status === 400, "Speichern ohne '## Historie' → 400");
+
+  // Roundtrip: identischen Inhalt speichern → 200, Backup entsteht, Datei unverändert
+  const save = await fetch('/api/docs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ md: raw.body }),
+  });
+  assert(save.status === 200, 'Roundtrip-Speichern (identischer Inhalt) → 200');
+  assert(fs.existsSync(bakPath), 'README.md.bak wurde angelegt');
+  const afterSave = fs.readFileSync(readmePath, 'utf8');
+  assert(afterSave === raw.body, 'README.md nach Roundtrip inhaltlich unverändert');
+}
+
 function testWebSocket() {
   return new Promise((resolve) => {
     console.log('\n🌐 WebSocket-Test:');
@@ -731,6 +782,7 @@ async function run() {
     await testThresholdRules();
     await testGapConfigRoundtrip();
     await testPerformanceGap();
+    await testDocsEditor();
     await testWebSocket();
   } catch (err) {
     console.error(`\n💥 Unerwarteter Fehler: ${err.message || err}`);

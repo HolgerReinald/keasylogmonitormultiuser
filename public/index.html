@@ -305,7 +305,18 @@
       <div class="docs-toolbar">
         <button class="config-reset-btn" onclick="toggleAllDocs(true)">▼ Alle aufklappen</button>
         <button class="config-reset-btn" onclick="toggleAllDocs(false)">▲ Alle einklappen</button>
-
+        <button class="config-reset-btn" id="docsEditBtn" data-admin-only title="Dokumentation (README.md) bearbeiten" onclick="startDocsEdit()">✏️ Bearbeiten</button>
+      </div>
+      <div id="docsEditor" style="display:none;">
+        <div class="docs-editor-toolbar">
+          <button class="config-reset-btn" id="docsSaveBtn" onclick="saveDocs()">💾 Speichern</button>
+          <button class="config-reset-btn" onclick="cancelDocsEdit()">Abbrechen</button>
+          <small style="color:var(--text-secondary);">Markdown links bearbeiten — rechts die Live-Vorschau (identischer Renderer wie die Anzeige). Beim Speichern wird automatisch README.md.bak angelegt.</small>
+        </div>
+        <div class="docs-editor-split">
+          <textarea id="docsEditorText" spellcheck="false" oninput="onDocsEditorInput()"></textarea>
+          <div class="docs-content docs-editor-preview" id="docsEditorPreview"></div>
+        </div>
       </div>
       <div class="docs-content" id="docsContent">
         <p style="color:var(--text-muted)">Lade Dokumentation...</p>
