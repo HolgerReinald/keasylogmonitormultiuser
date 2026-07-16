@@ -38,6 +38,80 @@ function isInDateRange(timestamp) {
   return true;
 }
 
+// --- Gemeinsame Render-Bausteine (Live, ⏱️ Performance, Analyse) ---
+
+// Such- und Zeitraum-Filter für die Einträge einer Datei
+// (dateCheck: isInDateRange für Live/Performance, isInTimeFilter für Analyse)
+function filterEntriesForFile(entries, fileName, dateCheck) {
+  const fileNameLower = fileName.toLowerCase();
+  return entries.filter(e => {
+    if (!dateCheck(e.timestamp)) return false;
+    if (state.searchTerm) {
+      if (state.searchRegex) {
+        if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
+      } else {
+        if (!e.line.toLowerCase().includes(state.searchTerm) && !fileNameLower.includes(state.searchTerm)) return false;
+      }
+    }
+    return true;
+  });
+}
+
+function buildOpenButtonsHtml(filePath) {
+  return `<button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
+              <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>`;
+}
+
+// Datei-Block mit Header (Name, Pfad, Aktionen) und ausklappbarer Eintragsliste
+function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '') {
+  return `
+        <div class="file-group${extraClass}">
+          <div class="file-header" onclick="toggleGroup(this)">
+            <div>
+              ${fileNameHtml}
+              <div class="file-path">${escapeHtml(filePath)}</div>
+            </div>
+            <div class="file-actions">
+              ${actionsHtml}
+            </div>
+          </div>
+          <div class="error-list" style="display:none">${entriesHtml}</div>
+        </div>`;
+}
+
+// Fehler-Eintrag mit Zeile-öffnen/Kopieren/Copilot-Buttons (Live und Analyse)
+function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze) {
+  const time = new Date(err.timestamp).toLocaleTimeString('de-DE');
+  const errTextEscaped = escapeJs(err.line.split('\n')[0]);
+  return `
+          <div class="error-entry">
+            <div class="error-time">
+              ${time}
+              <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
+              <button class="action-btn copy-btn" aria-label="Fehler kopieren" title="In Zwischenablage kopieren" onclick="copyErrorToClipboard('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, event)">📋</button>
+              <button class="action-btn copilot-btn" aria-label="Für Copilot Develop exportieren" title="Für Copilot Develop exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'develop', event)">🤖</button>
+              <button class="action-btn copilot-release-btn" aria-label="Für Copilot Release exportieren" title="Für Copilot Release exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'release', event)">🚀</button>
+            </div>
+            <div class="error-text">${highlightSearch(highlightPatterns(escapeHtml(err.line)))}</div>
+          </div>`;
+}
+
+// ⏱️ Gap-Eintrag (Live-Performance und Analyse identisch — keine Copy/Copilot-Buttons)
+function buildGapEntryHtml(filePath, entry) {
+  const time = new Date(entry.timestamp).toLocaleTimeString('de-DE');
+  const prevTime = new Date(entry.prevTimestamp).toLocaleTimeString('de-DE');
+  const gapLabel = Keasy.utils.formatGapDuration(entry.gapSeconds);
+  const entryTextEscaped = escapeJs(entry.line.split('\n')[0]);
+  return `
+          <div class="error-entry gap-entry">
+            <div class="error-time">
+              <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
+              <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${entryTextEscaped}', event)">↗ Zeile öffnen</button>
+            </div>
+            <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(entry.line))}</div>
+          </div>`;
+}
+
 function renderAll() {
   const container = document.getElementById('container');
   const keys = Object.keys(state.errors).filter(k => state.errors[k].length > 0);
@@ -107,19 +181,7 @@ function renderAll() {
       const fileErrors = state.errors[filePath];
       const fileName = fileErrors[0]?.file || filePath.split('\\').pop();
 
-      const fileNameLower = fileName.toLowerCase();
-      const filtered = fileErrors.filter(e => {
-        if (!isInDateRange(e.timestamp)) return false;
-        if (state.searchTerm) {
-          if (state.searchRegex) {
-            if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
-          } else {
-            if (!e.line.toLowerCase().includes(state.searchTerm) && !fileNameLower.includes(state.searchTerm)) return false;
-          }
-        }
-        return true;
-      });
-
+      const filtered = filterEntriesForFile(fileErrors, fileName, isInDateRange);
       if (filtered.length === 0) continue;
       groupCount += filtered.length;
 
@@ -140,41 +202,16 @@ function renderAll() {
           })
         : '';
 
-      groupHtml += `
-        <div class="file-group${newestClass}">
-          <div class="file-header" onclick="toggleGroup(this)">
-            <div>
-              <div class="file-name${oversizeClass}"${oversizeTitle}>📄 ${escapeHtml(fileName)}</div>
-              <div class="file-path">${escapeHtml(filePath)}</div>
-            </div>
-            <div class="file-actions">
-              ${lastErrLabel ? `<span class="file-last-error" title="Zeitpunkt des letzten Fehlers">🕒 ${lastErrLabel}</span>` : ''}
-              <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
-              <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
-              <span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>
-            </div>
-          </div>
-          <div class="error-list" style="display:none">`;
-
-      const reversed = [...filtered].reverse();
-      for (const err of reversed) {
-        const time = new Date(err.timestamp).toLocaleTimeString('de-DE');
-        const errTextEscaped = escapeJs(err.line.split('\n')[0]);
-        const origIdx = state.errors[filePath].indexOf(err);
-        groupHtml += `
-          <div class="error-entry">
-            <div class="error-time">
-              ${time}
-              <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
-              <button class="action-btn copy-btn" aria-label="Fehler kopieren" title="In Zwischenablage kopieren" onclick="copyErrorToClipboard('${escapeJs(filePath)}', ${origIdx}, false, event)">📋</button>
-              <button class="action-btn copilot-btn" aria-label="Für Copilot Develop exportieren" title="Für Copilot Develop exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, false, 'develop', event)">🤖</button>
-              <button class="action-btn copilot-release-btn" aria-label="Für Copilot Release exportieren" title="Für Copilot Release exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, false, 'release', event)">🚀</button>
-            </div>
-            <div class="error-text">${highlightSearch(highlightPatterns(escapeHtml(err.line)))}</div>
-          </div>`;
+      let entriesHtml = '';
+      for (const err of [...filtered].reverse()) {
+        entriesHtml += buildErrorEntryHtml(filePath, err, state.errors[filePath].indexOf(err), false);
       }
 
-      groupHtml += `</div></div>`;
+      const fileNameHtml = `<div class="file-name${oversizeClass}"${oversizeTitle}>📄 ${escapeHtml(fileName)}</div>`;
+      const actionsHtml = `${lastErrLabel ? `<span class="file-last-error" title="Zeitpunkt des letzten Fehlers">🕒 ${lastErrLabel}</span>` : ''}
+              ${buildOpenButtonsHtml(filePath)}
+              <span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>`;
+      groupHtml += buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, newestClass);
     }
 
     if (groupCount === 0) continue;
@@ -228,51 +265,18 @@ function renderAll() {
       for (const filePath of pGroups[label]) {
         const fileEntries = state.performanceEntries[filePath];
         const fileName = fileEntries[0]?.file || filePath.split('\\').pop();
-        const fileNameLower = fileName.toLowerCase();
-        const filtered = fileEntries.filter(e => {
-          if (!isInDateRange(e.timestamp)) return false;
-          if (state.searchTerm) {
-            if (state.searchRegex) {
-              if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
-            } else {
-              if (!e.line.toLowerCase().includes(state.searchTerm) && !fileNameLower.includes(state.searchTerm)) return false;
-            }
-          }
-          return true;
-        });
+        const filtered = filterEntriesForFile(fileEntries, fileName, isInDateRange);
         if (filtered.length === 0) continue;
         groupCount += filtered.length;
 
-        groupHtml += `
-          <div class="file-group">
-            <div class="file-header" onclick="toggleGroup(this)">
-              <div>
-                <div class="file-name">📄 ${escapeHtml(fileName)}</div>
-                <div class="file-path">${escapeHtml(filePath)}</div>
-              </div>
-              <div class="file-actions">
-                <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
-                <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
-                <span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${filtered.length}</span>
-              </div>
-            </div>
-            <div class="error-list" style="display:none">`;
-        const reversed = [...filtered].reverse();
-        for (const entry of reversed) {
-          const time = new Date(entry.timestamp).toLocaleTimeString('de-DE');
-          const prevTime = new Date(entry.prevTimestamp).toLocaleTimeString('de-DE');
-          const gapLabel = Keasy.utils.formatGapDuration(entry.gapSeconds);
-          const entryTextEscaped = escapeJs(entry.line.split('\n')[0]);
-          groupHtml += `
-            <div class="error-entry gap-entry">
-              <div class="error-time">
-                <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
-                <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${entryTextEscaped}', event)">↗ Zeile öffnen</button>
-              </div>
-              <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(entry.line))}</div>
-            </div>`;
+        let entriesHtml = '';
+        for (const entry of [...filtered].reverse()) {
+          entriesHtml += buildGapEntryHtml(filePath, entry);
         }
-        groupHtml += `</div></div>`;
+
+        const actionsHtml = `${buildOpenButtonsHtml(filePath)}
+              <span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${filtered.length}</span>`;
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml);
       }
 
       if (groupCount > 0) {
@@ -313,18 +317,7 @@ function renderAll() {
       for (const filePath of aGroups[label]) {
         const fileErrors = state.analyzeErrors[filePath];
         const fileName = fileErrors[0]?.file || filePath.split('\\').pop();
-        const fileNameLower = fileName.toLowerCase();
-        const filtered = fileErrors.filter(e => {
-          if (!isInTimeFilter(e.timestamp)) return false;
-          if (state.searchTerm) {
-            if (state.searchRegex) {
-              if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
-            } else {
-              if (!e.line.toLowerCase().includes(state.searchTerm) && !fileNameLower.includes(state.searchTerm)) return false;
-            }
-          }
-          return true;
-        });
+        const filtered = filterEntriesForFile(fileErrors, fileName, isInTimeFilter);
         if (filtered.length === 0) continue;
         groupCount += filtered.length;
         // Fehler und ⏱️-Lücken getrennt zählen (Lücken haben gapSeconds)
@@ -334,52 +327,19 @@ function renderAll() {
         groupGapCount += fileGapCount;
         const fileGapBadge = fileGapCount > 0 ? `<span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${fileGapCount}</span>` : '';
 
-        groupHtml += `
-          <div class="file-group">
-            <div class="file-header" onclick="toggleGroup(this)">
-              <div>
-                <div class="file-name">📄 ${escapeHtml(fileName)}</div>
-                <div class="file-path">${escapeHtml(filePath)}</div>
-              </div>
-              <div class="file-actions">
-                <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
-                <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
-                <span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}
-              </div>
-            </div>
-            <div class="error-list" style="display:none">`;
-        const reversed = [...filtered].reverse();
-        for (const err of reversed) {
-          const time = new Date(err.timestamp).toLocaleTimeString('de-DE');
-          const errTextEscaped = escapeJs(err.line.split('\n')[0]);
+        let entriesHtml = '';
+        for (const err of [...filtered].reverse()) {
           if (err.gapSeconds != null) {
             // ⏱️ Performance-Lücke aus der Analyse — eigenes Layout, keine Copy/Copilot-Buttons
-            const prevTime = new Date(err.prevTimestamp).toLocaleTimeString('de-DE');
-            const gapLabel = Keasy.utils.formatGapDuration(err.gapSeconds);
-            groupHtml += `
-            <div class="error-entry gap-entry">
-              <div class="error-time">
-                <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
-                <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
-              </div>
-              <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(err.line))}</div>
-            </div>`;
-            continue;
+            entriesHtml += buildGapEntryHtml(filePath, err);
+          } else {
+            entriesHtml += buildErrorEntryHtml(filePath, err, state.analyzeErrors[filePath].indexOf(err), true);
           }
-          const origIdx = state.analyzeErrors[filePath].indexOf(err);
-          groupHtml += `
-            <div class="error-entry">
-              <div class="error-time">
-                ${time}
-                <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
-                <button class="action-btn copy-btn" aria-label="Fehler kopieren" title="In Zwischenablage kopieren" onclick="copyErrorToClipboard('${escapeJs(filePath)}', ${origIdx}, true, event)">📋</button>
-                <button class="action-btn copilot-btn" aria-label="Für Copilot Develop exportieren" title="Für Copilot Develop exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, true, 'develop', event)">🤖</button>
-                <button class="action-btn copilot-release-btn" aria-label="Für Copilot Release exportieren" title="Für Copilot Release exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, true, 'release', event)">🚀</button>
-              </div>
-              <div class="error-text">${highlightSearch(highlightPatterns(escapeHtml(err.line)))}</div>
-            </div>`;
         }
-        groupHtml += `</div></div>`;
+
+        const actionsHtml = `${buildOpenButtonsHtml(filePath)}
+              <span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml);
       }
 
       if (groupCount > 0) {

@@ -90,4 +90,22 @@ function filterErrorsByLabels(errors, visibleLabels) {
   return filtered;
 }
 
-module.exports = { clients, broadcast, broadcastFiltered, broadcastToUser, broadcastTrash, setTrashSnapshotFn, disconnectUser, filterErrorsByLabels, filterTrashSnapshot };
+// Objekt-Map { key → { label, … } } nach sichtbaren Labels filtern (null = alle sichtbar)
+function filterMapByLabels(map, visibleLabels) {
+  if (!visibleLabels) return map;
+  const filtered = {};
+  for (const [key, value] of Object.entries(map)) {
+    if (value.label && visibleLabels.includes(value.label)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+// Fertiger broadcastFiltered-Callback für Nachrichten mit einzelnem data.label
+function labelMessageFilter(msg, visibleLabels) {
+  if (!visibleLabels) return msg;
+  return visibleLabels.includes(msg.data.label) ? msg : null;
+}
+
+module.exports = { clients, broadcast, broadcastFiltered, broadcastToUser, broadcastTrash, setTrashSnapshotFn, disconnectUser, filterErrorsByLabels, filterTrashSnapshot, filterMapByLabels, labelMessageFilter };

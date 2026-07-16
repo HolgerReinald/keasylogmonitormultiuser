@@ -19,6 +19,25 @@ function resolveFtpSecure(cfg) {
   const mode = cfg.secureMode || (cfg.secure === true ? 'implicit' : cfg.secure === 'explicit' ? 'explicit' : 'none');
   return mode === 'explicit' ? 'explicit' : (mode === 'implicit' ? true : false);
 }
+
+// FTP-Verbindung aus der Config aufbauen, Aktion ausführen, immer sauber schließen
+// (testConnection nutzt bewusst NICHT diesen Helper — es testet Formular-Daten)
+async function withFtpClient(ftpCfg, fn) {
+  const client = new ftp.Client();
+  client.ftp.verbose = false;
+  try {
+    await client.access({
+      host: ftpCfg.host,
+      port: ftpCfg.port || 21,
+      user: ftpCfg.user,
+      password: ftpCfg.pass,
+      secure: resolveFtpSecure(ftpCfg)
+    });
+    return await fn(client);
+  } finally {
+    client.close();
+  }
+}
 const STYLE_PATH = path.join(ROOT, 'public', 'style.css');
 const EMAIL_LOG_PATH = path.join(ROOT, 'email.log');
 
@@ -290,24 +309,11 @@ async function saveLocal(zipPath, filename, localCfg) {
 // ─── FTP Backup ─────────────────────────────────────────────
 
 async function saveToFtp(zipPath, filename, ftpCfg) {
-  await retryOperation(async () => {
-    const client = new ftp.Client();
-    client.ftp.verbose = false;
-    try {
-      await client.access({
-        host: ftpCfg.host,
-        port: ftpCfg.port || 21,
-        user: ftpCfg.user,
-        password: ftpCfg.pass,
-        secure: resolveFtpSecure(ftpCfg)
-      });
-      const remotePath = ftpCfg.remotePath || '/backups';
-      await client.ensureDir(remotePath);
-      await client.uploadFrom(zipPath, `${remotePath}/${filename}`);
-    } finally {
-      client.close();
-    }
-  });
+  await retryOperation(() => withFtpClient(ftpCfg, async (client) => {
+    const remotePath = ftpCfg.remotePath || '/backups';
+    await client.ensureDir(remotePath);
+    await client.uploadFrom(zipPath, `${remotePath}/${filename}`);
+  }));
 }
 
 // ─── Retry-Logik ────────────────────────────────────────────
@@ -347,22 +353,12 @@ async function rotateFtpBackups(maxPerTarget, ftpCfg, prefix = 'keasy-backup-') 
   const backups = (await listFtpBackups(ftpCfg)).filter(b => b.filename.startsWith(prefix));
   if (backups.length <= maxPerTarget) return;
   const toDelete = backups.slice(maxPerTarget);
-  const client = new ftp.Client();
-  try {
-    await client.access({
-      host: ftpCfg.host,
-      port: ftpCfg.port || 21,
-      user: ftpCfg.user,
-      password: ftpCfg.pass,
-      secure: resolveFtpSecure(ftpCfg)
-    });
+  await withFtpClient(ftpCfg, async (client) => {
     const remotePath = ftpCfg.remotePath || '/backups';
     for (const b of toDelete) {
       try { await client.remove(`${remotePath}/${b.filename}`); } catch { /* ignore */ }
     }
-  } finally {
-    client.close();
-  }
+  });
 }
 
 // ─── Backups auflisten ──────────────────────────────────────
@@ -437,40 +433,33 @@ async function listFtpBackups(ftpCfg) {
   const backups = [];
   if (!ftpCfg || !ftpCfg.host || !ftpCfg.enabled) return backups;
   try {
-    const client = new ftp.Client();
-    await client.access({
-      host: ftpCfg.host,
-      port: ftpCfg.port || 21,
-      user: ftpCfg.user,
-      password: ftpCfg.pass,
-      secure: resolveFtpSecure(ftpCfg)
-    });
-    const remotePath = ftpCfg.remotePath || '/backups';
-    const list = await client.list(remotePath);
-    for (const item of list) {
-      if ((item.name.startsWith('keasy-backup-') || item.name.startsWith('keasy-full-')) && item.name.endsWith('.zip')) {
-        let content = null;
-        try {
-          const tmpDir = path.join(ROOT, 'temp-ftp');
-          if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-          const tmpPath = path.join(tmpDir, item.name);
-          await client.downloadTo(tmpPath, `${remotePath}/${item.name}`);
-          content = getZipContentSummary(tmpPath);
-          try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
-        } catch { /* ignore */ }
-        backups.push({
-          filename: item.name,
-          type: item.name.startsWith('keasy-full-') ? 'full' : 'settings',
-          source: 'ftp',
-          sourceId: 'ftp',
-          sourceLabel: 'FTP',
-          size: item.size,
-          date: item.modifiedAt ? item.modifiedAt.toISOString() : null,
-          content
-        });
+    await withFtpClient(ftpCfg, async (client) => {
+      const remotePath = ftpCfg.remotePath || '/backups';
+      const list = await client.list(remotePath);
+      for (const item of list) {
+        if ((item.name.startsWith('keasy-backup-') || item.name.startsWith('keasy-full-')) && item.name.endsWith('.zip')) {
+          let content = null;
+          try {
+            const tmpDir = path.join(ROOT, 'temp-ftp');
+            if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+            const tmpPath = path.join(tmpDir, item.name);
+            await client.downloadTo(tmpPath, `${remotePath}/${item.name}`);
+            content = getZipContentSummary(tmpPath);
+            try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+          } catch { /* ignore */ }
+          backups.push({
+            filename: item.name,
+            type: item.name.startsWith('keasy-full-') ? 'full' : 'settings',
+            source: 'ftp',
+            sourceId: 'ftp',
+            sourceLabel: 'FTP',
+            size: item.size,
+            date: item.modifiedAt ? item.modifiedAt.toISOString() : null,
+            content
+          });
+        }
       }
-    }
-    client.close();
+    });
   } catch { /* FTP nicht erreichbar → leere Liste */ }
   return backups;
 }
@@ -744,23 +733,13 @@ async function getZipPath(source, filename, sourceId) {
 
   if (source === 'ftp') {
     const ftpCfg = (config.backup || {}).ftp || {};
-    const client = new ftp.Client();
     const tmpDir = path.join(ROOT, 'temp-ftp');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
     const tmpPath = path.join(tmpDir, filename);
-    try {
-      await client.access({
-        host: ftpCfg.host,
-        port: ftpCfg.port || 21,
-        user: ftpCfg.user,
-        password: ftpCfg.pass,
-        secure: resolveFtpSecure(ftpCfg)
-      });
+    await withFtpClient(ftpCfg, async (client) => {
       const remotePath = ftpCfg.remotePath || '/backups';
       await client.downloadTo(tmpPath, `${remotePath}/${filename}`);
-    } finally {
-      client.close();
-    }
+    });
     return tmpPath;
   }
 
@@ -877,20 +856,10 @@ async function deleteBackup(source, sourceId, filename) {
       err.statusCode = 400;
       throw err;
     }
-    const client = new ftp.Client();
-    try {
-      await client.access({
-        host: ftpCfg.host,
-        port: ftpCfg.port || 21,
-        user: ftpCfg.user,
-        password: ftpCfg.pass,
-        secure: resolveFtpSecure(ftpCfg)
-      });
+    await withFtpClient(ftpCfg, async (client) => {
       const remotePath = ftpCfg.remotePath || '/backups';
       await client.remove(`${remotePath}/${filename}`);
-    } finally {
-      client.close();
-    }
+    });
   } else {
     const err = new Error('Unbekannte Quelle');
     err.statusCode = 400;

@@ -7,7 +7,7 @@ const { WebSocketServer } = require('ws');
 // --- Module ---
 const store = require('./server/runtimeStore');
 const { normalizedWatchPaths, pausedLabels, emailDisabledLabels, trashStore, state: rState } = store;
-const { broadcast, clients, broadcastTrash, disconnectUser } = require('./server/wsBroadcast');
+const { broadcast, clients, broadcastTrash, disconnectUser, filterMapByLabels } = require('./server/wsBroadcast');
 const configStore = require('./server/configStore');
 const { config } = configStore;
 const { getVisibleLabels, mergeConfigForUser } = require('./server/userConfigStore');
@@ -110,7 +110,7 @@ wss.on('connection', (ws, req) => {
 
   // Fehler-Daten nach sichtbaren Labels filtern
   const allErrors = getAllErrors();
-  const filteredErrors = filterByLabels(allErrors, ws.visibleLabels);
+  const filteredErrors = filterMapByLabels(allErrors, ws.visibleLabels);
   // Analyse-Daten per-user (nicht nach visibleLabels filtern)
   const analyzeData = getAnalyzeErrors(session.username);
   const au = getOrCreateAnalyzeUser(session.username);
@@ -120,8 +120,8 @@ wss.on('connection', (ws, req) => {
   ws.send(JSON.stringify({
     type: 'init',
     data: filteredErrors,
-    performanceData: filterByLabels(getAllPerformance(), ws.visibleLabels),
-    oversizedFiles: filterOversizedByLabels(getOversizedFiles(), ws.visibleLabels),
+    performanceData: filterMapByLabels(getAllPerformance(), ws.visibleLabels),
+    oversizedFiles: filterMapByLabels(getOversizedFiles(), ws.visibleLabels),
     maxLogFileSizeMB: config.maxLogFileSizeMB,
     authEnabled: configStore.isAuthEnabled(),
     analyzeData: analyzeData,
@@ -145,29 +145,6 @@ wss.on('connection', (ws, req) => {
     try { clients.delete(ws); } catch (_) {}
   }
 });
-
-// Hilfsfunktionen: Fehler nach sichtbaren Labels filtern
-function filterByLabels(errors, visibleLabels) {
-  if (!visibleLabels) return errors; // null = alle
-  const filtered = {};
-  for (const [filePath, data] of Object.entries(errors)) {
-    if (data.label && visibleLabels.includes(data.label)) {
-      filtered[filePath] = data;
-    }
-  }
-  return filtered;
-}
-
-function filterOversizedByLabels(oversized, visibleLabels) {
-  if (!visibleLabels) return oversized; // null = alle
-  const filtered = {};
-  for (const [filePath, info] of Object.entries(oversized)) {
-    if (info.label && visibleLabels.includes(info.label)) {
-      filtered[filePath] = info;
-    }
-  }
-  return filtered;
-}
 
 // emailConfigured pro User: E-Mail-Empfänger liegen per-User in users/<name>/config.json,
 // nicht in der globalen config.js — daher aus den Subscriptions des verbundenen Users ableiten.

@@ -420,6 +420,15 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — Code-Refactoring: Render-Bausteine, FTP-Helper, Label-Filter + Repo-Hygiene
+
+- render.js: die drei fast identischen Anzeige-Sektionen (Live, ⏱️ Performance, Analyse) nutzen jetzt gemeinsame Bausteine (filterEntriesForFile, buildFileGroupHtml, buildErrorEntryHtml, buildGapEntryHtml) — per DOM-Stub-Aequivalenztest über 6 Szenarien verifiziert (Ausgabe identisch)
+- backupService: withFtpClient-Helper ersetzt 5x identisches FTP-Verbindungs-Boilerplate (einheitliches Schliessen auch im Fehlerfall)
+- wsBroadcast: gemeinsame Label-Filter (filterMapByLabels, labelMessageFilter) ersetzen 6 Kopien in server.js und watchService.js
+- Repo-Hygiene: backup-status.json (Laufzeit-Status) und zwei versehentlich getrackte temp-backup-ZIPs aus Git entfernt; .gitattributes beendet die CRLF-Warnungen; temp-Ordner ignoriert
+
+**Dateien:** public/js/render.js, server/backupService.js, server/wsBroadcast.js, server/watchService.js, server.js, .gitignore, .gitattributes
+
 ### 2026-07-16 — README: Architektur-Abschnitt auf aktuellen Stand gebracht
 
 - Diagramm vervollständigt: alle 17 Server-Module (u. a. backupService, healthCheck, sessionMiddleware, userStore, markdownHelper, routes/-Ordner) und alle 21 Frontend-Panels

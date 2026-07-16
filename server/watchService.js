@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
 const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps } = require('./runtimeStore');
-const { broadcast, broadcastFiltered } = require('./wsBroadcast');
+const { broadcast, broadcastFiltered, filterMapByLabels, labelMessageFilter } = require('./wsBroadcast');
 const { config } = require('./configStore');
 const { matchesFilter, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
 const { bufferErrorForEmail } = require('./emailService');
@@ -123,10 +123,7 @@ function emitError(filePath, entry, changeDetectedAt) {
   broadcastFiltered({
     type: 'error',
     data: { filePath, error, label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || '' }
-  }, (msg, visibleLabels) => {
-    if (!visibleLabels) return msg;
-    return visibleLabels.includes(msg.data.label) ? msg : null;
-  });
+  }, labelMessageFilter);
   if (changeDetectedAt && config.debugLogging) {
     console.log(`  [TIMING] change-Event → broadcast: ${Date.now() - changeDetectedAt}ms | ${path.basename(filePath)}`);
   }
@@ -214,10 +211,7 @@ function emitPerformance(filePath, gapSeconds, prevTs, ts, entry, silent) {
   broadcastFiltered({
     type: 'performance',
     data: { filePath, entry: performanceEntry, label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || '' }
-  }, (msg, visibleLabels) => {
-    if (!visibleLabels) return msg;
-    return visibleLabels.includes(msg.data.label) ? msg : null;
-  });
+  }, labelMessageFilter);
 }
 
 // Nach dem Preload alle gesammelten Performance-Lücken als EIN Snapshot senden
@@ -226,14 +220,7 @@ function broadcastPerformanceSnapshot() {
   if (performanceStore.size === 0) return;
   broadcastFiltered(
     { type: 'performance-snapshot', data: getAllPerformance() },
-    (msg, visibleLabels) => {
-      if (!visibleLabels) return msg; // null = alle sichtbar
-      const data = {};
-      for (const [fp, info] of Object.entries(msg.data)) {
-        if (visibleLabels.includes(info.label)) data[fp] = info;
-      }
-      return { type: 'performance-snapshot', data };
-    }
+    (msg, visibleLabels) => ({ type: 'performance-snapshot', data: filterMapByLabels(msg.data, visibleLabels) })
   );
 }
 
@@ -640,14 +627,7 @@ function getOversizedFiles() {
 function broadcastOversized() {
   broadcastFiltered(
     { type: 'oversized-files', data: getOversizedFiles() },
-    (msg, visibleLabels) => {
-      if (!visibleLabels) return msg; // null = alle sichtbar
-      const data = {};
-      for (const [fp, info] of Object.entries(msg.data)) {
-        if (visibleLabels.includes(info.label)) data[fp] = info;
-      }
-      return { type: 'oversized-files', data };
-    }
+    (msg, visibleLabels) => ({ type: 'oversized-files', data: filterMapByLabels(msg.data, visibleLabels) })
   );
 }
 
