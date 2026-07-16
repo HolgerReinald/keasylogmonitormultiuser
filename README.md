@@ -83,7 +83,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **⚙️ Einstellungen im Dashboard:** Alle Config-Werte direkt im Browser bearbeiten (kein Editor nötig)
 - **🎨 Live CSS-Editor:** CSS direkt im Dashboard bearbeiten mit Live-Vorschau. Speichern-Button erst aktiv nach Änderungen. Backup und Standard-Wiederherstellung integriert
 - **📂 Log-Analyse:** Einmalige Analyse von Log-Dateien ohne Watcher — historische Logs oder Anwender-Logs auswerten. Streaming-Read für große Dateien, eigener Store getrennt vom Live-Monitoring, Abbrechen-Option, Fortschrittsanzeige
-- **🗄️ Backup & Restore:** Automatisches tägliches Backup (Zeitplan konfigurierbar) auf beliebig viele lokale Verzeichnisse (Multi-Local) und/oder FTPS (Explicit STARTTLS / Implicit / None). Hybrid-Labels pro Ziel (📁 Lokal, ☁️ Cloud/Sync, 💾 Externes Laufwerk, ✏️ Benutzerdefiniert). ZIP-Archiv mit Config, CSS und E-Mail-Log. Rotation (max. Backups pro Ziel). Restore mit Preview, Whitelist-Validierung, Zip-Slip-Schutz und Sicherheits-Backup. Verbindungstest pro Ziel. Run-Lock (Mutex) gegen parallele Backups. Duplikat-Pfad-Erkennung. Verpasste Backups werden beim Start nachgeholt
+- **🗄️ Backup & Restore:** Automatisches tägliches Backup (Zeitplan konfigurierbar) auf beliebig viele lokale Verzeichnisse (Multi-Local) und/oder FTPS (Explicit STARTTLS / Implicit / None). Hybrid-Labels pro Ziel (📁 Lokal, ☁️ Cloud/Sync, 💾 Externes Laufwerk, ✏️ Benutzerdefiniert). ZIP-Archiv mit Config, CSS und E-Mail-Log. Optional zusätzlich ein **Komplett-Backup** des gesamten Programmverzeichnisses (`keasy-full-*.zip`, inkl. node_modules — im Katastrophenfall entpacken und starten; Wiederherstellung manuell, nicht über die Oberfläche). Rotation (max. Backups pro Ziel, Settings- und Komplett-Backups getrennt). Restore mit Preview, Whitelist-Validierung, Zip-Slip-Schutz und Sicherheits-Backup. Verbindungstest pro Ziel. Run-Lock (Mutex) gegen parallele Backups. Duplikat-Pfad-Erkennung. Verpasste Backups werden beim Start nachgeholt
 - **🧪 System-Check:** Read-only Health-Checks direkt im Server-Prozess — prüft HTTP-Erreichbarkeit, WebSocket, Konfiguration, Dateisystem (inkl. Netzlaufwerke), Backup-Status und E-Mail-Log. Live-Ergebnisse per WebSocket mit gestaffelter Animation. Cooldown-Schutz (10s), Reconnect-safe
 - **📖 Dokumentation im Dashboard:** README als formatiertes HTML mit einklappbaren Sektionen
 - **📋 E-Mail Log im Dashboard:** E-Mail-Aktivitäten einsehen und löschen
@@ -134,7 +134,7 @@ Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel mit
 | **📧 E-Mail Log** | E-Mail-Versandprotokoll einsehen, aktualisieren und löschen |
 | **🎨 CSS-Style** | Live CSS-Editor mit Vorschau, Speichern und Zurücksetzen |
 | **📂 Log-Analyse** | Analyse-Pfade verwalten, Analyse starten/abbrechen |
-| **🗄️ Backup** | Beliebig viele lokale Ziele (Multi-Local) + FTP mit Hybrid-Labels (📁/☁️/💾/✏️), Zeitplan, Rotation, Restore mit Preview und Bestätigungsdialog |
+| **🗄️ Backup** | Beliebig viele lokale Ziele (Multi-Local) + FTP mit Hybrid-Labels (📁/☁️/💾/✏️), Zeitplan, Rotation, optionales Komplett-Backup des Programmverzeichnisses, Restore mit Preview und Bestätigungsdialog |
 | **🧪 System-Check** | Read-only Health-Checks (HTTP, WebSocket, Config, Dateisystem, Backup, E-Mail) mit Live-Ergebnissen |
 | **📖 Dokumentation** | README als formatiertes HTML mit einklappbaren Sektionen |
 
@@ -416,6 +416,27 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-16 — 🗄️ Komplett-Backup des Programmverzeichnisses + crash.log-Endlosschleife behoben
+
+- Neue Backup-Option 'Komplett-Backup (gesamtes Verzeichnis) zusätzlich erstellen': sichert bei jedem Backup-Lauf das komplette Programmverzeichnis (inkl. node_modules) als `keasy-full-*.zip` an dieselben Ziele (lokal + FTP) — im Katastrophenfall entpacken und `node server.js` starten
+- Ausgeschlossen: temp-Ordner, crash.log und vorhandene Backup-ZIPs (verhindert Rekursion, falls ein Backup-Ziel im Programmverzeichnis liegt)
+- Eigene Rotation getrennt vom Settings-Backup (jeweils 'Max. Backups pro Ziel'); Restore-Liste zeigt Komplett-Backups mit 🗂️ und 'Komplett (N Dateien)', löschbar, aber bewusst **kein UI-Restore** (Server lehnt Preview/Restore ab — der laufende Server kann sich nicht selbst überschreiben)
+- crash.log: wuchs seit 16.05. auf 1,4 GB durch eine Endlos-Schleife — console.error im Crash-Handler warf bei toter Konsole (EPIPE/broken pipe) selbst eine Exception, die wieder geloggt wurde. Fix: EPIPE am Stream schlucken, Rekursionsschutz in logCrash, Rotation bei 5 MB nach crash.log.old
+- Neue Smoke-Tests: Komplett-ZIP wird erstellt und gelistet (type=full), Preview darauf wird abgelehnt
+
+**Dateien:** server/backupService.js, server.js, public/index.html, public/js/backupPanel.js, public/js/backupTargetsPanel.js, public/js/backupRestorePanel.js, test/smoke.js, README.md
+
+### 2026-07-16 — ⏱️ Gap-Erkennung: Performance-Optimierungen (flüssiges Monitoring)
+
+- Nach der Gap-Erweiterung fühlte sich das System träge an — auch bei deaktiviertem Feature: der Settings-Lookup (path.resolve über alle WatchPaths) lag im Pro-Eintrag-Pfad. Gemessen: 236 ms statt 0,9 ms pro 50.000 Einträge (~eine 6-MB-Tagesdatei)
+- Gap-Settings werden jetzt einmal pro Batch (processNewLines-Aufruf) gelesen statt pro Eintrag — Hot-Reload bei Schwellwert-Änderungen bleibt erhalten
+- Feature aus: kein Timestamp-Parsing pro Eintrag mehr — die Gap-Baseline wird per Rückwärts-Scan nur aus dem letzten Eintrag des Batches gepflegt (~1 ms, späteres Aktivieren hat sofort einen Vorgänger-Timestamp)
+- Preload: historische Gaps werden nicht mehr einzeln gebroadcastet (Nachrichten-Sturm), sondern nach Abschluss als **ein** `performance-snapshot` gesendet; Clients ersetzen ihren Performance-Stand komplett
+- Client: Gap-Nachrichten rendern gedrosselt (~300 ms Coalescing) statt bis zu 60×/s per rAF — Fehler behalten ihre sofortige Anzeige
+- getLabelForFile und getGapSettingsForFile teilen sich das WatchPath-Matching (findWatchPathForFile)
+
+**Dateien:** server/watchService.js, public/js/wsClient.js
 
 ### 2026-07-15 — Umbenennung: 'Lücke' → 'Gap' in der Oberfläche
 
