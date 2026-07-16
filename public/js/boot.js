@@ -89,14 +89,37 @@ function updateClearButtonText() {
 
 function updateNotifButton() {
   const btn = document.getElementById('notifToggle');
-  btn.textContent = state.notificationsEnabled ? '🔔' : '🔕';
-  btn.title = state.notificationsEnabled ? 'Desktop-Benachrichtigungen aus' : 'Desktop-Benachrichtigungen ein';
-  btn.style.opacity = state.notificationsEnabled ? '1' : '0.5';
+  if (!state.notificationsEnabled) {
+    btn.textContent = '🔕';
+    btn.title = 'Desktop-Benachrichtigungen ein';
+    btn.style.opacity = '0.5';
+    return;
+  }
+  // Aktiviert — aber ohne Browser-Berechtigung kommt trotzdem nichts an: Warnzustand zeigen
+  if (!('Notification' in window) || Notification.permission === 'denied') {
+    btn.textContent = '🔔⚠️';
+    btn.title = 'Desktop-Benachrichtigungen aktiviert, aber vom Browser blockiert — Berechtigung über das Schloss-Symbol in der Adressleiste erlauben';
+    btn.style.opacity = '1';
+    return;
+  }
+  if (Notification.permission === 'default') {
+    btn.textContent = '🔔❓';
+    btn.title = 'Desktop-Benachrichtigungen aktiviert — Browser-Berechtigung noch nicht erteilt (aus- und wieder einschalten fragt erneut an)';
+    btn.style.opacity = '1';
+    return;
+  }
+  btn.textContent = '🔔';
+  btn.title = 'Desktop-Benachrichtigungen aus';
+  btn.style.opacity = '1';
 }
 
 function toggleNotifications() {
   state.notificationsEnabled = !state.notificationsEnabled;
   localStorage.setItem('keasy-notifications', state.notificationsEnabled ? 'on' : 'off');
+  // Beim Aktivieren eine fehlende Browser-Berechtigung direkt anfragen
+  if (state.notificationsEnabled && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(updateNotifButton);
+  }
   updateNotifButton();
 }
 
@@ -106,12 +129,16 @@ function notifyNewError(error) {
     : 'Keasy Log Monitor';
   if (!state.notificationsEnabled) return;
   const now = Date.now();
-  if (document.hidden && Notification.permission === 'granted' && now - state.lastNotificationTime > 10000) {
+  // Benachrichtigen, wenn das Dashboard nicht im Blick ist: Tab verdeckt ODER Fenster
+  // nicht fokussiert (z. B. Keasy im Vordergrund, Dashboard auf dem zweiten Monitor)
+  const dashboardNotInView = document.hidden || !document.hasFocus();
+  if (dashboardNotInView && Notification.permission === 'granted' && now - state.lastNotificationTime > 10000) {
     state.lastNotificationTime = now;
     new Notification('Keasy Log Monitor', {
       body: `${error.file}: ${error.line.substring(0, 80)}`,
       icon: '🔴',
-      tag: 'keasy-error'
+      tag: 'keasy-error',
+      renotify: true // neue Meldung poppt wieder auf, statt die alte im Info-Center stumm zu ersetzen
     });
   }
 }
@@ -140,7 +167,7 @@ Keasy.auth.checkAuth().then(loggedIn => {
 function initApp() {
   // Notification Permission
   if ('Notification' in window && Notification.permission === 'default' && state.notificationsEnabled) {
-    Notification.requestPermission();
+    Notification.requestPermission().then(updateNotifButton);
   }
   updateNotifButton();
 

@@ -420,6 +420,15 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — 🔔 Desktop-Benachrichtigungen zuverlässiger
+
+- renotify: neue Meldungen poppen wieder auf, statt die alte im Info-Center stumm zu ersetzen (gleicher tag verschluckte Folge-Meldungen)
+- Benachrichtigt jetzt auch, wenn das Dashboard-Fenster sichtbar, aber nicht fokussiert ist (document.hasFocus zusätzlich zu document.hidden) — z. B. Keasy im Vordergrund oder Dashboard auf dem zweiten Monitor
+- 🔔-Button zeigt Warnzustand, wenn die Browser-Berechtigung fehlt (🔔❓) oder blockiert ist (🔔⚠️, Tooltip mit Anleitung); beim Aktivieren wird die Berechtigung direkt angefragt
+- Unverändert: höchstens eine Benachrichtigung alle 10 Sekunden; Windows-seitig kann der Benachrichtigungsassistent Banner weiterhin unterdrücken
+
+**Dateien:** public/js/boot.js
+
 ### 2026-07-16 — Watcher-Schutz: fehlende WatchPaths blockieren den Server nicht mehr
 
 - startWatching legt für nicht existierende Pfade keinen Watcher mehr an — chokidar fiel sonst aufs nächste existierende Elternverzeichnis zurück und pollte es komplett (z. B. %TEMP% mit zigtausenden Dateien → Event-Loop-Blockade, Dashboard reagierte nicht mehr)
