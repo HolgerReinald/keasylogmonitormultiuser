@@ -14,6 +14,17 @@ function scheduleRender() {
   });
 }
 
+// Gedrosseltes Render für Performance-Lücken: Gaps sind informativ, nicht dringend —
+// bei Nachrichten-Fluten reicht ein Rebuild alle ~300ms statt bis zu 60/s per rAF
+let perfRenderTimer = null;
+function schedulePerformanceRender() {
+  if (perfRenderTimer !== null) return;
+  perfRenderTimer = setTimeout(() => {
+    perfRenderTimer = null;
+    scheduleRender();
+  }, 300);
+}
+
 function connect() {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   state.ws = new WebSocket(`${protocol}//${location.host}`);
@@ -57,6 +68,15 @@ function connect() {
       for (const [filePath, data] of Object.entries(msg.data)) {
         state.errors[filePath] = data.errors || data;
         if (data.label) state.fileLabels[filePath] = data.label;
+      }
+      // Performance-Lücken laden
+      state.performanceEntries = {};
+      state.performanceLabels = {};
+      if (msg.performanceData) {
+        for (const [filePath, data] of Object.entries(msg.performanceData)) {
+          state.performanceEntries[filePath] = data.entries || [];
+          if (data.label) state.performanceLabels[filePath] = data.label;
+        }
       }
       if (msg.pausedSources) {
         state.pausedSources = new Set(msg.pausedSources);
@@ -113,6 +133,34 @@ function connect() {
         scheduleRender();
         notifyNewError(error);
       }
+    } else if (msg.type === 'performance') {
+      const { filePath, entry, label } = msg.data;
+      if (!state.performanceEntries[filePath]) state.performanceEntries[filePath] = [];
+      state.performanceEntries[filePath].push(entry);
+      if (label) state.performanceLabels[filePath] = label;
+      if (state.performanceEntries[filePath].length > 20) {
+        state.performanceEntries[filePath] = state.performanceEntries[filePath].slice(-10);
+      }
+      // Keine Desktop-Notification — Performance-Einträge sind keine Fehler
+      if (!state.paused) schedulePerformanceRender();
+    } else if (msg.type === 'performance-snapshot') {
+      // Gebündelter Stand nach dem Preload — kompletten Performance-State ersetzen
+      state.performanceEntries = {};
+      state.performanceLabels = {};
+      for (const [filePath, data] of Object.entries(msg.data || {})) {
+        state.performanceEntries[filePath] = data.entries || [];
+        if (data.label) state.performanceLabels[filePath] = data.label;
+      }
+      if (!state.paused) schedulePerformanceRender();
+    } else if (msg.type === 'performance-source-cleared') {
+      const label = msg.data.label;
+      for (const fp of Object.keys(state.performanceEntries)) {
+        if (state.performanceLabels[fp] === label) {
+          delete state.performanceEntries[fp];
+          delete state.performanceLabels[fp];
+        }
+      }
+      if (!state.paused) scheduleRender();
     } else if (msg.type === 'source-paused') {
       state.pausedSources.add(msg.data.label);
       if (!state.paused) scheduleRender();
@@ -203,10 +251,10 @@ function connect() {
       state.analyzeLabels = {};
       updateAnalyzeProgress(0, msg.data.total, 0, true, false, msg.data.skippedPaths);
     } else if (msg.type === 'analyze-progress') {
-      updateAnalyzeProgress(msg.data.current, msg.data.total, msg.data.errors, true);
+      updateAnalyzeProgress(msg.data.current, msg.data.total, msg.data.errors, true, false, undefined, msg.data.gaps);
     } else if (msg.type === 'analyze-done') {
       state.analyzeUser = msg.data.username || state.analyzeUser || '';
-      updateAnalyzeProgress(msg.data.processed, msg.data.total, msg.data.errors, false, msg.data.aborted);
+      updateAnalyzeProgress(msg.data.processed, msg.data.total, msg.data.errors, false, msg.data.aborted, undefined, msg.data.gaps);
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'analyze-cleared') {
       state.analyzeErrors = {};

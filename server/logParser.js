@@ -76,6 +76,29 @@ function rebuildThresholdRules(rules) {
 // Regex: Neuer Log-Eintrag beginnt mit Timestamp (DD.MM.YY HH:MM:SS.mmm)
 const timestampRegex = /^\s*\d{2}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3}/;
 
+// Capturing-Variante für die Timestamp-Extraktion
+const timestampCaptureRegex = /^\s*(\d{2})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
+
+// Timestamp eines Log-Eintrags als Date — null, wenn keiner vorhanden (bewusst KEIN Wall-Clock-Fallback,
+// damit die Gap-Erkennung Einträge ohne Timestamp überspringen kann)
+function parseEntryTimestamp(entry) {
+  const m = entry.match(timestampCaptureRegex);
+  if (!m) return null;
+  const [, dd, MM, yy, HH, mm, ss, ms] = m;
+  return new Date(2000 + parseInt(yy), parseInt(MM) - 1, parseInt(dd), parseInt(HH), parseInt(mm), parseInt(ss), parseInt(ms));
+}
+
+// Lücke zwischen zwei Einträgen bewerten: Sekunden zurückgeben, wenn sie die Warn-Schwelle erreicht
+// und unter der Idle-Grenze liegt (längere Lücken = Leerlauf/Nacht, kein Performance-Problem)
+function evaluateGap(prevDate, curDate, warnSeconds, idleMinutes) {
+  if (!prevDate || !curDate || !warnSeconds || warnSeconds <= 0) return null;
+  const gapSeconds = (curDate.getTime() - prevDate.getTime()) / 1000;
+  if (gapSeconds < warnSeconds) return null;
+  const idle = (idleMinutes && idleMinutes > 0 ? idleMinutes : 30) * 60;
+  if (gapSeconds >= idle) return null;
+  return Math.round(gapSeconds * 10) / 10;
+}
+
 function limitStackTrace(text, maxLines = 5) {
   const lines = text.split('\n');
   const result = [];
@@ -137,4 +160,4 @@ function parseLogEntries(text, opts = {}) {
   return { entries, pending };
 }
 
-module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries };
+module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap };

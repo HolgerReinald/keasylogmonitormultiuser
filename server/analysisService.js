@@ -9,7 +9,7 @@ const path = require('path');
 const readline = require('readline');
 const { getOrCreateAnalyzeUser } = require('./runtimeStore');
 const { broadcastToUser } = require('./wsBroadcast');
-const { matchesFilter, limitStackTrace, parseLogEntries } = require('./logParser');
+const { matchesFilter, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
 
 function getAnalyzeErrors(username) {
   if (!username) return {};
@@ -21,29 +21,53 @@ function getAnalyzeErrors(username) {
   return result;
 }
 
-async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId) {
+async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, gapOpts) {
   const au = getOrCreateAnalyzeUser(username);
   return new Promise((resolve) => {
-    const logTimestampRegex = /^\s*(\d{2})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
     let errorCount = 0;
     let chunks = '';
+    // Gap-Erkennung: letzter Eintrags-Timestamp und eigener Zähler pro Datei
+    // (Lücken zählen nicht in errorCount, damit sie keine Fehler verdrängen)
+    const gapWarnSeconds = gapOpts && Number(gapOpts.gapWarnSeconds) || 0;
+    const gapIdleMinutes = gapOpts && Number(gapOpts.gapIdleMinutes) || 30;
+    let lastTs = null;
+    let gapCount = 0;
 
     function isStale() {
       return au.aborted || au.runId !== runId;
     }
 
+    function trackGap(entry) {
+      const ts = parseEntryTimestamp(entry);
+      if (!ts) return;
+      const prev = lastTs;
+      lastTs = ts;
+      if (!prev || gapWarnSeconds <= 0 || gapCount >= maxErrorsPerFile) return;
+      const gapSeconds = evaluateGap(prev, ts, gapWarnSeconds, gapIdleMinutes);
+      if (gapSeconds === null) return;
+      const gapEntry = {
+        timestamp: ts.toISOString(),
+        prevTimestamp: prev.toISOString(),
+        gapSeconds,
+        line: entry.trim().split('\n')[0],
+        file: path.basename(filePath)
+      };
+      if (!au.store.has(filePath)) au.store.set(filePath, []);
+      au.store.get(filePath).push(gapEntry);
+      au.labelMap.set(filePath, label);
+      gapCount++;
+      broadcastToUser(username, { type: 'analyze-error', data: { filePath, error: gapEntry, label } });
+    }
+
     function emitAnalyzeErrors(entries) {
       for (const entry of entries) {
         if (isStale() || errorCount >= maxErrorsPerFile) return true;
-        if (!entry.trim() || !matchesFilter(entry)) continue;
+        if (!entry.trim()) continue;
+        trackGap(entry);
+        if (!matchesFilter(entry)) continue;
         const limited = limitStackTrace(entry.trim());
-        let timestamp = new Date().toISOString();
-        const tsMatch = entry.match(logTimestampRegex);
-        if (tsMatch) {
-          const [, dd, MM, yy, HH, mm, ss, ms] = tsMatch;
-          const year = 2000 + parseInt(yy);
-          timestamp = new Date(year, parseInt(MM) - 1, parseInt(dd), parseInt(HH), parseInt(mm), parseInt(ss), parseInt(ms)).toISOString();
-        }
+        const parsedTs = parseEntryTimestamp(entry);
+        const timestamp = (parsedTs || new Date()).toISOString();
         const error = { timestamp, line: limited, file: path.basename(filePath) };
         if (!au.store.has(filePath)) au.store.set(filePath, []);
         au.store.get(filePath).push(error);
@@ -55,14 +79,14 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId) {
     }
 
     try {
-      if (!fs.existsSync(filePath)) { resolve(0); return; }
+      if (!fs.existsSync(filePath)) { resolve({ errors: 0, gaps: 0 }); return; }
       const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
       const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
       stream.on('error', (err) => {
         console.error(`Analyse Stream-Fehler: ${filePath}: ${err.message}`);
         rl.close();
-        resolve(errorCount);
+        resolve({ errors: errorCount, gaps: gapCount });
       });
 
       rl.on('line', (line) => {
@@ -84,16 +108,16 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId) {
           const { entries } = parseLogEntries(chunks, { flushFinal: true });
           emitAnalyzeErrors(entries);
         }
-        resolve(errorCount);
+        resolve({ errors: errorCount, gaps: gapCount });
       });
 
       rl.on('error', (err) => {
         console.error(`Analyse-Fehler: ${filePath}: ${err.message}`);
-        resolve(errorCount);
+        resolve({ errors: errorCount, gaps: gapCount });
       });
     } catch (err) {
       console.error(`Analyse-Fehler: ${filePath}: ${err.message}`);
-      resolve(0);
+      resolve({ errors: 0, gaps: 0 });
     }
   });
 }
@@ -138,7 +162,7 @@ function collectLogsRecursive(dir, result, seen) {
   }
 }
 
-async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '') {
+async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '', gapOpts = null) {
   const au = getOrCreateAnalyzeUser(username);
 
   // Neuen Lauf starten: Store leeren, runId inkrementieren
@@ -158,32 +182,34 @@ async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '') {
     }
 
     let totalErrors = 0;
+    let totalGaps = 0;
     for (let i = 0; i < logFiles.length; i++) {
       if (au.aborted || au.runId !== currentRunId) {
         console.log(`📂 Log-Analyse abgebrochen (${username}).`);
-        broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: i, errors: totalErrors, aborted: true, username } });
+        broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: i, errors: totalErrors, gaps: totalGaps, aborted: true, username } });
         return;
       }
 
       const filePath = logFiles[i];
       const label = '📂 ' + path.basename(path.dirname(filePath));
-      const errCount = await analyzeFile(filePath, label, maxErrorsPerFile, username, currentRunId);
-      totalErrors += errCount;
+      const result = await analyzeFile(filePath, label, maxErrorsPerFile, username, currentRunId, gapOpts);
+      totalErrors += result.errors;
+      totalGaps += result.gaps;
 
       if (au.runId === currentRunId) {
         broadcastToUser(username, {
           type: 'analyze-progress',
-          data: { current: i + 1, total: logFiles.length, file: path.basename(filePath), errors: totalErrors }
+          data: { current: i + 1, total: logFiles.length, file: path.basename(filePath), errors: totalErrors, gaps: totalGaps }
         });
       }
-      console.log(`  📂 ${i + 1}/${logFiles.length}: ${path.basename(filePath)} (${errCount} Fehler)`);
+      console.log(`  📂 ${i + 1}/${logFiles.length}: ${path.basename(filePath)} (${result.errors} Fehler${result.gaps ? `, ${result.gaps} ⏱️ Gaps` : ''})`);
 
       await new Promise(r => setImmediate(r));
     }
 
-    console.log(`📂 Log-Analyse abgeschlossen (${username}): ${totalErrors} Fehler in ${logFiles.length} Dateien`);
+    console.log(`📂 Log-Analyse abgeschlossen (${username}): ${totalErrors} Fehler${totalGaps ? `, ${totalGaps} ⏱️ Gaps` : ''} in ${logFiles.length} Dateien`);
     if (au.runId === currentRunId) {
-      broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: logFiles.length, errors: totalErrors, aborted: false, username } });
+      broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: logFiles.length, errors: totalErrors, gaps: totalGaps, aborted: false, username } });
     }
   } finally {
     // Garantiert: running=false nur wenn dies noch der aktuelle Lauf ist

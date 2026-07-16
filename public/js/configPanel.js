@@ -163,6 +163,9 @@ function populateConfigForm(cfg) {
   state.analyzePaths = [...(cfg.analyzePaths || [])];
   renderAnalyzePaths();
   document.getElementById('analyzeMaxErrors').value = cfg.analyzeMaxErrors || 100;
+  // Nie konfiguriert (undefined) → Richtwert 20; explizite 0 bleibt "aus"
+  document.getElementById('analyzeGapWarnSeconds').value = cfg.analyzeGapWarnSeconds ?? 20;
+  document.getElementById('analyzeGapIdleMinutes').value = cfg.analyzeGapIdleMinutes || '';
   updateAnalyzeButtons();
 
   // Backup-Config laden
@@ -257,6 +260,8 @@ function buildConfigFromForm() {
     thresholdRules: Keasy.threshold.getThresholdRulesFromForm(),
     analyzePaths: [...state.analyzePaths],
     analyzeMaxErrors: parseInt(document.getElementById('analyzeMaxErrors').value) || 100,
+    analyzeGapWarnSeconds: parseInt(document.getElementById('analyzeGapWarnSeconds').value) || 0,
+    analyzeGapIdleMinutes: parseInt(document.getElementById('analyzeGapIdleMinutes').value) || 0,
     backup: (() => {
       const canCollect = Keasy.backup && Keasy.backup._loaded && typeof collectBackupConfig === 'function';
       if (!canCollect) {
@@ -299,6 +304,15 @@ async function saveConfig() {
     if (cfg.filterPatterns.length === 0) {
       showConfigMessage('Mindestens ein Filter-Pattern erforderlich!', 'error');
       return;
+    }
+    // Gap-Schwellwerte: Warn-Schwelle muss unter der Idle-Grenze liegen (leer = Default 30 Min)
+    for (const wp of cfg.watchPaths) {
+      const warn = wp.gapWarnSeconds || 0;
+      const idle = wp.gapIdleMinutes || 30;
+      if (warn > 0 && warn >= idle * 60) {
+        showConfigMessage(`⏱️ Gap-Warnung (Sek.) muss kleiner als Idle-Grenze (Min.) sein: ${wp.label}`, 'error');
+        return;
+      }
     }
   }
 

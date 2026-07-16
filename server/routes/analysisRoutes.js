@@ -18,6 +18,10 @@ module.exports = function analysisRoutes(deps) {
       parseJsonBody(req, (body) => {
         const paths = body && body.paths;
         const maxErrors = (body && body.maxErrorsPerFile) || 100;
+        const gapOpts = {
+          gapWarnSeconds: (body && Number(body.gapWarnSeconds)) || 0,
+          gapIdleMinutes: (body && Number(body.gapIdleMinutes)) || 30
+        };
         if (!paths || !Array.isArray(paths) || paths.length === 0) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: false, message: 'paths Array fehlt' }));
@@ -32,7 +36,7 @@ module.exports = function analysisRoutes(deps) {
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
-        runAnalysis(paths, maxErrors, username).catch(err => {
+        runAnalysis(paths, maxErrors, username, gapOpts).catch(err => {
           console.error('⚠️  Analyse-Fehler:', err.message);
           broadcastToUser(username, { type: 'analyze-done', data: { total: 0, processed: 0, errors: 0, aborted: true, error: err.message } });
         });

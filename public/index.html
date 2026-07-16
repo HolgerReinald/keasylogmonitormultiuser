@@ -85,6 +85,12 @@
         <label>Max. Fehler pro Datei:</label>
         <input type="number" id="analyzeMaxErrors" value="100" min="1" max="10000" style="width:80px;">
       </div>
+      <div class="config-field">
+        <label title="Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus.">⏱️ Gap-Warnung ab (Sek., 0 = aus):</label>
+        <input type="number" id="analyzeGapWarnSeconds" value="20" min="0" style="width:80px;" title="Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus.">
+        <label style="margin-left:12px;" title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30.">Idle ab (Min.):</label>
+        <input type="number" id="analyzeGapIdleMinutes" placeholder="30" min="0" style="width:70px;" title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30.">
+      </div>
       <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
         <button class="config-save-btn" id="analyzeStartBtn" onclick="startAnalysis()">🔍 Analyse starten</button>
         <button class="config-reset-btn" id="analyzeCancelBtn" onclick="cancelAnalysis()" style="display:none;">⏹ Abbrechen</button>
@@ -222,7 +228,7 @@
           <h4 class="config-column-title">📂 Überwachte Pfade</h4>
           <table class="config-watchpaths-table">
             <thead>
-              <tr><th>Pfad</th><th>Label</th><th>E-Mail an</th><th title="Für Netzlaufwerke aktivieren insbesondere bei VPN (prüft alle 5 Sek. statt Echtzeit-Events). Beim Import wird Polling automatisch aktiviert.">Polling ℹ️</th><th></th></tr>
+              <tr><th>Pfad</th><th>Label</th><th>E-Mail an</th><th title="Für Netzlaufwerke aktivieren insbesondere bei VPN (prüft alle 5 Sek. statt Echtzeit-Events). Beim Import wird Polling automatisch aktiviert.">Polling ℹ️</th><th title="Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus.">⏱️ Gap (s) ℹ️</th><th title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30.">Idle (min) ℹ️</th><th></th></tr>
             </thead>
             <tbody id="cfg-watchpaths-body"></tbody>
           </table>

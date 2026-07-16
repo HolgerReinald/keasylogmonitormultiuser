@@ -25,6 +25,10 @@ window.Keasy.state = {
   analyzePaths: [],
   analyzeIsRunning: false,
 
+  // Performance-Lücken (⏱️)
+  performanceEntries: {},
+  performanceLabels: {},
+
   // Papierkorb
   trashData: {},
   trashTotalCount: 0,

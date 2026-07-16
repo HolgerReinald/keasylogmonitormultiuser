@@ -541,6 +541,46 @@ body.theme-blue .analyze-header {
   background: #475569;
 }
 
+/* ⏱️ Performance-Lücken — oranger Akzent, getrennt vom Fehler-Logging */
+.performance-header {
+  background: #d97706;
+}
+
+body.theme-dark .performance-header {
+  background: #b45309;
+}
+
+body.theme-blue .performance-header {
+  background: #b45309;
+}
+
+.performance-source {
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.gap-entry {
+  border-left-color: #f59e0b;
+}
+
+.gap-entry .gap-duration {
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.gap-entry .gap-entry-line {
+  opacity: 0.75;
+}
+
+/* Oranger Badge für ⏱️-Lücken-Zähler (Datei- und Quell-Ebene) */
+.file-badge.gap-badge,
+.source-header .source-badge.gap-badge {
+  background: #f59e0b;
+  color: #1f2937;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
 .source-content.collapsed {
   display: none;
 }

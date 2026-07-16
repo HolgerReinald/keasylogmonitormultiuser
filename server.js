@@ -16,7 +16,7 @@ const { getTrashSnapshot } = require('./server/trashService');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
 const { getOrCreateAnalyzeUser } = require('./server/runtimeStore');
-const { startWatching, getAllErrors, getOversizedFiles, reevaluateOversized, preloadReset } = require('./server/watchService');
+const { startWatching, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset } = require('./server/watchService');
 const createRouter = require('./server/httpRouter');
 const backupService = require('./server/backupService');
 const healthCheck = require('./server/healthCheck');
@@ -56,6 +56,7 @@ function applyConfigChanges(newConfig) {
   backupService.scheduleBackup();
 
   // Watcher neu starten wenn sich watchPaths oder Polling geändert haben
+  // (gapWarnSeconds/gapIdleMinutes bewusst NICHT im Key — Gap-Schwellwerte wirken ohne Watcher-Neustart)
   const serializeWp = wps => (wps || []).map(wp => typeof wp === 'string' ? wp : `${wp.path}|${!!wp.usePolling}`).sort().join('||');
   if (serializeWp(oldConfig.watchPaths) !== serializeWp(newConfig.watchPaths) || oldConfig.filePattern !== newConfig.filePattern) {
     activeWatchersRef.current.forEach(w => w.close());
@@ -119,6 +120,7 @@ wss.on('connection', (ws, req) => {
   ws.send(JSON.stringify({
     type: 'init',
     data: filteredErrors,
+    performanceData: filterByLabels(getAllPerformance(), ws.visibleLabels),
     oversizedFiles: filterOversizedByLabels(getOversizedFiles(), ws.visibleLabels),
     maxLogFileSizeMB: config.maxLogFileSizeMB,
     authEnabled: configStore.isAuthEnabled(),

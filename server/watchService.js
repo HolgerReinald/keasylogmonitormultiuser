@@ -6,18 +6,19 @@
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
-const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles } = require('./runtimeStore');
+const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps } = require('./runtimeStore');
 const { broadcast, broadcastFiltered } = require('./wsBroadcast');
 const { config } = require('./configStore');
-const { matchesFilter, limitStackTrace, parseLogEntries } = require('./logParser');
+const { matchesFilter, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
 const { bufferErrorForEmail } = require('./emailService');
 
 // --- Tail-Logik ---
 
-function processNewLines(filePath, changeDetectedAt, flushDelay) {
+function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
   const label = fileLabelMap.get(filePath) || '';
   if (pausedLabels.has(label)) return;
   if (!flushDelay) flushDelay = 500;
+  const silentPerformance = opts && opts.silentPerformance;
 
   try {
     const stat = fs.statSync(filePath);
@@ -27,6 +28,7 @@ function processNewLines(filePath, changeDetectedAt, flushDelay) {
     if (stat.size < previousPos) {
       readPos = 0;
       pendingBuffers.delete(filePath);
+      lastEntryTimestamps.delete(filePath); // Rotation/Truncation: Gap-Baseline zurücksetzen
     }
 
     if (stat.size === readPos) return;
@@ -53,6 +55,12 @@ function processNewLines(filePath, changeDetectedAt, flushDelay) {
       pendingBuffers.set(filePath, parsed.pending);
     }
 
+    // Gap-Settings einmal pro Batch lesen (nicht pro Eintrag — path.resolve über
+    // alle WatchPaths ist zu teuer für den Pro-Eintrag-Pfad). Hot-Reload bleibt
+    // erhalten, weil jedes Change-Event frisch liest.
+    const gapSettings = getGapSettingsForFile(filePath);
+    const gapEnabled = gapSettings.warnSeconds > 0;
+
     if (pendingBuffers.has(filePath)) {
       if (pendingFlushTimers.has(filePath)) clearTimeout(pendingFlushTimers.get(filePath));
       pendingFlushTimers.set(filePath, setTimeout(() => {
@@ -60,6 +68,15 @@ function processNewLines(filePath, changeDetectedAt, flushDelay) {
         const buffered = pendingBuffers.get(filePath);
         if (buffered) {
           pendingBuffers.delete(filePath);
+          if (buffered.trim()) {
+            // Timer feuert später — Settings frisch lesen
+            const settings = getGapSettingsForFile(filePath);
+            if (settings.warnSeconds > 0) {
+              trackEntryGap(filePath, buffered, settings);
+            } else {
+              updateGapBaseline(filePath, [buffered]);
+            }
+          }
           if (buffered.trim() && matchesFilter(buffered)) {
             emitError(filePath, buffered, changeDetectedAt);
           }
@@ -68,10 +85,14 @@ function processNewLines(filePath, changeDetectedAt, flushDelay) {
     }
 
     for (const entry of parsed.entries) {
+      if (gapEnabled && entry.trim()) trackEntryGap(filePath, entry, gapSettings, silentPerformance);
       if (entry.trim() && matchesFilter(entry)) {
         emitError(filePath, entry, changeDetectedAt);
       }
     }
+    // Feature aus: Baseline nur aus dem letzten Timestamp des Batches pflegen,
+    // damit späteres Aktivieren sofort einen Vorgänger-Timestamp hat
+    if (!gapEnabled) updateGapBaseline(filePath, parsed.entries);
   } catch (err) {
     if (err.code !== 'ENOENT') {
       console.error(`Fehler beim Lesen von ${filePath}:`, err.message);
@@ -80,15 +101,9 @@ function processNewLines(filePath, changeDetectedAt, flushDelay) {
 }
 
 function emitError(filePath, entry, changeDetectedAt) {
-  const logTimestampRegex = /^\s*(\d{2})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
   const limited = limitStackTrace(entry.trim());
-  let timestamp = new Date().toISOString();
-  const tsMatch = entry.match(logTimestampRegex);
-  if (tsMatch) {
-    const [, dd, MM, yy, HH, mm, ss, ms] = tsMatch;
-    const year = 2000 + parseInt(yy);
-    timestamp = new Date(year, parseInt(MM) - 1, parseInt(dd), parseInt(HH), parseInt(mm), parseInt(ss), parseInt(ms)).toISOString();
-  }
+  const parsedTs = parseEntryTimestamp(entry);
+  const timestamp = (parsedTs || new Date()).toISOString();
   const error = {
     timestamp,
     line: limited,
@@ -119,18 +134,114 @@ function emitError(filePath, entry, changeDetectedAt) {
   bufferErrorForEmail(fileLabelMap.get(filePath) || getLabelForFile(filePath) || '', error);
 }
 
-// --- File Watcher ---
+// --- Performance-Lücken-Erkennung ---
 
-function getLabelForFile(filePath) {
+// WatchPath-Eintrag zu einer Datei finden (gemeinsame Basis für Label und Gap-Settings)
+function findWatchPathForFile(filePath) {
   const normalized = path.resolve(filePath).toLowerCase();
   for (const wp of normalizedWatchPaths) {
     const wpNorm = path.resolve(wp.path).toLowerCase();
     const wpNormWithSep = wpNorm.endsWith(path.sep) ? wpNorm : wpNorm + path.sep;
     if (normalized === wpNorm || normalized.startsWith(wpNormWithSep)) {
-      return wp.label;
+      return wp;
     }
   }
-  return '';
+  return null;
+}
+
+// Gap-Einstellungen werden einmal pro Batch (processNewLines-Aufruf) frisch aus
+// normalizedWatchPaths gelesen, damit Schwellwert-Änderungen ohne Watcher-Neustart
+// wirken (Hot-Reload) — aber nicht pro Eintrag, das wäre zu teuer.
+function getGapSettingsForFile(filePath) {
+  const wp = findWatchPathForFile(filePath);
+  if (wp) {
+    return {
+      warnSeconds: Number(wp.gapWarnSeconds) || 0,
+      idleMinutes: Number(wp.gapIdleMinutes) || 30
+    };
+  }
+  return { warnSeconds: 0, idleMinutes: 30 };
+}
+
+function trackEntryGap(filePath, entry, settings, silent) {
+  const ts = parseEntryTimestamp(entry);
+  if (!ts) return; // Einträge ohne Timestamp überspringen (kein Wall-Clock-Fallback)
+
+  const prev = lastEntryTimestamps.get(filePath);
+  lastEntryTimestamps.set(filePath, ts);
+  if (!prev) return;
+
+  const gapSeconds = evaluateGap(prev, ts, settings.warnSeconds, settings.idleMinutes);
+  if (gapSeconds !== null) {
+    emitPerformance(filePath, gapSeconds, prev, ts, entry, silent);
+  }
+}
+
+// Feature aus: Baseline nur aus dem letzten Timestamp des Batches setzen —
+// rückwärts scannen, erster Treffer genügt (i. d. R. der letzte Eintrag)
+function updateGapBaseline(filePath, entries) {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const ts = parseEntryTimestamp(entries[i]);
+    if (ts) {
+      lastEntryTimestamps.set(filePath, ts);
+      return;
+    }
+  }
+}
+
+function emitPerformance(filePath, gapSeconds, prevTs, ts, entry, silent) {
+  const performanceEntry = {
+    timestamp: ts.toISOString(),
+    prevTimestamp: prevTs.toISOString(),
+    gapSeconds,
+    line: entry.trim().split('\n')[0],
+    file: path.basename(filePath)
+  };
+
+  if (!performanceStore.has(filePath)) {
+    performanceStore.set(filePath, []);
+  }
+  const entries = performanceStore.get(filePath);
+  entries.push(performanceEntry);
+
+  while (entries.length > config.maxErrorsPerFile * 2) {
+    entries.shift();
+  }
+
+  // Preload: nicht einzeln broadcasten — nach Abschluss kommt ein Snapshot
+  if (silent) return;
+
+  broadcastFiltered({
+    type: 'performance',
+    data: { filePath, entry: performanceEntry, label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || '' }
+  }, (msg, visibleLabels) => {
+    if (!visibleLabels) return msg;
+    return visibleLabels.includes(msg.data.label) ? msg : null;
+  });
+}
+
+// Nach dem Preload alle gesammelten Performance-Lücken als EIN Snapshot senden
+// (statt pro Lücke einzeln — Clients ersetzen ihren Stand komplett)
+function broadcastPerformanceSnapshot() {
+  if (performanceStore.size === 0) return;
+  broadcastFiltered(
+    { type: 'performance-snapshot', data: getAllPerformance() },
+    (msg, visibleLabels) => {
+      if (!visibleLabels) return msg; // null = alle sichtbar
+      const data = {};
+      for (const [fp, info] of Object.entries(msg.data)) {
+        if (visibleLabels.includes(info.label)) data[fp] = info;
+      }
+      return { type: 'performance-snapshot', data };
+    }
+  );
+}
+
+// --- File Watcher ---
+
+function getLabelForFile(filePath) {
+  const wp = findWatchPathForFile(filePath);
+  return wp ? wp.label : '';
 }
 
 function isNetworkDriveSync(drivePath) {
@@ -202,6 +313,7 @@ function startPreloadProcessing() {
   function preloadNext() {
     if (generation !== preload.generation) {
       console.log(`📥 Einlesen abgebrochen (Watcher-Neustart)`);
+      broadcastPerformanceSnapshot();
       broadcast({ type: 'preload-done', data: { total: current, errorsFound: totalErrorsFound, labelErrors, aborted: true } });
       preload.running = false;
       return;
@@ -211,13 +323,14 @@ function startPreloadProcessing() {
       for (const [label, count] of Object.entries(labelErrors)) {
         if (count > 0) console.log(`   [${label}] ${count} Fehler`);
       }
+      broadcastPerformanceSnapshot();
       broadcast({ type: 'preload-done', data: { total, errorsFound: totalErrorsFound, labelErrors } });
       preload.running = false;
       return;
     }
     const { filePath, label, flushDelay } = preload.queue.shift();
     const errorsBefore = (errorStore.get(filePath) || []).length;
-    processNewLines(filePath, null, flushDelay);
+    processNewLines(filePath, null, flushDelay, { silentPerformance: true });
     const errorsAfter = (errorStore.get(filePath) || []).length;
     const max = config.maxErrorsPerFile || 10;
     const errorsInFile = Math.min(errorsAfter - errorsBefore, max);
@@ -327,6 +440,7 @@ function registerWatcherHandlers(watcher, wp, flushDelay, options) {
     filePositions.delete(filePath);
     pendingBuffers.delete(filePath);
     fileLabelMap.delete(filePath);
+    lastEntryTimestamps.delete(filePath);
     if (oversizedFiles.delete(filePath)) broadcastOversized();
   });
 
@@ -423,6 +537,17 @@ function getAllErrors() {
   return result;
 }
 
+function getAllPerformance() {
+  const result = {};
+  for (const [filePath, entries] of performanceStore) {
+    result[filePath] = {
+      entries: entries.slice(-config.maxErrorsPerFile),
+      label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || ''
+    };
+  }
+  return result;
+}
+
 function getOversizedFiles() {
   const result = {};
   for (const [filePath, sizeMB] of oversizedFiles) {
@@ -473,4 +598,4 @@ function reevaluateOversized() {
   if (changed) broadcastOversized();
 }
 
-module.exports = { startWatching, getLabelForFile, getAllErrors, getOversizedFiles, reevaluateOversized, preloadReset };
+module.exports = { startWatching, getLabelForFile, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset };

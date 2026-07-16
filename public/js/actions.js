@@ -238,17 +238,37 @@ function clearAnalyzeSource(label, event) {
   if (typeof renderAll === 'function') renderAll();
 }
 
+function clearPerformanceSource(label, event) {
+  if (event) event.stopPropagation();
+  fetch('/api/performance-clear-source', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label })
+  }).then(resp => {
+    if (!resp.ok) showToast('Performance-Einträge löschen fehlgeschlagen', 'error');
+  }).catch(err => showToast('Performance-Löschen: ' + err.message, 'error'));
+  // Sofort clientseitig leeren
+  const state = Keasy.state;
+  for (const fp of Object.keys(state.performanceEntries)) {
+    if (state.performanceLabels[fp] === label) {
+      delete state.performanceEntries[fp];
+      delete state.performanceLabels[fp];
+    }
+  }
+  if (typeof renderAll === 'function') renderAll();
+}
+
 window.Keasy.actions = {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource
+  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource
 };
 
 Object.assign(window, {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource
+  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource
 });
 })();

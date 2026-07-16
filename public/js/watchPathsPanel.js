@@ -17,6 +17,8 @@ function renderWatchPathsTable(watchPaths) {
     const l = typeof wp === 'string' ? '' : (wp.label || '');
     const e = typeof wp === 'string' ? '' : (Array.isArray(wp.emailTo) ? wp.emailTo.join(', ') : (wp.emailTo || ''));
     const polling = typeof wp === 'string' ? false : !!wp.usePolling;
+    const gapWarn = typeof wp === 'string' ? 0 : (Number(wp.gapWarnSeconds) || 0);
+    const gapIdle = typeof wp === 'string' ? 0 : (Number(wp.gapIdleMinutes) || 0);
     const isNetwork = typeof wp === 'string' ? false : !!wp._isNetworkDrive;
     const networkHint = isNetwork ? '<span style="color:#888;font-size:11px;margin-left:4px" title="Netzlaufwerk erkannt – Polling wird automatisch aktiviert">(Netzlaufwerk)</span>' : '';
     row.innerHTML = `
@@ -24,6 +26,8 @@ function renderWatchPathsTable(watchPaths) {
       <td><input type="text" value="${escapeHtml(l)}" data-field="label" data-admin-only></td>
       <td><input type="text" value="${escapeHtml(e)}" data-field="emailTo" placeholder="(keine)" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
       <td style="text-align:center"><input type="checkbox" data-field="usePolling" ${polling || isNetwork ? 'checked' : ''} ${isNetwork && !polling ? 'data-auto-polling="true"' : ''} data-admin-only>${networkHint}</td>
+      <td><input type="number" min="0" value="${gapWarn > 0 ? gapWarn : ''}" data-field="gapWarnSeconds" placeholder="aus" style="width:60px" title="⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus." data-admin-only></td>
+      <td><input type="number" min="0" value="${gapIdle > 0 ? gapIdle : ''}" data-field="gapIdleMinutes" placeholder="30" style="width:55px" title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30." data-admin-only></td>
       <td><button class="remove-btn" onclick="removeWatchPathRow(${i})" data-admin-only>✕</button></td>
     `;
     tbody.appendChild(row);
@@ -43,6 +47,8 @@ function addWatchPathRow() {
     <td><input type="text" value="" data-field="label" placeholder="Mein Label"></td>
     <td><input type="text" value="" data-field="emailTo" placeholder="user@mail.de, admin@firma.de" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
     <td style="text-align:center"><input type="checkbox" data-field="usePolling" checked></td>
+    <td><input type="number" min="0" value="20" data-field="gapWarnSeconds" placeholder="aus" style="width:60px" title="⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus."></td>
+    <td><input type="number" min="0" value="" data-field="gapIdleMinutes" placeholder="30" style="width:55px" title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30."></td>
     <td><button class="remove-btn" onclick="removeWatchPathRow(${i})">✕</button></td>
   `;
   tbody.appendChild(row);
@@ -65,12 +71,16 @@ function getWatchPathsFromTable() {
     const labelVal = row.querySelector('[data-field="label"]').value.trim();
     const emailVal = row.querySelector('[data-field="emailTo"]').value.trim();
     const usePolling = row.querySelector('[data-field="usePolling"]').checked;
+    const gapWarnEl = row.querySelector('[data-field="gapWarnSeconds"]');
+    const gapIdleEl = row.querySelector('[data-field="gapIdleMinutes"]');
     if (!pathVal) continue;
     result.push({
       path: pathVal,
       label: labelVal || pathVal,
       emailTo: emailVal || null,
-      usePolling: usePolling
+      usePolling: usePolling,
+      gapWarnSeconds: gapWarnEl ? (parseInt(gapWarnEl.value, 10) || 0) : 0,
+      gapIdleMinutes: gapIdleEl ? (parseInt(gapIdleEl.value, 10) || 0) : 0
     });
   }
   return result;
@@ -104,6 +114,8 @@ function addWatchPathRowWithData({ path, label, emailTo, usePolling }) {
     <td><input type="text" value="${escapeHtml(label)}" data-field="label"></td>
     <td><input type="text" value="${escapeHtml(emailTo)}" data-field="emailTo" placeholder="(keine)" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
     <td style="text-align:center"><input type="checkbox" data-field="usePolling" ${usePolling ? 'checked' : ''}></td>
+    <td><input type="number" min="0" value="20" data-field="gapWarnSeconds" placeholder="aus" style="width:60px" title="⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus."></td>
+    <td><input type="number" min="0" value="" data-field="gapIdleMinutes" placeholder="30" style="width:55px" title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30."></td>
     <td><button class="remove-btn" onclick="removeWatchPathRow(${i})">✕</button></td>
   `;
   tbody.appendChild(row);

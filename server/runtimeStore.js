@@ -25,6 +25,8 @@ const pausedLabels = new Set();         // Set von pausierten Labels
 const analyzeStore = new Map();         // DEPRECATED — nur noch Rückwärtskompatibilität
 const analyzeLabelMap = new Map();      // DEPRECATED
 const oversizedFiles = new Map();       // filePath → sizeMB (Dateien > maxLogFileSizeMB)
+const performanceStore = new Map();     // filePath → Array<{timestamp, prevTimestamp, gapSeconds, line, file}>
+const lastEntryTimestamps = new Map();  // filePath → Date des letzten Log-Eintrags (Gap-Erkennung)
 // Per-User Analyse: Map<username, { store: Map, labelMap: Map, running, aborted, runId }>
 const analyzeUsers = new Map();
 
@@ -80,6 +82,8 @@ function resetWatcherRuntime() {
   fileLabelMap.clear();
   errorStore.clear();
   oversizedFiles.clear();
+  performanceStore.clear();
+  lastEntryTimestamps.clear();
   // Preload resetten
   preload.generation++;
   preload.queue.length = 0;
@@ -102,6 +106,8 @@ module.exports = {
   analyzeStore,
   analyzeLabelMap,
   oversizedFiles,
+  performanceStore,
+  lastEntryTimestamps,
   analyzeUsers,
   getOrCreateAnalyzeUser,
   trashStore,

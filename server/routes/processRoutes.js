@@ -6,7 +6,7 @@
 const fs = require('fs');
 const { execFile } = require('child_process');
 const parseJsonBody = require('../parseJsonBody');
-const { errorStore, fileLabelMap, pausedLabels, emailDisabledLabels, trashStore, state: rState, resetWatcherRuntime } = require('../runtimeStore');
+const { errorStore, fileLabelMap, pausedLabels, emailDisabledLabels, trashStore, state: rState, resetWatcherRuntime, performanceStore } = require('../runtimeStore');
 const { broadcast, broadcastTrash } = require('../wsBroadcast');
 const { moveToTrash, sealCurrentBatch, enforceTrashLimit } = require('../trashService');
 const { getAllErrors, startWatching, getLabelForFile } = require('../watchService');
@@ -125,6 +125,23 @@ module.exports = function processRoutes(deps) {
         if (movedCount > 0) broadcastTrash();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, movedToTrash: movedCount }));
+      });
+    },
+
+    'POST /api/performance-clear-source': (req, res) => {
+      parseJsonBody(req, (body) => {
+        const label = body && body.label;
+        if (!label) { res.writeHead(400); res.end('label fehlt'); return; }
+        if (!canAccessLabel(req.session, label)) { res.writeHead(403); res.end(JSON.stringify({ ok: false, message: 'Kein Zugriff auf diesen Pfad' })); return; }
+
+        // Direktes Löschen ohne Papierkorb — Performance-Einträge sind aus den Logs reproduzierbar
+        for (const filePath of [...performanceStore.keys()]) {
+          const lbl = fileLabelMap.get(filePath) || getLabelForFile(filePath) || '';
+          if (lbl === label) performanceStore.delete(filePath);
+        }
+        broadcast({ type: 'performance-source-cleared', data: { label } });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
       });
     },
 

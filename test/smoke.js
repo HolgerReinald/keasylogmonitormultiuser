@@ -360,6 +360,7 @@ function testWebSocket() {
           assert(true, 'WebSocket init-Event empfangen');
           assert(typeof msg.data === 'object', 'init enthält data-Objekt');
           assert(typeof msg.version === 'string', 'init enthält version-String');
+          assert(typeof msg.performanceData === 'object', 'init enthält performanceData-Objekt');
           ws.close();
           resolve();
         }
@@ -523,6 +524,153 @@ async function testThresholdRules() {
   }
 }
 
+async function testGapConfigRoundtrip() {
+  console.log('\n⏱️ Gap-Config-Roundtrip-Test:');
+
+  const before = await fetch('/api/config');
+  const cfg = parseJSON(before.body);
+  assert(cfg && Array.isArray(cfg.watchPaths) && cfg.watchPaths.length > 0, 'Config enthält watchPaths');
+  if (!cfg || !cfg.watchPaths || cfg.watchPaths.length === 0) return;
+
+  const origWatchPaths = JSON.parse(JSON.stringify(cfg.watchPaths));
+  const origAnalyzeWarn = cfg.analyzeGapWarnSeconds;
+  const origAnalyzeIdle = cfg.analyzeGapIdleMinutes;
+
+  try {
+    // Gap-Felder am ersten WatchPath + Analyse-Gap-Felder setzen
+    cfg.watchPaths[0].gapWarnSeconds = 20;
+    cfg.watchPaths[0].gapIdleMinutes = 30;
+    cfg.analyzeGapWarnSeconds = 15;
+    cfg.analyzeGapIdleMinutes = 45;
+    const save = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(save.status === 200, 'Config mit Gap-Feldern speichern → 200');
+
+    const after = await fetch('/api/config');
+    const cfg2 = parseJSON(after.body);
+    assert(cfg2 && cfg2.watchPaths[0].gapWarnSeconds === 20, 'gapWarnSeconds Roundtrip (20)');
+    assert(cfg2 && cfg2.watchPaths[0].gapIdleMinutes === 30, 'gapIdleMinutes Roundtrip (30)');
+    assert(cfg2 && cfg2.analyzeGapWarnSeconds === 15, 'analyzeGapWarnSeconds Roundtrip (15)');
+    assert(cfg2 && cfg2.analyzeGapIdleMinutes === 45, 'analyzeGapIdleMinutes Roundtrip (45)');
+  } finally {
+    cfg.watchPaths = origWatchPaths;
+    if (origAnalyzeWarn === undefined) delete cfg.analyzeGapWarnSeconds; else cfg.analyzeGapWarnSeconds = origAnalyzeWarn;
+    if (origAnalyzeIdle === undefined) delete cfg.analyzeGapIdleMinutes; else cfg.analyzeGapIdleMinutes = origAnalyzeIdle;
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+  }
+}
+
+async function testPerformanceGap() {
+  console.log('\n⏱️ Performance-Lücken-Test (Live-Erkennung):');
+
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'keasy-gap-test-'));
+  const testLabel = 'GapSmokeTest';
+  let cfg = null;
+  let origWatchPaths = null;
+  let ws = null;
+
+  // Timestamp im Keasy-Log-Format: DD.MM.YY HH:MM:SS.mmm
+  const fmtLogTs = (d) => {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+  };
+
+  try {
+    const configResp = await fetch('/api/config');
+    cfg = parseJSON(configResp.body);
+    origWatchPaths = JSON.parse(JSON.stringify(cfg.watchPaths || [])).filter(wp => wp.label !== testLabel);
+    cfg.watchPaths = [...origWatchPaths, { path: tmpDir, label: testLabel, usePolling: true, gapWarnSeconds: 5, gapIdleMinutes: 30 }];
+    const save = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    assert(save.status === 200, 'Config mit Gap-Test-Watchpath gespeichert (Watcher-Restart)');
+
+    // WS verbinden, Log-Datei in zwei Schritten schreiben, auf performance-Event warten
+    const perfEvent = await new Promise((resolve) => {
+      ws = new WebSocket(`ws://localhost:${PORT}`);
+      const timeout = setTimeout(() => resolve(null), 15000);
+      ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === 'performance' && msg.data && msg.data.label === testLabel) {
+            clearTimeout(timeout);
+            resolve(msg.data);
+          }
+        } catch { /* ignore non-JSON */ }
+      });
+      ws.on('open', () => {
+        const now = new Date();
+        const t1 = new Date(now.getTime() - 10000);
+        const logFile = path.join(tmpDir, 'gap-test.log');
+        // Schritt 1: Datei anlegen (add-Event), Schritt 2: anhängen (change-Event → Einlesen)
+        setTimeout(() => {
+          fs.writeFileSync(logFile, `${fmtLogTs(t1)} Vorgang gestartet\n`, 'utf8');
+        }, 1500);
+        setTimeout(() => {
+          fs.appendFileSync(logFile, `${fmtLogTs(now)} Vorgang beendet\n`, 'utf8');
+        }, 4000);
+      });
+      ws.on('error', () => { clearTimeout(timeout); resolve(null); });
+    });
+
+    assert(perfEvent !== null, 'performance-Event innerhalb 15s empfangen (Lücke 10s > Schwelle 5s)');
+    if (perfEvent) {
+      assert(perfEvent.entry && typeof perfEvent.entry.gapSeconds === 'number' && perfEvent.entry.gapSeconds >= 5,
+        `gapSeconds >= 5 (${perfEvent.entry && perfEvent.entry.gapSeconds})`);
+      assert(perfEvent.entry && typeof perfEvent.entry.prevTimestamp === 'string', 'Eintrag enthält prevTimestamp');
+      assert(perfEvent.entry && perfEvent.entry.line.includes('Vorgang beendet'), 'Eintrag enthält erste Zeile des Folge-Eintrags');
+    }
+
+    // Clear-Route
+    const clearNoLabel = await fetch('/api/performance-clear-source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    assert(clearNoLabel.status === 400, 'performance-clear-source ohne Label → 400');
+
+    const clear = await fetch('/api/performance-clear-source', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: testLabel }),
+    });
+    assert(clear.status === 200, 'performance-clear-source mit Label → 200');
+
+  } finally {
+    try { if (ws) ws.close(); } catch { /* ignore */ }
+    // Config zurücksetzen (Test-Watchpath entfernen) — auch bei Fehlern
+    if (cfg && origWatchPaths) {
+      try {
+        cfg.watchPaths = origWatchPaths;
+        await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg),
+        });
+      } catch { /* Server evtl. nicht erreichbar — Cleanup best effort */ }
+    }
+    // Temp-Verzeichnis aufräumen
+    try {
+      const files = fs.readdirSync(tmpDir);
+      for (const f of files) fs.unlinkSync(path.join(tmpDir, f));
+      fs.rmdirSync(tmpDir);
+    } catch { /* ignore cleanup errors */ }
+  }
+}
+
 async function testAuthOff() {
   console.log('\n🔓 Auth-OFF-Modus-Tests:');
 
@@ -555,6 +703,8 @@ async function run() {
     await testOpenFileEndpoints();
     await testUnknownRoutes();
     await testThresholdRules();
+    await testGapConfigRoundtrip();
+    await testPerformanceGap();
     await testWebSocket();
   } catch (err) {
     console.error(`\n💥 Unerwarteter Fehler: ${err.message || err}`);

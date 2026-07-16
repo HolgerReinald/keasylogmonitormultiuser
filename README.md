@@ -90,6 +90,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **🔄 Watcher neu starten:** FileWatcher über das Dashboard neu starten (ohne Server-Neustart)
 - **📡 Polling als Standard:** Alle Pfade werden per Polling überwacht (2s lokal, 5s Netzwerk) — zuverlässiger als Windows `fs.watch`. Kann pro WatchPath mit `usePolling: false` deaktiviert werden
 - **🗑️ Papierkorb:** Gelöschte Fehler-Einträge werden in einen Papierkorb verschoben statt endgültig gelöscht. Wiederherstellen pro Quelle oder alle. Auto-Cleanup nach konfigurierbarer Zeit (Standard: 48h). Batch-basiert mit Lösch-Zeitpunkt, Bestätigungsdialog beim Leeren
+- **⏱️ Performance-Gap-Erkennung:** Pro WatchPath konfigurierbar — meldet, wenn zwischen zwei aufeinanderfolgenden Log-Einträgen derselben Datei mehr als N Sekunden liegen (Richtwert: 20 s, der Schmerzpunkt für Anwender). Kein Fehler, sondern eigene Kategorie: eigene orange Sektion im Dashboard, getrennt vom Fehler-Logging, keine E-Mail, kein Papierkorb. Leerlauf-Obergrenze (Standard: 30 Min) filtert Nacht-/Start-Gaps heraus. Greift im Live-Monitoring, beim Start-Einlesen und (mit eigenen Feldern) in der Log-Analyse. Standard: aus
 - **📋 Fehler kopieren:** Fehlertext einzelner Einträge per Klick in die Zwischenablage kopieren
 - **🤖 Copilot-Export:** Fehler als `copilot-error-context.md` in ein konfiguriertes Verzeichnis exportieren — für direkte Übergabe an GitHub Copilot CLI. Zwei Ziele: 🤖 Develop + 🚀 Release (grün)
 - **🔌 Auto-Port-Recovery:** Bei belegtem Port wird der alte Prozess automatisch beendet
@@ -202,6 +203,10 @@ module.exports = {
 | `watchPaths` | Array von `{ path, label, emailTo }` — überwachte Verzeichnisse |
 | `watchPaths[].label` | Anzeigename der Quelle im Dashboard |
 | `watchPaths[].emailTo` | E-Mail-Empfänger: kommagetrennt (`'a@x.de, b@x.de'`), Array (`['a@x.de', 'b@x.de']`) oder `null` (kein Versand) |
+| `watchPaths[].gapWarnSeconds` | ⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. `0`/leer = aus. Richtwert: `20` (Schmerzpunkt für Anwender) — neue Zeilen werden damit vorbelegt |
+| `watchPaths[].gapIdleMinutes` | Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = `30` |
+| `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
+| `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
 | `filterPatterns` | Array von Suchbegriffen (case-insensitive) |
 | `excludePatterns` | Array von Suchbegriffen (case-insensitive). Zeilen, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. Patterns spezifisch halten, sonst werden echte Fehler unterdrückt |
@@ -411,6 +416,43 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-15 — Umbenennung: 'Lücke' → 'Gap' in der Oberfläche
+
+- Alle sichtbaren Texte umbenannt: Spalte '⏱️ Gap (s)', Eintrags-Anzeige '⏱️ Gap: 34s (…)', Badge-Tooltips 'Anzahl Performance-Gaps', Analyse-Feld '⏱️ Gap-Warnung ab', Fortschritt/Konsole 'N ⏱️ Gaps', Validierungsmeldung
+- Nur UI-Labels geändert — interne Feldnamen (gapWarnSeconds, gapIdleMinutes, analyzeGap*), CSS-Klassen und WS-Events unverändert
+
+**Dateien:** public/index.html, public/js/render.js, public/js/analyzePanel.js, public/js/configPanel.js, public/js/watchPathsPanel.js, server/analysisService.js, README.md
+
+### 2026-07-15 — ⏱️ Richtwert 20 Sekunden als Vorbelegung für Lücken-Warnung
+
+- 20 Sekunden Wartezeit ist für Keasy-Anwender der Schmerzpunkt → neuer Richtwert für die Lücken-Warnung
+- Neue WatchPath-Zeilen (Hinzufügen + Import) starten mit gapWarnSeconds=20 vorbelegt (löschen = aus)
+- Analyse-Panel: Feld fällt auf 20 zurück, wenn nie konfiguriert — explizite 0 bleibt 'aus'
+- Tooltips nennen den Richtwert 20 (WatchPaths-Tabelle, Analyse-Panel)
+
+**Dateien:** public/index.html, public/js/watchPathsPanel.js, public/js/analyzePanel.js, public/js/configPanel.js, config.js, README.md
+
+### 2026-07-15 — Analyse: Fehler und ⏱️-Lücken getrennt ausweisen (Badges + Fortschritt)
+
+- Quell- und Datei-Badges im Analyse-Abschnitt zeigen Fehler und Performance-Lücken jetzt getrennt: roter Badge = Fehler (Tooltip 'Anzahl Fehler'), oranger Badge '⏱️ N' = Lücken (Tooltip 'Anzahl Performance-Lücken') — vorher wurden Lücken als Fehler mitgezählt
+- Fortschrittsanzeige und Abschluss-Status nennen Lücken separat ('0 Fehler, 94 ⏱️ Lücken in 1 Dateien'); Server sendet gaps-Zähler in analyze-progress/analyze-done
+- ⏱️-Lücken zählen nicht mehr in den globalen Fehlerzähler (Browser-Titel/Kopfzeile)
+- Badges der Live-Performance-Sektion ebenfalls im orangen ⏱️-Stil (gap-badge)
+
+**Dateien:** server/analysisService.js, public/js/render.js, public/js/wsClient.js, public/js/analyzePanel.js, public/style.css
+
+### 2026-07-15 — ⏱️ Performance-Lücken-Erkennung: Zeitabstand zwischen Log-Einträgen überwachen
+
+- Neue per-WatchPath-Felder gapWarnSeconds (0/leer = aus, Default aus) und gapIdleMinutes (Leerlauf-Obergrenze, leer = 30): meldet, wenn zwischen zwei aufeinanderfolgenden Log-Einträgen derselben Datei mehr als N Sekunden liegen — Lücken über der Idle-Grenze (Nacht/Programmstart) werden ignoriert
+- Saubere Trennung vom Fehler-Logging: eigene orange Sektion '⏱️ (Performance)' im Dashboard (Muster Log-Analyse), eigener Store, eigenes WS-Event 'performance', keine E-Mail, kein Papierkorb (direktes Löschen pro Quelle, admin-only)
+- Gap-Prüfung betrachtet ALLE geparsten Einträge (nicht nur Filter-Treffer); Einträge ohne Timestamp werden übersprungen (kein Wall-Clock-Fallback); greift im Live-Monitoring UND beim Start-Einlesen (Preload)
+- Log-Analyse: eigene Felder analyzeGapWarnSeconds/analyzeGapIdleMinutes im Analyse-Panel — Lücken-Treffer erscheinen als ⏱️-Einträge im Analyse-Abschnitt (eigener Zähler, verdrängen keine Fehler)
+- Schwellwert-Änderungen wirken ohne Watcher-Neustart (Laufzeit-Lookup aus normalizedWatchPaths, serializeWp unverändert); Validierung: Warn-Schwelle muss unter der Idle-Grenze liegen
+- Edge Cases: Rotation/Truncation und Datei-Löschung setzen die Gap-Baseline zurück; negative Zeitdifferenzen (Uhr-Sprünge) werden ignoriert; erster Eintrag einer Datei löst nie eine Warnung aus
+- Neue Smoke-Tests: Config-Roundtrip der Gap-Felder, funktionaler Live-Test (temp Watchpath, 10s-Lücke → performance-Event), Clear-Route, performanceData im WS-init
+
+**Dateien:** server/logParser.js, server/runtimeStore.js, server/watchService.js, server.js, server/routes/processRoutes.js, server/routes/analysisRoutes.js, server/analysisService.js, public/index.html, public/js/state.js, public/js/utils.js, public/js/wsClient.js, public/js/render.js, public/js/actions.js, public/js/watchPathsPanel.js, public/js/configPanel.js, public/js/analyzePanel.js, public/style.css, test/smoke.js, README.md
 
 ### 2026-07-01 — Aktuellste Datei je Watchpath farblich hervorheben
 

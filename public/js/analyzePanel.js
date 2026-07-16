@@ -27,6 +27,9 @@ async function loadAnalyzeConfig() {
     const cfg = await resp.json();
     state.analyzePaths = [...(cfg.analyzePaths || [])];
     document.getElementById('analyzeMaxErrors').value = cfg.analyzeMaxErrors || 100;
+    // Nie konfiguriert (undefined) → Richtwert 20; explizite 0 bleibt "aus"
+    document.getElementById('analyzeGapWarnSeconds').value = cfg.analyzeGapWarnSeconds ?? 20;
+    document.getElementById('analyzeGapIdleMinutes').value = cfg.analyzeGapIdleMinutes || '';
     _analyzeLoaded = true;
     renderAnalyzePaths();
     updateAnalyzeButtons();
@@ -100,11 +103,13 @@ function updateAnalyzeButtons() {
 async function startAnalysis() {
   if (state.analyzePaths.length === 0) return;
   const maxErrors = parseInt(document.getElementById('analyzeMaxErrors').value) || 100;
+  const gapWarnSeconds = parseInt(document.getElementById('analyzeGapWarnSeconds').value) || 0;
+  const gapIdleMinutes = parseInt(document.getElementById('analyzeGapIdleMinutes').value) || 0;
   try {
     const resp = await fetch('/api/analyze-logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paths: state.analyzePaths, maxErrorsPerFile: maxErrors })
+      body: JSON.stringify({ paths: state.analyzePaths, maxErrorsPerFile: maxErrors, gapWarnSeconds, gapIdleMinutes })
     });
     const result = await resp.json();
     if (result.ok) {
@@ -152,6 +157,8 @@ async function saveAnalyzePaths() {
       : await fetch('/api/config').then(r => r.json());
     cfg.analyzePaths = [...state.analyzePaths];
     cfg.analyzeMaxErrors = parseInt(document.getElementById('analyzeMaxErrors').value) || 100;
+    cfg.analyzeGapWarnSeconds = parseInt(document.getElementById('analyzeGapWarnSeconds').value) || 0;
+    cfg.analyzeGapIdleMinutes = parseInt(document.getElementById('analyzeGapIdleMinutes').value) || 0;
     const saveResp = await fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -182,17 +189,18 @@ function showAnalyzeStatus(text, type) {
   status.textContent = text;
 }
 
-function updateAnalyzeProgress(current, total, errorCount, running, aborted, skippedPaths) {
+function updateAnalyzeProgress(current, total, errorCount, running, aborted, skippedPaths, gaps) {
   const progress = document.getElementById('analyzeProgress');
   const bar = document.getElementById('analyzeProgressBar');
   const status = document.getElementById('analyzeStatus');
   progress.style.display = '';
   const pct = total > 0 ? Math.round((current / total) * 100) : 0;
   bar.style.width = pct + '%';
+  const gapInfo = gaps > 0 ? `, ${gaps} ⏱️ Gaps` : '';
 
   if (running) {
     state.analyzeIsRunning = true;
-    let text = `${current}/${total} Dateien (${errorCount} Fehler gefunden)`;
+    let text = `${current}/${total} Dateien (${errorCount} Fehler${gapInfo} gefunden)`;
     if (skippedPaths && skippedPaths.length > 0) {
       text += ` — ${skippedPaths.length} Pfade übersprungen`;
     }
@@ -203,11 +211,11 @@ function updateAnalyzeProgress(current, total, errorCount, running, aborted, ski
     document.getElementById('analyzeCancelBtn').style.display = 'none';
     updateAnalyzeButtons();
     if (aborted) {
-      status.textContent = `⏹ Abgebrochen: ${current}/${total} Dateien, ${errorCount} Fehler`;
+      status.textContent = `⏹ Abgebrochen: ${current}/${total} Dateien, ${errorCount} Fehler${gapInfo}`;
     } else if (total === 0) {
       status.textContent = '⚠️ Keine .log-Dateien gefunden in den angegebenen Pfaden';
     } else {
-      status.textContent = `✅ Abgeschlossen: ${errorCount} Fehler in ${total} Dateien`;
+      status.textContent = `✅ Abgeschlossen: ${errorCount} Fehler${gapInfo} in ${total} Dateien`;
     }
   }
 }

@@ -63,6 +63,13 @@ window.Keasy.utils = {
     return `vor ${days} Tag${days > 1 ? 'en' : ''}`;
   },
 
+  formatGapDuration(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m ${String(s).padStart(2, '0')}s`;
+  },
+
   showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {
@@ -90,6 +97,7 @@ Object.assign(window, {
   getLocalDateStr: Keasy.utils.getLocalDateStr,
   formatSize: Keasy.utils.formatSize,
   formatTimeAgo: Keasy.utils.formatTimeAgo,
+  formatGapDuration: Keasy.utils.formatGapDuration,
   showToast: Keasy.utils.showToast
 });
 

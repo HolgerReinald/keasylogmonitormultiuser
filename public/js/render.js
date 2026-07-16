@@ -42,8 +42,9 @@ function renderAll() {
   const container = document.getElementById('container');
   const keys = Object.keys(state.errors).filter(k => state.errors[k].length > 0);
   const analyzeKeys = Object.keys(state.analyzeErrors).filter(k => state.analyzeErrors[k].length > 0);
+  const perfKeys = Object.keys(state.performanceEntries).filter(k => state.performanceEntries[k].length > 0);
 
-  if (keys.length === 0 && analyzeKeys.length === 0) {
+  if (keys.length === 0 && analyzeKeys.length === 0 && perfKeys.length === 0) {
     state.totalErrors = 0;
     document.getElementById('totalCount').textContent = state.totalErrors;
     updateBrowserTitle();
@@ -211,25 +212,25 @@ function renderAll() {
       </div>`;
   }
 
-  // === Analyse-Ergebnisse (getrennt von Live) ===
-  if (analyzeKeys.length > 0) {
-    const aGroups = {};
-    for (const filePath of analyzeKeys) {
-      const label = state.analyzeLabels[filePath] || '📂 Analyse';
-      if (!aGroups[label]) aGroups[label] = [];
-      aGroups[label].push(filePath);
+  // === ⏱️ Performance-Lücken (getrennt vom Fehler-Logging) ===
+  if (perfKeys.length > 0) {
+    const pGroups = {};
+    for (const filePath of perfKeys) {
+      const label = state.performanceLabels[filePath] || 'Sonstige';
+      if (!pGroups[label]) pGroups[label] = [];
+      pGroups[label].push(filePath);
     }
 
-    for (const label of Object.keys(aGroups)) {
+    for (const label of Object.keys(pGroups)) {
       let groupHtml = '';
       let groupCount = 0;
 
-      for (const filePath of aGroups[label]) {
-        const fileErrors = state.analyzeErrors[filePath];
-        const fileName = fileErrors[0]?.file || filePath.split('\\').pop();
+      for (const filePath of pGroups[label]) {
+        const fileEntries = state.performanceEntries[filePath];
+        const fileName = fileEntries[0]?.file || filePath.split('\\').pop();
         const fileNameLower = fileName.toLowerCase();
-        const filtered = fileErrors.filter(e => {
-          if (!isInTimeFilter(e.timestamp)) return false;
+        const filtered = fileEntries.filter(e => {
+          if (!isInDateRange(e.timestamp)) return false;
           if (state.searchTerm) {
             if (state.searchRegex) {
               if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
@@ -252,7 +253,98 @@ function renderAll() {
               <div class="file-actions">
                 <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
                 <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
-                <span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>
+                <span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${filtered.length}</span>
+              </div>
+            </div>
+            <div class="error-list" style="display:none">`;
+        const reversed = [...filtered].reverse();
+        for (const entry of reversed) {
+          const time = new Date(entry.timestamp).toLocaleTimeString('de-DE');
+          const prevTime = new Date(entry.prevTimestamp).toLocaleTimeString('de-DE');
+          const gapLabel = Keasy.utils.formatGapDuration(entry.gapSeconds);
+          const entryTextEscaped = escapeJs(entry.line.split('\n')[0]);
+          groupHtml += `
+            <div class="error-entry gap-entry">
+              <div class="error-time">
+                <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
+                <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${entryTextEscaped}', event)">↗ Zeile öffnen</button>
+              </div>
+              <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(entry.line))}</div>
+            </div>`;
+        }
+        groupHtml += `</div></div>`;
+      }
+
+      if (groupCount > 0) {
+        const collapseKey = 'perf:' + label;
+        const isCollapsed = (state.searchTerm && groupCount > 0) ? false : state.collapsedSources[collapseKey] === true;
+        html += `
+          <div class="source-group performance-source">
+            <div class="source-header performance-header" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
+              <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ⏱️ ${escapeHtml(label)} <span style="font-size:0.85em; opacity:0.7;">(Performance)</span></span>
+              <div class="source-actions">
+                <button class="action-btn" title="Performance-Einträge dieser Quelle löschen" onclick="clearPerformanceSource('${escapeJs(label)}', event)" data-admin-only>🗑️</button>
+                <span class="source-badge gap-badge" title="Anzahl Performance-Gaps in dieser Quelle">⏱️ ${groupCount}</span>
+              </div>
+            </div>
+            <div class="source-content${isCollapsed ? ' collapsed' : ''}">
+              ${groupHtml}
+            </div>
+          </div>`;
+      }
+    }
+  }
+
+  // === Analyse-Ergebnisse (getrennt von Live) ===
+  if (analyzeKeys.length > 0) {
+    const aGroups = {};
+    for (const filePath of analyzeKeys) {
+      const label = state.analyzeLabels[filePath] || '📂 Analyse';
+      if (!aGroups[label]) aGroups[label] = [];
+      aGroups[label].push(filePath);
+    }
+
+    for (const label of Object.keys(aGroups)) {
+      let groupHtml = '';
+      let groupCount = 0;
+      let groupErrCount = 0;
+      let groupGapCount = 0;
+
+      for (const filePath of aGroups[label]) {
+        const fileErrors = state.analyzeErrors[filePath];
+        const fileName = fileErrors[0]?.file || filePath.split('\\').pop();
+        const fileNameLower = fileName.toLowerCase();
+        const filtered = fileErrors.filter(e => {
+          if (!isInTimeFilter(e.timestamp)) return false;
+          if (state.searchTerm) {
+            if (state.searchRegex) {
+              if (!state.searchRegex.test(e.line) && !state.searchRegex.test(fileName)) return false;
+            } else {
+              if (!e.line.toLowerCase().includes(state.searchTerm) && !fileNameLower.includes(state.searchTerm)) return false;
+            }
+          }
+          return true;
+        });
+        if (filtered.length === 0) continue;
+        groupCount += filtered.length;
+        // Fehler und ⏱️-Lücken getrennt zählen (Lücken haben gapSeconds)
+        const fileGapCount = filtered.filter(e => e.gapSeconds != null).length;
+        const fileErrCount = filtered.length - fileGapCount;
+        groupErrCount += fileErrCount;
+        groupGapCount += fileGapCount;
+        const fileGapBadge = fileGapCount > 0 ? `<span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${fileGapCount}</span>` : '';
+
+        groupHtml += `
+          <div class="file-group">
+            <div class="file-header" onclick="toggleGroup(this)">
+              <div>
+                <div class="file-name">📄 ${escapeHtml(fileName)}</div>
+                <div class="file-path">${escapeHtml(filePath)}</div>
+              </div>
+              <div class="file-actions">
+                <button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
+                <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
+                <span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}
               </div>
             </div>
             <div class="error-list" style="display:none">`;
@@ -260,6 +352,20 @@ function renderAll() {
         for (const err of reversed) {
           const time = new Date(err.timestamp).toLocaleTimeString('de-DE');
           const errTextEscaped = escapeJs(err.line.split('\n')[0]);
+          if (err.gapSeconds != null) {
+            // ⏱️ Performance-Lücke aus der Analyse — eigenes Layout, keine Copy/Copilot-Buttons
+            const prevTime = new Date(err.prevTimestamp).toLocaleTimeString('de-DE');
+            const gapLabel = Keasy.utils.formatGapDuration(err.gapSeconds);
+            groupHtml += `
+            <div class="error-entry gap-entry">
+              <div class="error-time">
+                <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
+                <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
+              </div>
+              <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(err.line))}</div>
+            </div>`;
+            continue;
+          }
           const origIdx = state.analyzeErrors[filePath].indexOf(err);
           groupHtml += `
             <div class="error-entry">
@@ -277,18 +383,19 @@ function renderAll() {
       }
 
       if (groupCount > 0) {
-        filteredTotal += groupCount;
+        filteredTotal += groupErrCount; // ⏱️-Lücken zählen nicht in den Fehlerzähler
         const collapseKey = 'analyze:' + label;
         const isCollapsed = (state.searchTerm && groupCount > 0) ? false : state.collapsedSources[collapseKey] === true;
         const analyzeUserHint = state.analyzeUser ? ` <span style="font-size:0.85em; opacity:0.7;">(${escapeHtml(state.analyzeUser)})</span>` : '';
         const clearDisabled = state.analyzeIsRunning ? ' disabled title="Analyse läuft…"' : ' title="Analyse-Ergebnisse dieser Quelle löschen"';
+        const groupGapBadge = groupGapCount > 0 ? `<span class="source-badge gap-badge" title="Anzahl Performance-Gaps (Analyse)">⏱️ ${groupGapCount}</span>` : '';
         html += `
           <div class="source-group analyze-source">
             <div class="source-header analyze-header" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
               <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(label)}${analyzeUserHint}</span>
               <div class="source-actions">
                 <button class="action-btn"${clearDisabled} onclick="clearAnalyzeSource('${escapeJs(label)}', event)">🗑️</button>
-                <span class="source-badge" title="Anzahl Fehler (Analyse)">${groupCount}</span>
+                <span class="source-badge" title="Anzahl Fehler (Analyse)">${groupErrCount}</span>${groupGapBadge}
               </div>
             </div>
             <div class="source-content${isCollapsed ? ' collapsed' : ''}">
