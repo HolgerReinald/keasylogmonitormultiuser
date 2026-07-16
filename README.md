@@ -420,6 +420,14 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-16 — Watcher-Schutz: fehlende WatchPaths blockieren den Server nicht mehr
+
+- startWatching legt für nicht existierende Pfade keinen Watcher mehr an — chokidar fiel sonst aufs nächste existierende Elternverzeichnis zurück und pollte es komplett (z. B. %TEMP% mit zigtausenden Dateien → Event-Loop-Blockade, Dashboard reagierte nicht mehr)
+- Die Erreichbarkeitsüberwachung meldet den fehlenden Pfad (Warnbanner) und startet die Watcher automatisch neu, sobald er wieder existiert
+- Smoke-Test-Cleanup gehärtet: Erreichbarkeits-Test entfernt seinen Temp-Watchpath jetzt mit frischer Config, Retry und verifizierendem Assert (ein Rest-Watchpath auf ein gelöschtes Verzeichnis hatte genau diese Blockade ausgelöst)
+
+**Dateien:** server/watchService.js, test/smoke.js
+
 ### 2026-07-16 — Code-Refactoring: Render-Bausteine, FTP-Helper, Label-Filter + Repo-Hygiene
 
 - render.js: die drei fast identischen Anzeige-Sektionen (Live, ⏱️ Performance, Analyse) nutzen jetzt gemeinsame Bausteine (filterEntriesForFile, buildFileGroupHtml, buildErrorEntryHtml, buildGapEntryHtml) — per DOM-Stub-Aequivalenztest über 6 Szenarien verifiziert (Ausgabe identisch)

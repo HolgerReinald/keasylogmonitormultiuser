@@ -540,6 +540,19 @@ function startWatching() {
     const resolved = path.resolve(wp.path);
     const isObviousNetwork = resolved.startsWith('\\\\');
 
+    // Nicht existierende Pfade: KEINEN Watcher anlegen — chokidar würde sonst auf das
+    // nächste existierende Elternverzeichnis zurückfallen und es komplett pollen
+    // (z. B. %TEMP% mit zigtausenden Dateien → Event-Loop-Blockade). Die
+    // Erreichbarkeitsüberwachung meldet den Pfad und startet die Watcher neu,
+    // sobald er wieder existiert (Auto-Recovery).
+    let pathExists = true;
+    try { fs.accessSync(resolved); } catch { pathExists = false; }
+    if (!pathExists) {
+      console.log(`  ⚠️  [${wp.label}] ${wp.path} — Pfad nicht erreichbar, Watcher wird bei Rückkehr automatisch gestartet`);
+      watchPathReachability.set(wp.path, false);
+      continue;
+    }
+
     const usePolling = wp.usePolling !== false;
     const initialPolling = usePolling || isObviousNetwork;
 

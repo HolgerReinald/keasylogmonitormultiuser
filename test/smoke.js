@@ -436,16 +436,26 @@ async function testWatchPathReachability() {
     assert(errMsg !== null, 'Auto-Recovery: Fehler im wiederhergestellten Pfad wird wieder erkannt');
   } finally {
     if (ws) { try { ws.close(); } catch { /* ignore */ } }
-    if (cfg) {
+    // Cleanup mit frischer Config (nicht mit dem alten Snapshot — der könnte
+    // zwischenzeitliche Änderungen überschreiben) und Verifikation: ein
+    // zurückgebliebener Watchpath auf ein gelöschtes Temp-Verzeichnis lässt
+    // chokidar das Elternverzeichnis (%TEMP%) pollen → Event-Loop-Blockade.
+    let cleanupOk = false;
+    for (let attempt = 0; attempt < 3 && !cleanupOk; attempt++) {
       try {
-        cfg.watchPaths = origWatchPaths;
+        const fresh = parseJSON((await fetch('/api/config')).body);
+        fresh.watchPaths = (fresh.watchPaths || []).filter(wp => wp.label !== testLabel);
         await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cfg),
+          body: JSON.stringify(fresh),
         });
-      } catch { /* Cleanup best effort */ }
+        const check = parseJSON((await fetch('/api/config')).body);
+        cleanupOk = check && !(check.watchPaths || []).some(wp => wp.label === testLabel);
+      } catch { /* Server ggf. kurz beschäftigt — erneut versuchen */ }
+      if (!cleanupOk) await new Promise(r => setTimeout(r, 2000));
     }
+    assert(cleanupOk, 'Cleanup: Test-Watchpath aus der Config entfernt (verifiziert)');
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* ignore */ }
   }
 }
