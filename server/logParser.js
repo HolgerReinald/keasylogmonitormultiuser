@@ -79,13 +79,24 @@ const timestampRegex = /^\s*\d{2}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3}/;
 // Capturing-Variante für die Timestamp-Extraktion
 const timestampCaptureRegex = /^\s*(\d{2})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
 
+// ISO-Timestamp aus JSON-Logs: "Timestamp": "2026-07-20T09:17:25.9465417Z"
+const isoTimestampRegex = /"Timestamp"\s*:\s*"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)"/;
+
 // Timestamp eines Log-Eintrags als Date — null, wenn keiner vorhanden (bewusst KEIN Wall-Clock-Fallback,
 // damit die Gap-Erkennung Einträge ohne Timestamp überspringen kann)
 function parseEntryTimestamp(entry) {
   const m = entry.match(timestampCaptureRegex);
-  if (!m) return null;
-  const [, dd, MM, yy, HH, mm, ss, ms] = m;
-  return new Date(2000 + parseInt(yy), parseInt(MM) - 1, parseInt(dd), parseInt(HH), parseInt(mm), parseInt(ss), parseInt(ms));
+  if (m) {
+    const [, dd, MM, yy, HH, mm, ss, ms] = m;
+    return new Date(2000 + parseInt(yy), parseInt(MM) - 1, parseInt(dd), parseInt(HH), parseInt(mm), parseInt(ss), parseInt(ms));
+  }
+  // Fallback: ISO-Zeitstempel aus JSON-Logs (z. B. KI-Schnittstelle)
+  const iso = entry.match(isoTimestampRegex);
+  if (iso) {
+    const d = new Date(iso[1]);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
 }
 
 // Lücke zwischen zwei Einträgen bewerten: Sekunden zurückgeben, wenn sie die Warn-Schwelle erreicht
@@ -160,4 +171,76 @@ function parseLogEntries(text, opts = {}) {
   return { entries, pending };
 }
 
-module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap };
+// JSON-Logs (z. B. KI-Schnittstelle): Datei ist eine Folge pretty-printed JSON-Objekte,
+// jeweils gefolgt von einer Zeile mit exakt "---". Es wird pro Objekt getrennt (nicht pro
+// Timestamp-Zeile wie bei parseLogEntries). Vollständige Blöcke = alles vor dem letzten "---";
+// der Rest bleibt pending, bis sein "---" nachläuft.
+function parseJsonLogEntries(text, opts = {}) {
+  const flushFinal = opts.flushFinal !== undefined ? opts.flushFinal : false;
+  const parts = text.split(/^---[ \t]*\r?$/m);
+  const entries = [];
+  let pending = null;
+
+  // Der letzte Teil hat keinen abschließenden "---" gesehen → unvollständig
+  const lastIdx = parts.length - 1;
+  for (let i = 0; i < parts.length; i++) {
+    const block = parts[i];
+    if (i === lastIdx) {
+      if (block.trim()) {
+        if (flushFinal) entries.push(block);
+        else pending = block;
+      }
+    } else if (block.trim()) {
+      entries.push(block);
+    }
+  }
+
+  return { entries, pending };
+}
+
+// Einen JSON-Block strukturell auswerten. KI-Logs enthalten in Prompt-/Antwort-Text viele
+// Wörter, die die generischen filterPatterns fälschlich matchen würden ("fehler":null usw.).
+// Daher wird ein Fehler NICHT über den Textfilter erkannt, sondern strukturell:
+// Error-Objekt vorhanden ODER Success === false. excludePatterns bleiben wirksam (auf
+// Typ + Meldung angewandt), damit sich einzelne Fehlerarten unterdrücken lassen.
+// Rückgabe: { report, line, timestamp } — bei Parse-Fehler Fallback auf den generischen Textfilter.
+function evaluateJsonEntry(block) {
+  let obj;
+  try {
+    obj = JSON.parse(block.trim());
+  } catch {
+    // Unvollständiger/kaputter Block: best effort über den Textfilter
+    return { report: matchesFilter(block), line: block.trim(), timestamp: parseEntryTimestamp(block) };
+  }
+
+  let ts = null;
+  if (obj.Timestamp) {
+    const d = new Date(obj.Timestamp);
+    if (!isNaN(d.getTime())) ts = d;
+  }
+
+  const hasError = !!(obj.Error && (obj.Error.Type || obj.Error.Message));
+  const isError = hasError || obj.Success === false;
+
+  const parts = [];
+  if (ts) parts.push(ts.toLocaleString('de-DE'));
+  if (obj.RequestId) parts.push(`[${obj.RequestId}]`);
+  let matchText = '';
+  if (hasError) {
+    const type = obj.Error.Type ? `${obj.Error.Type}: ` : '';
+    matchText = `${obj.Error.Type || ''} ${obj.Error.Message || ''}`;
+    parts.push(`${type}${obj.Error.Message || ''}`.trim());
+  } else if (obj.Success === false) {
+    parts.push('Fehlgeschlagen (Success: false)');
+  }
+
+  // excludePatterns auf die Fehlermeldung anwenden (nicht auf den ganzen Block —
+  // sonst würden Prompt-Inhalte die Unterdrückung auslösen)
+  const report = isError && !(matchText && excludeRegex && excludeRegex.test(matchText));
+  const line = parts.length ? parts.join(' ') : block.trim();
+  return { report, line, timestamp: ts };
+}
+
+
+module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap };
+

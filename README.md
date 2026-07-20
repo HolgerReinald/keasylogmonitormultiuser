@@ -177,7 +177,8 @@ module.exports = {
     { path: 'C:\\Users\\hr\\AppData\\Local\\Keasy\\Logs', label: 'Keasy Lokal', emailTo: null },
     { path: 'C:\\ProgramData\\Keasy\\Logs', label: 'Lokale Dienste', emailTo: null },
     { path: 'Y:\\', label: 'MAD Dienst', emailTo: 'admin@example.com' },
-    { path: 'X:\\', label: 'VFMService Dienst', emailTo: null }
+    { path: 'X:\\', label: 'VFMService Dienst', emailTo: null },
+    { path: 'C:\\...\\Keasy\\KI', label: 'Schnittstellen KI', includeJson: true }  // auch .json-Logs
   ],
 
   filePattern: '**/*.log',
@@ -208,6 +209,7 @@ module.exports = {
 | `watchPaths[].emailTo` | E-Mail-Empfänger: kommagetrennt (`'a@x.de, b@x.de'`), Array (`['a@x.de', 'b@x.de']`) oder `null` (kein Versand) |
 | `watchPaths[].gapWarnSeconds` | ⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. `0`/leer = aus. Richtwert: `20` (Schmerzpunkt für Anwender) — neue Zeilen werden damit vorbelegt |
 | `watchPaths[].gapIdleMinutes` | Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = `30` |
+| `watchPaths[].includeJson` | `true` = in diesem Pfad zusätzlich `.json`-Logs überwachen (Glob `**/*.{log,json}`) und pro JSON-Objekt strukturell auswerten (`Error`/`Success:false`), z. B. KI-Schnittstelle. Standard `false` — bewusst pro Pfad aktivieren, um Netzlaufwerke (`X:`/`Y:`) nicht unnötig nach JSON zu durchsuchen |
 | `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
 | `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
@@ -419,6 +421,17 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-20 — 🧩 JSON-Logs pro WatchPath überwachen (z. B. KI-Schnittstelle)
+
+- Neues Häkchen 'JSON' pro WatchPath: nur wo aktiviert, werden zusätzlich .json-Logs erfasst (Glob **/*.{log,json}) — Netzlaufwerke wie X:/Y: bleiben aus Performance-Gründen bewusst .log-only
+- Hintergrund: KI-Schnittstelle schreibt Fehler nach ai_log_*.json; der globale filePattern **/*.log erfasste diese Dateien nie, dadurch blieben AggregateException/Retry failed unerkannt
+- logParser: parseJsonLogEntries splittet JSON-Logs am ---Trenner (statt an Timestamp-Zeilen), inkl. Pending-Handling fürs inkrementelle Tailing; parseEntryTimestamp erkennt jetzt auch ISO-Zeitstempel
+- logParser: evaluateJsonEntry erkennt Fehler strukturell (Error-Objekt oder Success:false) statt per Textfilter — verhindert Fehlalarme durch Filterwörter im KI-Prompt-Text (z. B. "fehler":null); excludePatterns bleiben auf die Fehlermeldung anwendbar
+- watchService: Glob und Parser werden pro Datei/Pfad gewählt (wp.includeJson bzw. Dateiendung); JSON-Fehler erscheinen als kompakte Zeile mit korrektem ISO-Zeitstempel statt als ein Datei-Blob
+- Frontend: neue Spalte 'JSON' in der WatchPath-Tabelle (renderWatchPathsTable, addWatchPathRow, Import, getWatchPathsFromTable); neues Feld includeJson überlebt Speicherung automatisch (normalizedWatchPaths spreadet alle Felder)
+
+**Dateien:** server/logParser.js, server/watchService.js, public/js/watchPathsPanel.js, public/index.html
 
 ### 2026-07-16 — 🔔 Desktop-Benachrichtigungen zuverlässiger
 

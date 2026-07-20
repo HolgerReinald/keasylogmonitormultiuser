@@ -9,7 +9,7 @@ const chokidar = require('chokidar');
 const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps } = require('./runtimeStore');
 const { broadcast, broadcastFiltered, filterMapByLabels, labelMessageFilter } = require('./wsBroadcast');
 const { config } = require('./configStore');
-const { matchesFilter, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { matchesFilter, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
 const { bufferErrorForEmail } = require('./emailService');
 
 // --- Tail-Logik ---
@@ -49,7 +49,12 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
     const newContent = pending + buffer.toString('utf8');
     pendingBuffers.delete(filePath);
 
-    const parsed = parseLogEntries(newContent, { flushFinal: false });
+    // JSON-Logs (z. B. KI-Schnittstelle) werden pro JSON-Objekt (Trenner "---") getrennt und
+    // strukturell ausgewertet; normale .log-Dateien wie bisher an Timestamp-Zeilen.
+    const isJson = path.extname(filePath).toLowerCase() === '.json';
+    const parsed = isJson
+      ? parseJsonLogEntries(newContent, { flushFinal: false })
+      : parseLogEntries(newContent, { flushFinal: false });
 
     if (parsed.pending !== null) {
       pendingBuffers.set(filePath, parsed.pending);
@@ -77,8 +82,13 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
               updateGapBaseline(filePath, [buffered]);
             }
           }
-          if (buffered.trim() && matchesFilter(buffered)) {
-            emitError(filePath, buffered, changeDetectedAt);
+          if (buffered.trim()) {
+            if (isJson) {
+              const r = evaluateJsonEntry(buffered);
+              if (r.report) emitError(filePath, r.line, changeDetectedAt, r.timestamp);
+            } else if (matchesFilter(buffered)) {
+              emitError(filePath, buffered, changeDetectedAt);
+            }
           }
         }
       }, flushDelay));
@@ -86,7 +96,11 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
 
     for (const entry of parsed.entries) {
       if (gapEnabled && entry.trim()) trackEntryGap(filePath, entry, gapSettings, silentPerformance);
-      if (entry.trim() && matchesFilter(entry)) {
+      if (!entry.trim()) continue;
+      if (isJson) {
+        const r = evaluateJsonEntry(entry);
+        if (r.report) emitError(filePath, r.line, changeDetectedAt, r.timestamp);
+      } else if (matchesFilter(entry)) {
         emitError(filePath, entry, changeDetectedAt);
       }
     }
@@ -100,9 +114,9 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
   }
 }
 
-function emitError(filePath, entry, changeDetectedAt) {
+function emitError(filePath, entry, changeDetectedAt, explicitTs) {
   const limited = limitStackTrace(entry.trim());
-  const parsedTs = parseEntryTimestamp(entry);
+  const parsedTs = explicitTs || parseEntryTimestamp(entry);
   const timestamp = (parsedTs || new Date()).toISOString();
   const error = {
     timestamp,
@@ -564,7 +578,9 @@ function startWatching() {
       console.log(`  → [${wp.label}] ${wp.path} (Polling: 2s)`);
     }
 
-    const globPattern = path.join(wp.path, config.filePattern);
+    // JSON pro WatchPath opt-in (Performance): nur wo aktiviert, werden auch .json-Logs erfasst.
+    const pattern = wp.includeJson ? '**/*.{log,json}' : config.filePattern;
+    const globPattern = path.join(wp.path, pattern);
     const pollInterval = (isObviousNetwork || wp._isNetworkDrive) ? 5000 : 2000;
     const flushDelay = initialPolling ? pollInterval + 200 : 500;
 
