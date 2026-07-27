@@ -7,8 +7,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-let _config = require('../config');
 const configPath = path.join(__dirname, '..', 'config.js');
+
+// Erstlauf-Bootstrap (config.js aus config.default.js), falls ein Modul configStore vor
+// server.js lädt. Idempotent — im Normalbetrieb existiert config.js bereits.
+require('./bootstrapConfig')();
+
+let _config = require('../config');
 
 // ─── ID-Generierung für lokale Backup-Ziele ─────────────────
 function generateLocalId() {

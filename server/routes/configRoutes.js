@@ -13,6 +13,7 @@ const { emailLogPath } = require('../emailService');
 const { markdownToHtml } = require('../markdownHelper');
 const healthCheck = require('../healthCheck');
 const userConfigStore = require('../userConfigStore');
+const toolExport = require('../toolExport');
 
 module.exports = function configRoutes(deps) {
   const { applyConfigChanges, stylePath, styleDefaultPath } = deps;
@@ -107,6 +108,20 @@ module.exports = function configRoutes(deps) {
           res.end(JSON.stringify({ ok: false, message: err.message }));
         }
       });
+    },
+
+    // Tool-Paket exportieren: schlankes, bereinigtes ZIP zur Weitergabe.
+    // sections=general,patterns,thresholds,watchPaths,email,backup steuert die
+    // eingebackene Start-Config. Admin-only via ADMIN_ONLY_ROUTES.
+    'GET /api/export-tool': (req, res) => {
+      let sections = [];
+      const qIndex = req.url.indexOf('?');
+      if (qIndex !== -1) {
+        const params = new URLSearchParams(req.url.slice(qIndex + 1));
+        const raw = params.get('sections') || '';
+        sections = raw.split(',').map(s => s.trim()).filter(Boolean);
+      }
+      toolExport.streamZip(res, sections);
     },
 
     'GET /api/docs': (req, res) => {

@@ -123,6 +123,7 @@
       <button class="config-tab" onclick="switchConfigTab('systemcheck')" data-admin-only>🧪 System-Check</button>
       <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
       <button class="config-tab" onclick="switchConfigTab('users')" id="tab-users" data-admin-only>👥 Benutzer</button>
+      <button class="config-tab" onclick="switchConfigTab('export')" data-admin-only>📤 Weitergabe</button>
     </div>
 
     <div class="config-section active" id="config-general">
@@ -539,6 +540,30 @@
       </div>
     </div>
 
+    <!-- Weitergabe Tab (Admin only) -->
+    <div class="config-section" id="config-export">
+      <h4>📤 Tool-Paket zur Weitergabe</h4>
+      <p style="color:var(--text-secondary); font-size:0.9em; max-width:640px;">
+        Erzeugt ein schlankes ZIP mit dem Programmcode und einer bereinigten Start-Konfiguration.
+        <strong>Nicht enthalten:</strong> Zugangsdaten (SMTP/FTP), Benutzerkonten, Logs, node_modules
+        und maschinenspezifische Daten. Wähle unten, welche Einstellungen in die mitgelieferte
+        Config eingebacken werden — Passwörter werden auch bei angehakter Sektion nie exportiert.
+      </p>
+      <div class="config-group" style="max-width:640px;">
+        <h5 style="margin-bottom:8px; color:var(--text-secondary);">In die Start-Config übernehmen</h5>
+        <div id="exportSectionsList"></div>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="config-save-btn" onclick="exportToolPackage()" style="padding:8px 20px; font-size:1em;">📦 Tool-Paket erzeugen</button>
+      </div>
+      <p style="color:var(--text-secondary); font-size:0.85em; margin-top:12px; max-width:640px;">
+        Empfänger: ZIP entpacken → <code>start.bat</code> ausführen. Beim ersten Start werden die
+        Abhängigkeiten installiert und die Config erzeugt. Ist das Rechte-System in der gewählten
+        Config aktiv, lautet der Standard-Login <code>admin</code> / <code>admin</code>. Details
+        stehen in der mitgelieferten <code>WEITERGABE.md</code>.
+      </p>
+    </div>
+
     <div class="config-actions">
       <button class="config-save-btn" id="configSaveBtn" onclick="saveConfig()" disabled>💾 Speichern</button>
       <button class="config-reset-btn" onclick="resetConfig()" data-admin-only>↺ Zurücksetzen</button>
@@ -592,6 +617,7 @@
   <script src="js/thresholdPanel.js" defer></script>
   <script src="js/folderPicker.js" defer></script>
   <script src="js/configPanel.js" defer></script>
+  <script src="js/toolExport.js" defer></script>
   <script src="js/analyzePanel.js" defer></script>
   <script src="js/backupTargetsPanel.js" defer></script>
   <script src="js/backupRestorePanel.js" defer></script>

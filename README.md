@@ -96,6 +96,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **⏱️ Performance-Gap-Erkennung:** Pro WatchPath konfigurierbar — meldet, wenn zwischen zwei aufeinanderfolgenden Log-Einträgen derselben Datei mehr als N Sekunden liegen (Richtwert: 20 s, der Schmerzpunkt für Anwender). Kein Fehler, sondern eigene Kategorie: eigene orange Sektion im Dashboard, getrennt vom Fehler-Logging, keine E-Mail, kein Papierkorb. Leerlauf-Obergrenze (Standard: 30 Min) filtert Nacht-/Start-Gaps heraus. Greift im Live-Monitoring, beim Start-Einlesen und (mit eigenen Feldern) in der Log-Analyse. Standard: aus
 - **📋 Fehler kopieren:** Fehlertext einzelner Einträge per Klick in die Zwischenablage kopieren
 - **🤖 Copilot-Export:** Fehler als `copilot-error-context.md` in ein konfiguriertes Verzeichnis exportieren — für direkte Übergabe an GitHub Copilot CLI. Zwei Ziele: 🤖 Develop + 🚀 Release (grün)
+- **📤 Weitergabe (Tool-Export):** Erzeugt per Klick ein schlankes, weitergebbares ZIP der App (Tab „Weitergabe", admin-only) — **ohne** Zugangsdaten (SMTP/FTP), Benutzerkonten, Logs, `node_modules` und maschinenspezifische Pfade. Eine Sektions-Checkliste (Positivauswahl) steuert, welche Einstellungen in die mitgelieferte `config.default.js` eingebacken werden (Allgemein, Filter-/Ausschluss-Muster, Schwellwerte vorbelegt; Watch-Pfade, E-Mail, Backup optional). Passwörter werden nie exportiert. Empfänger: entpacken → `start.bat` (installiert Dependencies, erzeugt beim ersten Start `config.js` aus `config.default.js`)
 - **🔌 Auto-Port-Recovery:** Bei belegtem Port wird der alte Prozess automatisch beendet
 - **⚡ Intelligentes Debouncing:** Mehrfache Datei-Events werden zusammengefasst (100ms) für effiziente Verarbeitung
 - **🔍 Debug-Logging:** Timing-Analyse per Checkbox aktivierbar (Einstellungen → Allgemein) — zeigt `[TIMING]`-Einträge in der Server-Konsole
@@ -421,6 +422,16 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-27 — 📤 Tool-Export: weitergebbares Paket erzeugen
+
+- Neuer Tab „📤 Weitergabe" (admin-only): erzeugt ein schlankes ZIP der App zur Weitergabe an Dritte — Download direkt aus dem Browser (`GET /api/export-tool`)
+- Sektions-Checkliste (Positivauswahl) steuert, welche Einstellungen in die mitgelieferte `config.default.js` eingebacken werden; vorbelegt: Allgemeine Optionen, Filter-/Ausschluss-Muster, Schwellwert-Regeln. Optional: Watch-Pfade, E-Mail/SMTP, Backup/FTP. Registry in `public/js/toolExport.js` (eine neue Sektion = ein Eintrag)
+- Sicherheit: Passwörter (SMTP/FTP) werden nie exportiert (auch nicht bei angehakter Sektion); ausgeschlossen sind zudem `config.js`, `users.json`/`users/`, `*.log`, `node_modules`, `.git`, temp-/Backup-Artefakte sowie `analyzePaths`/`copilotWorkingPath*` und Runtime-Marker (`_isNetworkDrive`)
+- Erstlauf-Bootstrap: fehlt `config.js` (Weitergabe-Paket enthält nur `config.default.js`), wird sie beim ersten Start automatisch erzeugt — `server/bootstrapConfig.js` läuft als erste Zeile in `server.js`, vor allen Modul-Requires (mehrere Module laden `../config` direkt)
+- Ins ZIP gelegte `WEITERGABE.md` mit Kurzanleitung; der Login-Hinweis richtet sich nach dem tatsächlichen Auth-Zustand der gewählten Config (kein „admin/admin", wenn das Rechte-System aus ist)
+
+**Dateien:** server/toolExport.js, server/bootstrapConfig.js, server/routes/configRoutes.js, server/httpRouter.js, server/configStore.js, server.js, public/js/toolExport.js, public/js/configPanel.js, public/index.html
 
 ### 2026-07-20 — 🧩 JSON-Logs pro WatchPath überwachen (z. B. KI-Schnittstelle)
 

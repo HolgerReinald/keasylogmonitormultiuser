@@ -4,6 +4,10 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { WebSocketServer } = require('ws');
 
+// Erstlauf-Bootstrap: config.js aus config.default.js erzeugen, falls sie fehlt (Weitergabe-Paket).
+// MUSS vor allen Modul-Requires laufen, da mehrere Module require('../config') direkt aufrufen.
+require('./server/bootstrapConfig')();
+
 // --- Module ---
 const store = require('./server/runtimeStore');
 const { normalizedWatchPaths, pausedLabels, emailDisabledLabels, trashStore, state: rState } = store;

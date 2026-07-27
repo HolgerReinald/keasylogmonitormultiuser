@@ -53,10 +53,13 @@ function switchConfigTab(tab) {
   if (tab === 'users' && Keasy.userPanel) {
     Keasy.userPanel.loadUsers();
   }
+  if (tab === 'export' && Keasy.toolExport) {
+    Keasy.toolExport.renderExportSections();
+  }
   // Config-Buttons bei Tabs ohne Config-Formular ausblenden
   const configActions = document.querySelector('.config-actions');
   if (configActions) {
-    configActions.style.display = (tab === 'docs' || tab === 'emaillog' || tab === 'csseditor' || tab === 'systemcheck' || tab === 'users') ? 'none' : '';
+    configActions.style.display = (tab === 'docs' || tab === 'emaillog' || tab === 'csseditor' || tab === 'systemcheck' || tab === 'users' || tab === 'export') ? 'none' : '';
   }
 }
 
