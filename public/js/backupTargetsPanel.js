@@ -38,7 +38,7 @@
       <div class="backup-card-header" style="padding:12px 16px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
         <span style="font-weight:600;" data-label-display>${icon} ${esc(loc.label || 'Lokales Backup')}</span>
         <label style="display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="event.stopPropagation()">
-          <input type="checkbox" data-field="enabled" ${loc.enabled ? 'checked' : ''} onchange="onLocalCardToggle(this); markConfigDirty()"> Aktiv
+          <input type="checkbox" class="ksw" data-field="enabled" ${loc.enabled ? 'checked' : ''} onchange="onLocalCardToggle(this); markConfigDirty()"> Aktiv
         </label>
       </div>
       <div class="backup-card-body" style="padding:16px; display:${loc.enabled ? 'block' : 'none'};">

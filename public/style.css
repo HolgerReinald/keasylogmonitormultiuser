@@ -1257,6 +1257,17 @@ body.theme-blue .performance-header {
   max-width: none;
 }
 
+/* Schmale Backup-Karten: Label in eigene Zeile über das Feld, damit der Pfad
+   (und die anderen Felder) die volle Kartenbreite nutzen können */
+.backup-card .config-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.backup-card .config-field > label {
+  min-width: 0;
+}
+
 .config-field input:focus {
   outline: none;
   border-color: var(--accent);
@@ -2098,3 +2109,178 @@ input.user-editable {
   padding: 12px 18px;
   border-top: 1px solid var(--border-color);
 }
+
+/* === Backup-Tab: aufgeräumtes Layout === */
+
+/* Toggle-Switch (aus Checkbox) */
+input.ksw {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  flex: none;
+  transition: background 0.18s;
+  vertical-align: middle;
+}
+input.ksw::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: left 0.18s;
+}
+input.ksw:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input.ksw:checked::after { left: 20px; }
+input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* Aktionsleiste */
+.bk-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.bk-run-btn { padding: 9px 20px; font-size: 0.95em; }
+.bk-run-status { font-size: 0.9em; color: var(--text-secondary); }
+.bk-sched-hint {
+  margin-left: auto;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+.bk-sched-hint b { color: var(--text-primary); font-weight: 600; }
+
+/* Einstellungs-Karten (Zeitplan + Umfang) */
+.bk-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+@media (max-width: 720px) { .bk-settings-grid { grid-template-columns: 1fr; } }
+
+.bk-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.bk-card-h {
+  padding: 10px 15px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+.bk-card-h h3 {
+  margin: 0;
+  font-size: 0.85em;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.bk-card-b {
+  padding: 14px 15px;
+  display: grid;
+  gap: 12px;
+}
+.bk-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bk-field > label {
+  font-size: 0.9em;
+  color: var(--text-primary);
+}
+.bk-sub {
+  display: block;
+  font-size: 0.78em;
+  color: var(--text-secondary);
+  margin-top: 1px;
+  max-width: 34ch;
+}
+
+/* Ziele */
+.bk-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 10px;
+}
+.bk-sec-head h2 {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+.bk-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+/* Container der lokalen Karten löst sich auf, damit die Karten direkt im Raster liegen */
+#backupLocalCards.bk-targets-contents { display: contents; }
+
+.bk-addtile {
+  border: 2px dashed var(--border-color);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 120px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9em;
+  transition: border-color 0.15s, color 0.15s;
+}
+.bk-addtile:hover { color: var(--accent); border-color: var(--accent); }
+.bk-plus { font-size: 1.6em; line-height: 1; }
+
+/* Wiederherstellen (einklappbar) */
+.bk-restore {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.bk-restore-h {
+  padding: 12px 15px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+.bk-restore-h::-webkit-details-marker { display: none; }
+.bk-restore-h h2 {
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: 620;
+  color: var(--error-text-color);
+}
+.bk-chev { color: var(--text-secondary); transition: transform 0.2s; }
+.bk-restore[open] .bk-chev { transform: rotate(90deg); }
+.bk-restore-b { padding: 15px; }

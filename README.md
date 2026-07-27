@@ -423,6 +423,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-27 — 🗄️ Backup-Tab aufgeräumt
+
+- Aktionsleiste nach oben: „💾 Jetzt sichern" prominent statt zwischen FTP und Wiederherstellen; mit Status und Zeitplan-Hinweis (`updateBackupScheduleHint`)
+- Zeitplan und Umfang in zwei getrennte Karten aufgeteilt (statt einer vollgestopften Zeile); Ein/Aus als Toggle-Switch (`input.ksw`)
+- Backup-Ziele als einheitliches Karten-Raster: lokale Ziele lösen sich per `display:contents` ins Raster (`#backupLocalCards.bk-targets-contents`), FTP ist eine gleichwertige Karte, „＋ Lokales Ziel hinzufügen" als Kachel
+- Wiederherstellen als einklappbares `<details>` (selten genutzt, optisch schwer)
+- Alle IDs/onclick-Handler unverändert — reine Layout-/CSS-Umstrukturierung; neue `.bk-*`-Klassen und `.ksw`-Switch nutzen die vorhandenen Theme-Variablen (hell/dunkel/blau)
+
+**Dateien:** public/index.html, public/style.css, public/js/backupPanel.js, public/js/backupTargetsPanel.js
+
 ### 2026-07-27 — 📂 Ordnerauswahl bei Monitor-Pfaden und Log-Analyse
 
 - WatchPath-Tabelle (Tab „Monitor"): 📂-Button in jeder Pfad-Zelle öffnet den Ordner-Picker und übernimmt den gewählten Pfad — in allen drei Render-Wegen (`renderWatchPathsTable`, `addWatchPathRow`, `addWatchPathRowWithData`); neue Funktion `pickWatchPathFolder` (findet das Input relativ zur Tabellenzeile)

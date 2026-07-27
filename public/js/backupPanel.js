@@ -56,7 +56,19 @@
 
     onBackupCardToggle('ftp');
     updateFtpSecureWarning();
+    updateBackupScheduleHint();
     loadBackupStatus();
+  }
+
+  // ─── Zeitplan-Hinweis in der Aktionsleiste ──────────────
+  function updateBackupScheduleHint() {
+    const hint = document.getElementById('backupScheduleHint');
+    if (!hint) return;
+    const enabled = document.getElementById('backupScheduleEnabled').checked;
+    const time = document.getElementById('backupScheduleTime').value || '02:00';
+    hint.innerHTML = enabled
+      ? `⏰ Automatisch täglich um <b>${time} Uhr</b>`
+      : '⏰ Automatisches Backup <b>aus</b>';
   }
 
   // ─── FTP-Karten ein-/ausklappen ──────────────────────────
@@ -213,7 +225,8 @@
   // Window-Globals für onclick-Handler
   Object.assign(window, {
     loadBackupConfig, toggleBackupCard,
-    onBackupCardToggle, updateFtpSecureWarning, testBackupConnection, runBackupNow
+    onBackupCardToggle, updateFtpSecureWarning, testBackupConnection, runBackupNow,
+    updateBackupScheduleHint
   });
 
   // Namespace registrieren (Fassade)
