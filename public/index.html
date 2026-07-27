@@ -307,8 +307,9 @@
 
     <div class="config-section" id="config-docs">
       <div class="docs-toolbar">
-        <button class="config-reset-btn" onclick="toggleAllDocs(true)">▼ Alle aufklappen</button>
-        <button class="config-reset-btn" onclick="toggleAllDocs(false)">▲ Alle einklappen</button>
+        <div class="docs-search"><input type="text" id="docsSearch" placeholder="🔍 Doku durchsuchen…" oninput="filterDocs(this.value)"></div>
+        <button class="config-reset-btn" onclick="toggleAllDocs(true)">▼ Alle auf</button>
+        <button class="config-reset-btn" onclick="toggleAllDocs(false)">▲ Alle zu</button>
         <button class="config-reset-btn" id="docsEditBtn" data-admin-only title="Dokumentation (README.md) bearbeiten" onclick="startDocsEdit()">✏️ Bearbeiten</button>
       </div>
       <div id="docsEditor" style="display:none;">
@@ -322,8 +323,11 @@
           <div class="docs-content docs-editor-preview" id="docsEditorPreview"></div>
         </div>
       </div>
-      <div class="docs-content" id="docsContent">
-        <p style="color:var(--text-muted)">Lade Dokumentation...</p>
+      <div id="docsView" class="docs-layout">
+        <nav id="docsToc" class="docs-toc" aria-label="Inhaltsverzeichnis"></nav>
+        <div class="docs-content" id="docsContent">
+          <p style="color:var(--text-muted)">Lade Dokumentation...</p>
+        </div>
       </div>
     </div>
 

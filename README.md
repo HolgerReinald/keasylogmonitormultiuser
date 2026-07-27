@@ -1,9 +1,9 @@
-# Keasy Log Monitor (Multiuservariante mit Rechten aktivierbar)
+# Keasy Log Monitor
 
-## Hinweis Multiuservariante (Rechte)
-Diese Version ist nicht dazu gedacht lokal auf seinem PC einzusetzen. Deshalb werden die überwachten Pfade vom Admin freigegeben. Man kann aber selbst entscheiden, an welche E-Mail-Adresse die Überwachung "E-Mail an" gehen soll.
+## Multiuservariante (Rechte)
+Diese Version ist nicht dazu gedacht lokal auf seinem PC einzusetzen. Die zu überwachenden Pfade werden vom Admin freigegeben. Man kann aber selbst entscheiden an welche E-Mail-Adresse die Überwachung "E-Mail an" gehen soll.
 
-## Lokales Echtzeit-Monitoring-Dashboard für Keasy Log-Dateien
+## Lokales Echtzeit-Monitoring
 Überwacht mehrere Log-Dateien gleichzeitig und zeigt Fehler live im Browser an.  
 Neue Fehler erscheinen typischerweise nach **~4,3s** (2s Polling + 100ms Debounce + 2,2s Stack-Trace-Pufferung). Polling ist Standard für alle Pfade (2s lokal, 5s Netzwerk), da Windows `fs.watch` Events verschlucken kann. Die Stack-Trace-Pufferung wartet bewusst länger als das Polling-Intervall (pollInterval + 200ms), damit mehrzeilige Einträge über Poll-Zyklen hinweg korrekt zusammengefasst werden.
 Die Dokumentation wird über die Funktion update_docs (Extension) über die Konsole aktualisiert mit Versions Historie und Versionsnummer (nach Neustart).
@@ -422,6 +422,16 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-27 — 📖 Dokumentation-Tab übersichtlicher
+
+- Sticky Inhaltsverzeichnis links: alle `##`-Abschnitte auf einen Blick, Klick springt hin, aktiver Abschnitt hervorgehoben (Scroll-Spy per IntersectionObserver)
+- Volltext-Suche in der Toolbar (`filterDocs`): blendet nicht passende Abschnitte aus und klappt Treffer auf
+- `##`-Abschnitte werden clientseitig in einklappbare Karten verpackt (`wrapH2Sections`); Referenz-/Riesen-Abschnitte (Historie, Konfiguration, Architektur, Dependencies) starten zugeklappt mit Anzahl-Badge (Historie zeigt „N Einträge")
+- Rein im Frontend gelöst (kein Server-Eingriff): `docsPanel.js` reichert das gerenderte README nach dem Laden an; zweispaltiges Layout + Styles über die vorhandenen Theme-Variablen
+- Editor-Umschaltung schaltet jetzt die ganze Ansicht (`#docsView`) statt nur den Inhalt
+
+**Dateien:** public/js/docsPanel.js, public/index.html, public/style.css
 
 ### 2026-07-27 — 🗄️ Backup-Tab aufgeräumt
 
