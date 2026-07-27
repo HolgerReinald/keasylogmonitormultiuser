@@ -77,6 +77,17 @@ function removeAnalyzePath(index) {
   updateAnalyzeButtons();
 }
 
+// Ordner-Picker fürs Analyse-Eingabefeld — füllt #analyzePath, Hinzufügen erfolgt wie gewohnt
+async function pickAnalyzeFolder() {
+  const input = document.getElementById('analyzePath');
+  if (!input || typeof showFolderPicker !== 'function') return;
+  const chosen = await showFolderPicker(input.value.trim() || '');
+  if (chosen) {
+    input.value = chosen;
+    input.focus();
+  }
+}
+
 function renderAnalyzePaths() {
   const list = document.getElementById('analyzePathList');
   if (state.analyzePaths.length === 0) {
@@ -325,13 +336,13 @@ function handleAnalyzeImportFile(file) {
 window.Keasy.analyze = {
   toggleAnalyzePanel, loadAnalyzeConfig, addAnalyzePath, removeAnalyzePath, renderAnalyzePaths, updateAnalyzeButtons,
   startAnalysis, cancelAnalysis, clearAnalysis, saveAnalyzePaths,
-  showAnalyzeStatus, updateAnalyzeProgress, toggleAnalyzeImport, importAnalyzePaths
+  showAnalyzeStatus, updateAnalyzeProgress, toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder
 };
 
 Object.assign(window, {
   toggleAnalyzePanel, addAnalyzePath, removeAnalyzePath, startAnalysis, cancelAnalysis,
   clearAnalysis, saveAnalyzePaths, updateAnalyzeButtons,
   renderAnalyzePaths, updateAnalyzeProgress, showAnalyzeStatus,
-  toggleAnalyzeImport, importAnalyzePaths
+  toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder
 });
 })();

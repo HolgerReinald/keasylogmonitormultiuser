@@ -423,6 +423,14 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-27 — 📂 Ordnerauswahl bei Monitor-Pfaden und Log-Analyse
+
+- WatchPath-Tabelle (Tab „Monitor"): 📂-Button in jeder Pfad-Zelle öffnet den Ordner-Picker und übernimmt den gewählten Pfad — in allen drei Render-Wegen (`renderWatchPathsTable`, `addWatchPathRow`, `addWatchPathRowWithData`); neue Funktion `pickWatchPathFolder` (findet das Input relativ zur Tabellenzeile)
+- Log-Analyse: 📂-Button neben dem Pfad-Eingabefeld (`pickAnalyzeFolder`) füllt `#analyzePath` — Hinzufügen erfolgt wie gewohnt
+- Wiederverwendung des bestehenden Ordner-Pickers (`showFolderPicker` / `/api/browse-folders`), analog zum Copilot-Export; `browse-folders` ist nicht admin-only, daher auch für Analyse-Nutzer verfügbar
+
+**Dateien:** public/js/watchPathsPanel.js, public/js/analyzePanel.js, public/index.html
+
 ### 2026-07-27 — 📤 Tool-Export: weitergebbares Paket erzeugen
 
 - Neuer Tab „📤 Weitergabe" (admin-only): erzeugt ein schlankes ZIP der App zur Weitergabe an Dritte — Download direkt aus dem Browser (`GET /api/export-tool`)

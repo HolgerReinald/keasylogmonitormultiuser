@@ -23,7 +23,7 @@ function renderWatchPathsTable(watchPaths) {
     const isNetwork = typeof wp === 'string' ? false : !!wp._isNetworkDrive;
     const networkHint = isNetwork ? '<span style="color:#888;font-size:11px;margin-left:4px" title="Netzlaufwerk erkannt – Polling wird automatisch aktiviert">(Netzlaufwerk)</span>' : '';
     row.innerHTML = `
-      <td><input type="text" value="${escapeHtml(p)}" data-field="path" data-admin-only></td>
+      <td><div style="display:flex;gap:4px;align-items:center;"><input type="text" value="${escapeHtml(p)}" data-field="path" style="flex:1;min-width:0" data-admin-only><button type="button" class="folder-picker-btn" onclick="pickWatchPathFolder(this)" title="Ordner auswählen" data-admin-only>📂</button></div></td>
       <td><input type="text" value="${escapeHtml(l)}" data-field="label" data-admin-only></td>
       <td><input type="text" value="${escapeHtml(e)}" data-field="emailTo" placeholder="(keine)" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
       <td style="text-align:center"><input type="checkbox" data-field="usePolling" ${polling || isNetwork ? 'checked' : ''} ${isNetwork && !polling ? 'data-auto-polling="true"' : ''} data-admin-only>${networkHint}</td>
@@ -45,7 +45,7 @@ function addWatchPathRow() {
   const i = tbody.rows.length;
   const row = document.createElement('tr');
   row.innerHTML = `
-    <td><input type="text" value="" data-field="path" placeholder="C:\\Pfad\\zu\\Logs"></td>
+    <td><div style="display:flex;gap:4px;align-items:center;"><input type="text" value="" data-field="path" placeholder="C:\\Pfad\\zu\\Logs" style="flex:1;min-width:0"><button type="button" class="folder-picker-btn" onclick="pickWatchPathFolder(this)" title="Ordner auswählen">📂</button></div></td>
     <td><input type="text" value="" data-field="label" placeholder="Mein Label"></td>
     <td><input type="text" value="" data-field="emailTo" placeholder="user@mail.de, admin@firma.de" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
     <td style="text-align:center"><input type="checkbox" data-field="usePolling" checked></td>
@@ -64,6 +64,18 @@ function removeWatchPathRow(index) {
   const wps = getWatchPathsFromTable();
   renderWatchPathsTable(wps);
   Keasy.config.markConfigDirty();
+}
+
+// Ordner-Picker für die Pfad-Zelle einer WatchPath-Zeile (dynamische Zeile → relativ zum Button)
+async function pickWatchPathFolder(btn) {
+  const row = btn.closest('tr');
+  const input = row && row.querySelector('[data-field="path"]');
+  if (!input || typeof showFolderPicker !== 'function') return;
+  const chosen = await showFolderPicker(input.value.trim() || '');
+  if (chosen) {
+    input.value = chosen;
+    Keasy.config.markConfigDirty();
+  }
 }
 
 function getWatchPathsFromTable() {
@@ -115,7 +127,7 @@ function addWatchPathRowWithData({ path, label, emailTo, usePolling }) {
   const i = tbody.rows.length;
   const row = document.createElement('tr');
   row.innerHTML = `
-    <td><input type="text" value="${escapeHtml(path)}" data-field="path"></td>
+    <td><div style="display:flex;gap:4px;align-items:center;"><input type="text" value="${escapeHtml(path)}" data-field="path" style="flex:1;min-width:0"><button type="button" class="folder-picker-btn" onclick="pickWatchPathFolder(this)" title="Ordner auswählen">📂</button></div></td>
     <td><input type="text" value="${escapeHtml(label)}" data-field="label"></td>
     <td><input type="text" value="${escapeHtml(emailTo)}" data-field="emailTo" placeholder="(keine)" title="E-Mail-Empfänger für diese Quelle. Mehrere Adressen kommagetrennt, z.B.: user@mail.de, admin@firma.de"></td>
     <td style="text-align:center"><input type="checkbox" data-field="usePolling" ${usePolling ? 'checked' : ''}></td>
@@ -249,10 +261,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 Keasy.watchPaths = {
   renderWatchPathsTable, addWatchPathRow, removeWatchPathRow, getWatchPathsFromTable,
-  toggleWatchPathImport, importWatchPaths, addWatchPathRowWithData, parseImportLine
+  toggleWatchPathImport, importWatchPaths, addWatchPathRowWithData, parseImportLine, pickWatchPathFolder
 };
 Object.assign(window, {
-  addWatchPathRow, removeWatchPathRow, toggleWatchPathImport, importWatchPaths
+  addWatchPathRow, removeWatchPathRow, toggleWatchPathImport, importWatchPaths, pickWatchPathFolder
 });
 
 })();

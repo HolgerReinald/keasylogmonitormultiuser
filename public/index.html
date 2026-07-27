@@ -62,6 +62,7 @@
         <label>Pfad (Datei oder Ordner):</label>
         <div style="display:flex; gap:6px;">
           <input type="text" id="analyzePath" placeholder="C:\Logs oder C:\Logs\app.log" style="flex:1;" onkeydown="if(event.key==='Enter')addAnalyzePath()">
+          <button type="button" class="folder-picker-btn" onclick="pickAnalyzeFolder()" title="Ordner auswählen">📂</button>
           <button class="config-save-btn" onclick="addAnalyzePath()" style="padding:6px 12px;">➕ Hinzufügen</button>
         </div>
         <span id="analyzePathError" style="color:#ef4444; font-size:0.8em; display:none;"></span>
