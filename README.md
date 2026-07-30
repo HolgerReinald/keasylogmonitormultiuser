@@ -437,6 +437,27 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-30 — 🔔 Desktop-Benachrichtigungen mit Aussagekraft
+
+Eine Benachrichtigung zeigte praktisch nur den abgeschnittenen Dateinamen (`KeasyServerService_Keasy.WorkflowServer_26_20…`) — die eigentliche Fehlermeldung war nicht zu sehen, der gemeldete Fehler damit im Dashboard nicht auffindbar.
+
+Drei Ursachen im Text `${error.file}: ${error.line.substring(0, 80)}`:
+- Der **Dateiname stand vorn** und füllte mit ~55 Zeichen allein die verfügbare Breite. Windows kürzt hinten ab, also fiel die Meldung komplett weg.
+- `error.line` **beginnt mit dem Log-Zeitstempel**, weitere ~22 Zeichen gingen für Datum und Uhrzeit drauf.
+- Das **Quellen-Label fehlte** — im Dashboard denkt man in „VFMService Dienst", nicht in Dateinamen.
+
+Neu:
+- **Titel trägt die Quelle**: `Keasy — VFMService Dienst`, bei kritischen Fehlern `🔴 Kritisch — VFMService Dienst`. Das Label wird aus `wsClient.js` durchgereicht.
+- **Meldung zuerst, Dateiname darunter** — was gekürzt wird, ist dann der Dateiname und nicht der Inhalt.
+- `buildNotificationBody()` sucht die erste Zeile mit **echtem** Inhalt. Das ist nötig, weil Keasy-Einträge typischerweise aus „Zeitstempel + Tab", mehreren Leerzeilen und erst danach der Meldung bestehen; manche beginnen zusätzlich mit einer `====`-Trennlinie. Ankündigungszeilen wie „Der folgende #Fehler ist aufgetreten:" werden mit der Folgezeile zusammengezogen, sonst sagt die Meldung nichts aus.
+- Mehrfach-Leerzeichen werden zusammengefasst, Text auf 180 Zeichen begrenzt.
+- **Klick auf die Benachrichtigung holt das Dashboard nach vorn.**
+- Das wirkungslose `icon: '🔴'` entfernt (das Feld erwartet eine URL, kein Emoji).
+
+Gegen die 128 Einträge im laufenden Monitor geprüft: keine leere Meldung, keine reine Trennlinie, keine beginnt mit einem Zeitstempel, keine reine Ankündigung.
+
+**Dateien:** public/js/boot.js, public/js/wsClient.js
+
 ### 2026-07-30 — ♻️ Kein harter Reload mehr nach Frontend-Änderungen
 
 Der Server lieferte CSS, JS und `index.html` **ohne jeden Cache-Header** aus — kein `Cache-Control`, kein `ETag`, kein `Last-Modified`. Browser entscheiden dann heuristisch und halten geänderte Dateien fest. Nach jeder Frontend-Änderung war ein harter Reload (`Strg+F5`) nötig, sonst suchte man Fehler, die im Code längst behoben waren. Bei `index.html` war es gravierender: neu hinzugefügte `<script>`-Tags wurden gar nicht erst geladen.

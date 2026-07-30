@@ -123,7 +123,59 @@ function toggleNotifications() {
   updateNotifButton();
 }
 
-function notifyNewError(error) {
+// Führenden Zeitstempel entfernen. Ohne das besteht der sichtbare Teil einer
+// Benachrichtigung aus Datum und Uhrzeit statt aus dem Fehlertext.
+// Zwei Formate: das Log-Format (30.07.26 16:58:20.123) und das aus JSON-Logs
+// zusammengesetzte (30.7.2026, 16:58:20).
+function stripLeadingTimestamp(line) {
+  return line
+    .replace(/^\s*\d{1,2}\.\d{1,2}\.\d{2,4},?\s+\d{1,2}:\d{2}:\d{2}(\.\d{3})?\s*/, '')
+    .replace(/^[\s\t]+/, '');
+}
+
+// Text der Desktop-Benachrichtigung.
+// Reihenfolge ist entscheidend: Windows kürzt hinten ab. Deshalb steht die
+// Fehlermeldung zuerst und der Dateiname darunter — der darf wegfallen, die
+// Meldung nicht. (Vorher stand der Dateiname vorn und verdrängte mit ~55
+// Zeichen den kompletten Fehlertext.)
+// Nicht einfach die erste Zeile nehmen: Keasy-Einträge bestehen häufig aus
+// "Zeitstempel + Tab", danach mehreren Leerzeilen, und erst dann folgt die
+// eigentliche Meldung. Manche Einträge beginnen zudem mit einer Trennlinie
+// aus "="-Zeichen. Gesucht ist die erste Zeile mit echtem Inhalt.
+function buildNotificationBody(error) {
+  const raw = error.line || '';
+  const clean = l => stripLeadingTimestamp(l).replace(/\s+/g, ' ').trim();
+  const meaningful = raw
+    .split('\n')
+    .map(clean)
+    .filter(l => l && !/^[=\-_*#~+.]+$/.test(l)); // reine Trennlinien überspringen
+  let message = meaningful[0] || clean(raw);
+  // Ankündigungszeilen wie "Der folgende #Fehler ist aufgetreten:" sagen für sich
+  // genommen nichts — dann die nächste inhaltliche Zeile anhängen.
+  if (meaningful[1] && message.length < 60 && /:$/.test(message)) {
+    message += ' ' + meaningful[1];
+  }
+  const file = error.file ? `\n${error.file}` : '';
+  return message.substring(0, 180) + file;
+}
+
+// Quellenname bevorzugen — im Dashboard denkt man in "VFMService Dienst",
+// nicht in Dateinamen.
+function notificationTitle(level, label) {
+  if (level === 'kritisch') {
+    return label ? `🔴 Kritisch — ${label}` : '🔴 Keasy Log Monitor — kritischer Fehler';
+  }
+  return label ? `Keasy — ${label}` : 'Keasy Log Monitor';
+}
+
+function showNotification(title, error, opts) {
+  const n = new Notification(title, Object.assign({ body: buildNotificationBody(error) }, opts));
+  // Klick holt das Dashboard nach vorn — der häufigste nächste Schritt
+  n.onclick = () => { window.focus(); n.close(); };
+  return n;
+}
+
+function notifyNewError(error, label) {
   // Titel über die gemeinsame Funktion, damit die 🔴-Anzeige nicht zweimal implementiert ist
   Keasy.render.updateBrowserTitle();
   if (!state.notificationsEnabled) return;
@@ -143,8 +195,7 @@ function notifyNewError(error) {
     // Meldung die kritische im Info-Center nicht still ersetzt.
     if (now - state.lastCriticalNotificationTime <= 3000) return;
     state.lastCriticalNotificationTime = now;
-    new Notification('🔴 Keasy Log Monitor — kritischer Fehler', {
-      body: `${error.file}: ${error.line.substring(0, 80)}`,
+    showNotification(notificationTitle('kritisch', label), error, {
       tag: 'keasy-critical',
       renotify: true,
       requireInteraction: true
@@ -157,9 +208,7 @@ function notifyNewError(error) {
   const dashboardNotInView = document.hidden || !document.hasFocus();
   if (dashboardNotInView && now - state.lastNotificationTime > 10000) {
     state.lastNotificationTime = now;
-    new Notification('Keasy Log Monitor', {
-      body: `${error.file}: ${error.line.substring(0, 80)}`,
-      icon: '🔴',
+    showNotification(notificationTitle('normal', label), error, {
       tag: 'keasy-error',
       renotify: true // neue Meldung poppt wieder auf, statt die alte im Info-Center stumm zu ersetzen
     });

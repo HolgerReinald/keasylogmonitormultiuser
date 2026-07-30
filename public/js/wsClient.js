@@ -152,7 +152,7 @@ function connect() {
       }
       if (!state.paused) {
         scheduleRender();
-        notifyNewError(error);
+        notifyNewError(error, label || state.fileLabels[filePath]);
       }
     } else if (msg.type === 'performance') {
       const { filePath, entry, label } = msg.data;
