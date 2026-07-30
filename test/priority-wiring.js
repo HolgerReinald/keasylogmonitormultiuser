@@ -132,5 +132,39 @@ console.log('\n10) Regressionsschutz: "normal" erzeugt kein Markup');
 check('kein sev-badge-normal im Render', !render.includes('sev-badge-normal'));
 check('severityMeta.normal hat leere cls/icon', /normal: \{ icon: '', label: 'Normal', cls: '' \}/.test(utils));
 
+console.log('\n11) 🚨 Alarmknopf statt Rollup-Badge');
+{
+  const actions = read('public/js/actions.js');
+  const css = read('public/style.css');
+  check('buildAlarmButtonHtml definiert', /function buildAlarmButtonHtml\(criticalCount, label\)/.test(render));
+  check('Knopf steht auch im Ruhezustand (Ausrichtung!)', /alarm-btn is-idle/.test(render),
+    'Ohne Ruhezustand-Knopf wandern die Spalten wieder');
+  check('Ruhezustand ist disabled', /is-idle[^`]*disabled/.test(render));
+  check('kein Rollup-Badge mehr im Render', !/sev-badge-kritisch">🔴/.test(render),
+    'Die alten 🔴-n-Badges auf Datei-/Quellen-Ebene sollten ersetzt sein');
+  check('Datei-Ebene nutzt den Knopf', (render.match(/buildAlarmButtonHtml\(fileCriticalCount\)/g) || []).length === 2,
+    'Erwartet je einmal im Live- und im Analyse-Block');
+  check('Quellen-Ebene übergibt ein Label', /buildAlarmButtonHtml\(groupCriticalCount, (label|collapseKey)\)/.test(render));
+  check('has-kritisch wird gesetzt', (render.match(/has-kritisch/g) || []).length >= 2);
+  check('Gap-Eintrag bekommt keinen Alarmknopf', !/buildGapEntryHtml[\s\S]{0,300}alarm-btn/.test(render));
+
+  check('jumpToCritical definiert', /function jumpToCritical\(btn, event, label\)/.test(actions));
+  check('jumpToCritical als Global exportiert', /Object\.assign\(window, \{[\s\S]*?jumpToCritical[\s\S]*?\}\)/.test(actions));
+  check('stopPropagation (Header klappt nicht zu)', /function jumpToCritical[\s\S]{0,200}event\.stopPropagation\(\)/.test(actions));
+  check('Quelle wird über toggleSource aufgeklappt (Zustand bleibt gemerkt)',
+    /jumpToCritical[\s\S]{0,900}toggleSource\(sourceGroup\.querySelector/.test(actions));
+  check('springt auf .error-entry.sev-kritisch', /querySelector\('\.error-entry\.sev-kritisch'\)/.test(actions));
+
+  check('.alarm-btn im Stylesheet', css.includes('.alarm-btn'));
+  check('.file-group.has-kritisch schlägt .file-group-newest (2 Klassen)', css.includes('.file-group.has-kritisch'));
+  check('has-kritisch-Regel steht NACH file-group-newest',
+    css.indexOf('.file-group.has-kritisch') > css.indexOf('.file-group-newest'),
+    'Bei gleicher Spezifität entscheidet die Reihenfolge — hier ist sie höher, aber die Reihenfolge bleibt die sichere Variante');
+  check('kein !important nötig', !/\.file-group\.has-kritisch[^}]*!important/.test(css));
+  check('.jump-flash vorhanden', css.includes('.jump-flash'));
+  check('keine Dauer-Animation am Alarmknopf', !/\.alarm-btn[^}]*animation:/.test(css),
+    'renderAll() baut das HTML staendig neu — eine Animation wuerde dauernd neu starten');
+}
+
 console.log(failed === 0 ? '\n✅ Verdrahtung vollstaendig\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);

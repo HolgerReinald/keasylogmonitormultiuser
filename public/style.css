@@ -616,12 +616,8 @@ body.theme-blue .performance-header {
   font-weight: 700;
 }
 
-/* Rollup-Zähler auf Datei- und Quell-Ebene (gleiche Mechanik wie .gap-badge) */
-.file-badge.sev-badge-kritisch,
-.source-header .source-badge.sev-badge-kritisch {
-  margin-left: 4px;
-  white-space: nowrap;
-}
+/* Rollup-Zähler auf Datei- und Quell-Ebene sind jetzt der 🚨-Alarmknopf (siehe unten);
+   .sev-badge-kritisch trägt nur noch das Badge am einzelnen Fehler-Eintrag. */
 
 /* Stufe 'gering': nimmt Tinte weg statt eine weitere Farbe hinzuzufügen */
 .error-entry.sev-gering {
@@ -630,6 +626,75 @@ body.theme-blue .performance-header {
 
 .error-entry.sev-gering .error-text {
   color: var(--text-muted);
+}
+
+/* === 🚨 Alarmknopf für kritische Fehler ===
+   Steht bewusst in JEDER Zeile — im Ruhezustand nur ausgegraut. Dadurch bleibt
+   die Anzahl der Elemente pro Zeile konstant und 📂/📝 fluchten über alle
+   Zeilen; vorher wanderten sie, weil das Badge in ruhigen Zeilen fehlte.
+   Bewusst ohne Einblend-Animation: renderAll() baut das HTML bei jedem neuen
+   Fehler komplett neu auf, eine Animation würde also dauernd neu starten. */
+.alarm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 1.05rem;
+  line-height: 1;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.2s, border-color 0.2s, filter 0.2s;
+}
+
+.alarm-btn .alarm-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.alarm-btn.is-idle {
+  opacity: 0.22;
+  filter: grayscale(1);
+  cursor: default;
+}
+
+.alarm-btn.is-active {
+  background: var(--sev-critical);
+  border-color: var(--sev-critical);
+  color: var(--sev-critical-fg);
+  font-weight: 700;
+}
+
+.alarm-btn.is-active:hover {
+  filter: brightness(1.12);
+}
+
+/* Datei-Block mit kritischem Inhalt.
+   Zwei Klassen ⇒ höhere Spezifität als .file-group-newest: „kritisch schlägt
+   aktuellste", ohne !important und ohne die blaue Markierung zu entfernen. */
+.file-group.has-kritisch {
+  border-left: 5px solid var(--sev-critical);
+}
+
+.file-group.has-kritisch > .file-header {
+  background: color-mix(in srgb, var(--sev-critical) 16%, var(--file-header-bg));
+}
+
+.file-group.has-kritisch > .file-header:hover {
+  background: color-mix(in srgb, var(--sev-critical) 26%, var(--file-header-bg));
+}
+
+/* Kurzes Aufblitzen des angesprungenen Eintrags (nur per Klick ausgelöst) */
+@keyframes jumpFlash {
+  0%, 100% { box-shadow: none; }
+  25%      { box-shadow: 0 0 0 3px var(--sev-critical); }
+}
+
+.error-entry.jump-flash {
+  animation: jumpFlash 1.2s ease;
 }
 
 /* Sortier-Buttons der Prioritätsregeln */

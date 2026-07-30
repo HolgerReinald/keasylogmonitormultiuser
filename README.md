@@ -437,6 +437,21 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-30 — 🚨 Alarmknopf statt Rollup-Badge
+
+Die rechte Seite der Datei-Kopfzeile wirkte unruhig: 📂 und 📝 saßen in jeder Zeile an einer anderen Stelle, und zwei rote Pillen (`🔴 10` und der Zähler `18`) standen direkt nebeneinander.
+
+**Ursache** war nicht die Farbe, sondern die schwankende Elementzahl: wo keine kritischen Fehler existierten, fehlte das `🔴`-Badge komplett und alles rutschte nach rechts.
+
+- Die Rollup-Badges auf Datei- und Quellen-Ebene sind jetzt ein **🚨-Alarmknopf** (`buildAlarmButtonHtml` in `render.js`). Er steht in **jeder** Zeile — im Ruhezustand ausgegraut und `disabled`. Dadurch bleibt die Elementzahl konstant und die Spalten fluchten von selbst, ohne feste Breiten und ohne Platzhalter. Ein Badge kann das nicht leisten: „0 kritische Fehler" als Pille wäre sinnlos, ein Knopf darf inaktiv sein.
+- Die zweite rote Pille entfällt damit ersatzlos, statt umgefärbt zu werden. Der Zähler bleibt unverändert.
+- **Klick springt** zum ersten kritischen Eintrag (`jumpToCritical` in `actions.js`): Datei-Liste einblenden, `scrollIntoView`, kurzes Aufblitzen (`.jump-flash`). Auf Quellen-Ebene wird die Quelle vorher über das vorhandene `toggleSource` aufgeklappt, damit der Auf-/Zu-Zustand wie gewohnt gemerkt wird. `stopPropagation`, sonst klappt der Header darunter zu.
+- **Roter Blockrahmen** am Datei-Block mit kritischem Inhalt (`.file-group.has-kritisch`). „Kritisch schlägt aktuellste": zwei Klassen haben höhere Spezifität als `.file-group-newest`, die blaue Markierung der neuesten Datei bleibt also erhalten, wo nichts kritisch ist — ohne `!important`.
+- **Bewusst ohne Animation:** `renderAll()` baut das komplette HTML bei jedem eingehenden Fehler neu auf. Ein Einblend-Puls würde dauernd neu starten statt nur beim Auftauchen — aus demselben Grund existiert `.error-entry.new` nur im alten Default-Stylesheet.
+- Geprüft wurde außerdem, ob ein oranger Zähler die Alternative wäre: `--badge-bg` steuert neben dem Zähler auch Fehler-Toasts, System-Check-Fehlschläge, Ordner-Picker-Meldungen und `.config-message.error` (neun Stellen) — eine Umfärbung hätte all das mitgetroffen. Und Orange ist bereits die Farbe der ⏱️-Lücken, die im Analyse-Tab direkt daneben stehen. Der Alarmknopf umgeht beides.
+
+**Dateien:** public/js/render.js, public/js/actions.js, public/style.css, test/priority-wiring.js
+
 ### 2026-07-30 — 🔴 Dringlichkeit von Fehlern (Prioritätsregeln)
 
 Bisher sahen alle erkannten Fehler gleich aus: ein fehlgeschlagener Mailversand stand optisch gleichwertig neben `disposed`-Rauschen. Neu ist eine Dringlichkeitsstufe pro Fehler.

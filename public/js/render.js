@@ -66,6 +66,24 @@ function buildOpenButtonsHtml(filePath) {
               <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>`;
 }
 
+// Alarmknopf für kritische Fehler (Datei- und Quellen-Ebene).
+// Der Knopf steht bewusst in JEDER Zeile — im Ruhezustand nur ausgegraut.
+// Dadurch bleibt die Anzahl der Elemente pro Zeile konstant und die Spalten
+// fluchten über alle Zeilen hinweg; ein Badge kann das nicht leisten, weil
+// „0 kritische Fehler" als Pille sinnlos wäre.
+// label nur auf Quellen-Ebene übergeben — dort muss vor dem Sprung erst die
+// Quelle aufgeklappt werden (und toggleSource merkt sich den Zustand).
+// Bewusst ohne Einblend-Animation: renderAll() baut das komplette HTML bei
+// jedem neuen Fehler neu auf, eine Animation würde also dauernd neu starten.
+function buildAlarmButtonHtml(criticalCount, label) {
+  if (!(criticalCount > 0)) {
+    return `<button class="alarm-btn is-idle" title="Keine kritischen Fehler" disabled>🚨 <span class="alarm-count">0</span></button>`;
+  }
+  const labelArg = label != null ? `, '${escapeJs(label)}'` : '';
+  const plural = criticalCount === 1 ? 'kritischer Fehler' : 'kritische Fehler';
+  return `<button class="alarm-btn is-active" title="${criticalCount} ${plural} — zum ersten springen" onclick="jumpToCritical(this, event${labelArg})">🚨 <span class="alarm-count">${criticalCount}</span></button>`;
+}
+
 // Datei-Block mit Header (Name, Pfad, Aktionen) und ausklappbarer Eintragsliste
 function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '') {
   return `
@@ -223,15 +241,15 @@ function renderAll() {
         entriesHtml += buildErrorEntryHtml(filePath, err, state.errors[filePath].indexOf(err), false);
       }
       groupCriticalCount += fileCriticalCount;
-      const fileCritBadge = fileCriticalCount > 0
-        ? `<span class="file-badge sev-badge-kritisch" title="Kritische Fehler in dieser Datei">🔴 ${fileCriticalCount}</span>`
-        : '';
+      // „Kritisch schlägt aktuellste": .file-group.has-kritisch (zwei Klassen)
+      // hat höhere Spezifität als .file-group-newest — kein !important nötig.
+      const critClass = fileCriticalCount > 0 ? ' has-kritisch' : '';
 
       const fileNameHtml = `<div class="file-name${oversizeClass}"${oversizeTitle}>📄 ${escapeHtml(fileName)}</div>`;
       const actionsHtml = `${lastErrLabel ? `<span class="file-last-error" title="Zeitpunkt des letzten Fehlers">🕒 ${lastErrLabel}</span>` : ''}
               ${buildOpenButtonsHtml(filePath)}
-              ${fileCritBadge}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>`;
-      groupHtml += buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, newestClass);
+              ${buildAlarmButtonHtml(fileCriticalCount)}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${filtered.length}</span>`;
+      groupHtml += buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, newestClass + critClass);
     }
 
     if (groupCount === 0) continue;
@@ -261,7 +279,7 @@ function renderAll() {
             ${emailBtn}
             ${pauseBtn}
             <button class="action-btn" title="Einträge im gewählten Zeitraum löschen" onclick="clearSource('${escapeJs(label)}', event)" data-admin-only>🗑️</button>
-            ${groupCriticalCount > 0 ? `<span class="source-badge sev-badge-kritisch" title="Kritische Fehler in dieser Quelle">🔴 ${groupCriticalCount}</span>` : ''}
+            ${buildAlarmButtonHtml(groupCriticalCount, label)}
             <span class="source-badge" title="Anzahl Fehler in dieser Quelle">${groupCount}</span>
           </div>
         </div>
@@ -363,13 +381,11 @@ function renderAll() {
           }
         }
         groupCriticalCount += fileCriticalCount;
-        const fileCritBadge = fileCriticalCount > 0
-          ? `<span class="file-badge sev-badge-kritisch" title="Kritische Fehler in dieser Datei">🔴 ${fileCriticalCount}</span>`
-          : '';
+        const critClass = fileCriticalCount > 0 ? ' has-kritisch' : '';
 
         const actionsHtml = `${buildOpenButtonsHtml(filePath)}
-              ${fileCritBadge}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
-        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml);
+              ${buildAlarmButtonHtml(fileCriticalCount)}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, critClass);
       }
 
       if (groupCount > 0) {
@@ -380,14 +396,13 @@ function renderAll() {
         const analyzeUserHint = state.analyzeUser ? ` <span style="font-size:0.85em; opacity:0.7;">(${escapeHtml(state.analyzeUser)})</span>` : '';
         const clearDisabled = state.analyzeIsRunning ? ' disabled title="Analyse läuft…"' : ' title="Analyse-Ergebnisse dieser Quelle löschen"';
         const groupGapBadge = groupGapCount > 0 ? `<span class="source-badge gap-badge" title="Anzahl Performance-Gaps (Analyse)">⏱️ ${groupGapCount}</span>` : '';
-        const groupCritBadge = groupCriticalCount > 0 ? `<span class="source-badge sev-badge-kritisch" title="Kritische Fehler (Analyse)">🔴 ${groupCriticalCount}</span>` : '';
         html += `
           <div class="source-group analyze-source">
             <div class="source-header analyze-header" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
               <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(label)}${analyzeUserHint}</span>
               <div class="source-actions">
                 <button class="action-btn"${clearDisabled} onclick="clearAnalyzeSource('${escapeJs(label)}', event)">🗑️</button>
-                ${groupCritBadge}<span class="source-badge" title="Anzahl Fehler (Analyse)">${groupErrCount}</span>${groupGapBadge}
+                ${buildAlarmButtonHtml(groupCriticalCount, collapseKey)}<span class="source-badge" title="Anzahl Fehler (Analyse)">${groupErrCount}</span>${groupGapBadge}
               </div>
             </div>
             <div class="source-content${isCollapsed ? ' collapsed' : ''}">

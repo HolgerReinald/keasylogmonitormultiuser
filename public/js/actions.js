@@ -45,6 +45,44 @@ function toggleSource(header, label) {
   if (arrow) arrow.textContent = isCollapsed ? '▶' : '▼';
 }
 
+// Eintragsliste einer Datei einblenden und den ersten kritischen Eintrag zurückgeben
+function expandAndFindCritical(fileGroup) {
+  const list = fileGroup.querySelector('.error-list');
+  if (list) list.style.display = 'block';
+  return fileGroup.querySelector('.error-entry.sev-kritisch');
+}
+
+// 🚨-Alarmknopf: zum ersten kritischen Eintrag springen.
+// Auf Datei-Ebene ohne label, auf Quellen-Ebene mit — dort muss die Quelle
+// erst aufgeklappt werden, und das übernimmt toggleSource (merkt sich den Zustand).
+function jumpToCritical(btn, event, label) {
+  if (event) event.stopPropagation(); // sonst klappt der Header darunter zu
+  if (btn.disabled || btn.classList.contains('is-idle')) return;
+
+  let target = null;
+  const fileGroup = btn.closest('.file-group');
+
+  if (fileGroup) {
+    target = expandAndFindCritical(fileGroup);
+  } else {
+    const sourceGroup = btn.closest('.source-group');
+    if (!sourceGroup) return;
+    const content = sourceGroup.querySelector('.source-content');
+    if (label != null && content && content.classList.contains('collapsed')) {
+      toggleSource(sourceGroup.querySelector('.source-header'), label);
+    }
+    const firstCriticalFile = sourceGroup.querySelector('.file-group.has-kritisch');
+    if (firstCriticalFile) target = expandAndFindCritical(firstCriticalFile);
+  }
+
+  if (!target) return;
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Aufblitzen neu starten, auch wenn derselbe Eintrag erneut angesprungen wird
+  target.classList.remove('jump-flash');
+  void target.offsetWidth;
+  target.classList.add('jump-flash');
+}
+
 function clearAll() {
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo = document.getElementById('dateTo').value;
@@ -262,13 +300,15 @@ window.Keasy.actions = {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource
+  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
+  jumpToCritical
 };
 
 Object.assign(window, {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource
+  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
+  jumpToCritical
 });
 })();
