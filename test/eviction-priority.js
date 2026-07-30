@@ -10,12 +10,13 @@ function evictOldest(errors) {
   errors.splice(idx === -1 ? 0 : idx, 1);
 }
 
-function selectWithCriticals(errors, max, extra = 5) {
-  if (errors.length <= max) return errors.slice();
-  const recent = errors.slice(-max);
-  const droppedCriticals = errors.slice(0, errors.length - max).filter(e => e.level === 'kritisch');
-  if (droppedCriticals.length === 0) return recent;
-  return droppedCriticals.slice(-extra).concat(recent);
+// Client-Gegenstück aus public/js/utils.js — muss sich identisch verhalten
+function capKeepCritical(entries, max) {
+  while (entries.length > max) {
+    const i = entries.findIndex(e => (e.level || 'normal') !== 'kritisch');
+    entries.splice(i === -1 ? 0 : i, 1);
+  }
+  return entries;
 }
 
 let failed = 0;
@@ -62,37 +63,57 @@ console.log('\nevictOldest — kritische Eintraege zuletzt opfern');
   check('Cap wird eingehalten', errors.length, 5);
 }
 
-console.log('\nselectWithCriticals — Snapshot fuer neue Clients');
+console.log('\ncapKeepCritical (Client) — muss sich wie evictOldest verhalten');
 {
   const errors = [mk(1, 'kritisch'), mk(2, 'normal'), mk(3, 'normal'), mk(4, 'normal')];
-  check('herausgefallener kritischer wird ergaenzt', ids(selectWithCriticals(errors, 2)), [1, 3, 4]);
+  check('normale weichen zuerst', ids(capKeepCritical(errors, 2)), [1, 4]);
 }
 {
   const errors = [mk(1, 'normal'), mk(2, 'normal'), mk(3, 'normal')];
-  check('ohne kritische unveraendert (nur letzte max)', ids(selectWithCriticals(errors, 2)), [2, 3]);
+  check('ohne kritische: die aeltesten weichen', ids(capKeepCritical(errors, 2)), [2, 3]);
 }
 {
   const errors = [mk(1, 'normal'), mk(2, 'normal')];
-  check('unter dem Limit: alles', ids(selectWithCriticals(errors, 5)), [1, 2]);
+  check('unter dem Limit: unveraendert', ids(capKeepCritical(errors, 5)), [1, 2]);
 }
 {
-  // Puffer begrenzt: 8 herausgefallene kritische, extra=5 -> nur die 5 jüngsten davor
-  const errors = [];
-  for (let i = 1; i <= 8; i++) errors.push(mk(i, 'kritisch'));
-  for (let i = 9; i <= 11; i++) errors.push(mk(i, 'normal'));
-  const sel = selectWithCriticals(errors, 3);
-  check('Puffer auf extra begrenzt', ids(sel), [4, 5, 6, 7, 8, 9, 10, 11]);
-  check('chronologische Reihenfolge bleibt', ids(sel).every((v, i, a) => i === 0 || a[i - 1] < v), true);
+  const errors = [mk(1, 'kritisch'), mk(2, 'kritisch'), mk(3, 'kritisch')];
+  check('alles kritisch: aeltester weicht doch', ids(capKeepCritical(errors, 2)), [2, 3]);
+}
+{
+  // Der Fall, der im Dashboard falsche Zahlen zeigte: eine Datei voller
+  // kritischer Eintraege, danach treffen normale ein. Client und Server
+  // muessen zu JEDEM Zeitpunkt dieselbe Anzahl kritischer halten.
+  const server = Array.from({ length: 15 }, (_, i) => mk(i + 1, 'kritisch'));
+  let client = server.slice();
+  let gleich = true;
+  const kritZahl = a => a.filter(e => e.level === 'kritisch').length;
+  for (let i = 100; i < 112; i++) {
+    server.push(mk(i, 'normal'));
+    while (server.length > 20) evictOldest(server);
+    client.push(mk(i, 'normal'));
+    capKeepCritical(client, 20);
+    if (kritZahl(server) !== kritZahl(client) || server.length !== client.length) gleich = false;
+  }
+  check('Client driftet nicht vom Server ab', gleich, true);
+  check('kritische bleiben erhalten (15 von 20)', kritZahl(client), 15);
 }
 
 console.log('\nQuelltext-Abgleich (Spiegelung ist aktuell)');
 {
   const ws = fs.readFileSync(path.join(root, 'server', 'watchService.js'), 'utf8');
   const utils = fs.readFileSync(path.join(root, 'public', 'js', 'utils.js'), 'utf8');
+  const wsc = fs.readFileSync(path.join(root, 'public', 'js', 'wsClient.js'), 'utf8');
+  const srv = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
   check('watchService: evictOldest verdrahtet', ws.includes('evictOldest(errors)') && ws.includes('function evictOldest'), true);
   check('watchService: kein blindes errors.shift()', ws.includes('errors.shift()'), false);
-  check('watchService: getAllErrors nutzt selectWithCriticals', ws.includes('selectWithCriticals(errors, config.maxErrorsPerFile)'), true);
-  check('utils: trimKeepCritical vorhanden', utils.includes('trimKeepCritical('), true);
+  check('watchService: Snapshot liefert den ganzen Speicher', ws.includes('errors: errors.slice()'), true);
+  check('watchService: kein zusaetzliches Kuerzen im Snapshot', ws.includes('selectWithCriticals'), false);
+  check('utils: capKeepCritical vorhanden', utils.includes('capKeepCritical(entries, max)'), true);
+  check('utils: altes trimKeepCritical entfernt', utils.includes('trimKeepCritical'), false);
+  check('wsClient nutzt capKeepCritical', wsc.includes('Keasy.utils.capKeepCritical'), true);
+  check('wsClient nutzt maxErrorsPerFile * 2 (keine harte 20)', /maxErrorsPerFile \|\| 10\) \* 2/.test(wsc), true);
+  check('server.js schickt maxErrorsPerFile im init', /maxErrorsPerFile: config\.maxErrorsPerFile/.test(srv), true);
   check('watchService: findIndex-Logik identisch zur Spiegelung', ws.includes("errors.findIndex(e => e.level !== 'kritisch')"), true);
 }
 

@@ -50,7 +50,7 @@ console.log('\n3) Script-Ladereihenfolge (priorityPanel vor configPanel, utils z
   check('utils vor priorityPanel (severityMeta)', idx('utils') < idx('priorityPanel'));
   check('state vor priorityPanel (configPriorityRules)', idx('state') < idx('priorityPanel'));
   check('render vor boot (updateBrowserTitle)', idx('render') < idx('boot'));
-  check('utils vor wsClient (trimKeepCritical)', idx('utils') < idx('wsClient'));
+  check("utils vor wsClient (capKeepCritical)", idx("utils") < idx("wsClient"));
 }
 
 console.log('\n4) Frontend-Querverweise zeigen auf existierende Definitionen');
@@ -61,12 +61,12 @@ for (const fn of ['renderPriorityRules', 'getPriorityRulesFromForm']) {
 }
 check('utils.entryLevel definiert', /entryLevel\(entry\)\s*\{/.test(utils));
 check('utils.severityMeta definiert', /severityMeta\(level\)\s*\{/.test(utils));
-check('utils.trimKeepCritical definiert', /trimKeepCritical\(entries, max/.test(utils));
+check('utils.capKeepCritical definiert', /capKeepCritical\(entries, max\)/.test(utils));
 check('render nutzt entryLevel', render.includes('Keasy.utils.entryLevel'));
 check('render nutzt severityMeta', render.includes('Keasy.utils.severityMeta'));
 check('priorityPanel nutzt severityMeta', priorityPanel.includes('Keasy.utils.severityMeta'));
 check('boot nutzt entryLevel', boot.includes('Keasy.utils.entryLevel'));
-check('wsClient nutzt trimKeepCritical', wsClient.includes('Keasy.utils.trimKeepCritical'));
+check('wsClient nutzt capKeepCritical', wsClient.includes('Keasy.utils.capKeepCritical'));
 check('render exportiert updateBrowserTitle', /Keasy\.render = \{[^}]*updateBrowserTitle/.test(render));
 check('boot nutzt den Export statt eigener Titel-Logik', boot.includes('Keasy.render.updateBrowserTitle()'));
 check('boot setzt document.title nicht mehr selbst', !/function notifyNewError[\s\S]{0,400}document\.title\s*=/.test(boot));

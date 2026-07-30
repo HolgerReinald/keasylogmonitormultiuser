@@ -78,17 +78,21 @@ window.Keasy.utils = {
     return (level === 'kritisch' || level === 'gering') ? level : 'normal';
   },
 
-  // Client-Trim mit Vorrang für kritische Einträge (Server-Gegenstück:
-  // selectWithCriticals in watchService.js). Ohne diesen Vorrang verdrängt eine
-  // Serie trivialer Fehler genau den Eintrag, der auffallen soll.
-  trimKeepCritical(entries, max, extra = 5) {
-    if (entries.length <= max) return entries;
-    const recent = entries.slice(-max);
-    const droppedCriticals = entries
-      .slice(0, entries.length - max)
-      .filter(e => Keasy.utils.entryLevel(e) === 'kritisch');
-    if (droppedCriticals.length === 0) return recent;
-    return droppedCriticals.slice(-extra).concat(recent);
+  // Obergrenze pro Datei, mit Vorrang für kritische Einträge — spiegelt
+  // evictOldest in server/watchService.js: es weicht immer der älteste
+  // NICHT-kritische Eintrag, und nur wenn alle kritisch sind der älteste
+  // überhaupt. Mutiert das Array, damit die Objekt-Identität erhalten bleibt
+  // (render.js bildet origIdx über indexOf).
+  // Vorher kürzte der Client nach einer anderen Regel als der Server und behielt
+  // höchstens 5 ältere kritische Einträge. Dadurch sank die angezeigte Anzahl
+  // kritischer Fehler, je länger die Seite offen war — der Server hielt sie noch,
+  // das Dashboard zeigte sie nicht mehr.
+  capKeepCritical(entries, max) {
+    while (entries.length > max) {
+      const i = entries.findIndex(e => Keasy.utils.entryLevel(e) !== 'kritisch');
+      entries.splice(i === -1 ? 0 : i, 1);
+    }
+    return entries;
   },
 
   // Einzige Stufe→Darstellung-Map der App (Vorbild: die colors/icons-Maps in showToast).

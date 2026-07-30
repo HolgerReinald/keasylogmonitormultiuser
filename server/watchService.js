@@ -118,20 +118,12 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
 // Kritische Einträge werden zuletzt geopfert: ohne diesen Vorrang kann eine Serie
 // trivialer Fehler genau den Eintrag entfernen, für den die Prioritätsregeln gedacht sind.
 // Das Array ist chronologisch, findIndex trifft also den ältesten nicht-kritischen Eintrag.
+// Der Client nutzt in utils.js dieselbe Regel (capKeepCritical) mit derselben
+// Obergrenze — nur so zeigt das Dashboard dieselbe Anzahl kritischer Fehler,
+// die der Server hält.
 function evictOldest(errors) {
   const idx = errors.findIndex(e => e.level !== 'kritisch');
   errors.splice(idx === -1 ? 0 : idx, 1);
-}
-
-// Snapshot für (neu) verbundene Clients: die neuesten max Einträge, aber herausgefallene
-// kritische Fehler werden bis zu einem kleinen Puffer wieder vorangestellt (Reihenfolge
-// bleibt chronologisch, weil die verdrängten Einträge älter sind).
-function selectWithCriticals(errors, max, extra = 5) {
-  if (errors.length <= max) return errors.slice();
-  const recent = errors.slice(-max);
-  const droppedCriticals = errors.slice(0, errors.length - max).filter(e => e.level === 'kritisch');
-  if (droppedCriticals.length === 0) return recent;
-  return droppedCriticals.slice(-extra).concat(recent);
 }
 
 function emitError(filePath, entry, changeDetectedAt, explicitTs) {
@@ -651,7 +643,10 @@ function getAllErrors() {
   const result = {};
   for (const [filePath, errors] of errorStore) {
     result[filePath] = {
-      errors: selectWithCriticals(errors, config.maxErrorsPerFile),
+      // Kompletter Speicherstand — er ist durch evictOldest ohnehin auf
+      // maxErrorsPerFile * 2 begrenzt. Vorher wurde hier zusätzlich gekürzt,
+      // wodurch das Dashboard weniger kritische Fehler zeigte als vorhanden.
+      errors: errors.slice(),
       label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || ''
     };
   }

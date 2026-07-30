@@ -6,6 +6,9 @@ window.Keasy.state = {
   fileLabels: {},
   oversizedFiles: {},
   maxLogFileSizeMB: 6,
+  // Wird beim init vom Server überschrieben — Grundlage der Kürzung im Client
+  // (Obergrenze maxErrorsPerFile * 2, identisch zum Server)
+  maxErrorsPerFile: 10,
   paused: false,
   totalErrors: 0,
   criticalErrors: 0,

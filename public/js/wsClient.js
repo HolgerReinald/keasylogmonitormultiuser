@@ -79,6 +79,7 @@ function connect() {
       state.visibleLabels = msg.visibleLabels || null; // null = alle sichtbar
       state.oversizedFiles = msg.oversizedFiles || {};
       state.maxLogFileSizeMB = msg.maxLogFileSizeMB ?? state.maxLogFileSizeMB;
+      state.maxErrorsPerFile = msg.maxErrorsPerFile ?? state.maxErrorsPerFile;
       state.authEnabled = msg.authEnabled !== false;
       if (msg.version) {
         document.getElementById('appVersion').textContent = 'v' + msg.version;
@@ -147,9 +148,9 @@ function connect() {
       if (!state.errors[filePath]) state.errors[filePath] = [];
       state.errors[filePath].push(error);
       if (label) state.fileLabels[filePath] = label;
-      if (state.errors[filePath].length > 20) {
-        state.errors[filePath] = Keasy.utils.trimKeepCritical(state.errors[filePath], 10);
-      }
+      // Dieselbe Obergrenze und dieselbe Regel wie der Server (evictOldest),
+      // damit das Dashboard nicht weniger kritische Fehler zeigt als vorhanden
+      Keasy.utils.capKeepCritical(state.errors[filePath], (state.maxErrorsPerFile || 10) * 2);
       if (!state.paused) {
         scheduleRender();
         notifyNewError(error, label || state.fileLabels[filePath]);

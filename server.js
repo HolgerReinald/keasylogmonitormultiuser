@@ -130,6 +130,10 @@ wss.on('connection', (ws, req) => {
     performanceData: filterMapByLabels(getAllPerformance(), ws.visibleLabels),
     oversizedFiles: filterMapByLabels(getOversizedFiles(), ws.visibleLabels),
     maxLogFileSizeMB: config.maxLogFileSizeMB,
+    // Der Client kürzt mit derselben Regel und derselben Obergrenze wie der
+    // Server (capKeepCritical in utils.js) — deshalb wird der Wert mitgeschickt
+    // statt im Frontend fest verdrahtet zu werden.
+    maxErrorsPerFile: config.maxErrorsPerFile,
     authEnabled: configStore.isAuthEnabled(),
     analyzeData: analyzeData,
     analyzeRunning: au.running,

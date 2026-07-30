@@ -227,7 +227,7 @@ module.exports = {
 | `priorityRules` | Array von `{ name, contains, level }` — stuft erkannte Fehler nach **Dringlichkeit** ein, beeinflusst aber **nicht**, ob etwas als Fehler gilt. Erste passende Regel gewinnt (Reihenfolge = Vorrang, im Dashboard mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Leer = Feature aus (alles wie ohne Prioritätsregeln). Wirkt auch auf JSON-Logs und Schwellwert-Treffer |
 | `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Wird im **gesamten Eintrag** gesucht, auch über Zeilenumbrüche hinweg — der Begriff muss also nicht in der ersten Zeile stehen. Pflichtfeld. Siehe Abschnitt „Prioritätsregeln in der Praxis" |
 | `priorityRules[].level` | `kritisch` (🚨 Alarmknopf mit Sprung zum Eintrag, roter Blockrahmen, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
-| `maxErrorsPerFile` | Wie viele letzte Fehler pro Datei angezeigt werden |
+| `maxErrorsPerFile` | Grundwert für die Aufbewahrung pro Datei. Server **und** Dashboard halten jeweils bis zu `maxErrorsPerFile * 2` Einträge pro Datei (Standard also 20) und verdrängen dabei immer den ältesten **nicht**-kritischen Eintrag zuerst — als `kritisch` eingestufte Fehler bleiben, solange normale vorhanden sind |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
 | `trashAutoCleanupHours` | Papierkorb Auto-Cleanup nach X Stunden (Standard: `48`). `0` = nie automatisch leeren |
@@ -467,6 +467,28 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-30 — 🔢 Dashboard zeigte zu wenige kritische Fehler
+
+Aufgefallen beim Vergleich zweier Zahlen: der Server meldete 129 Einträge mit 43 kritischen, das Dashboard zeigte gleichzeitig 163 Einträge mit nur 33 kritischen. Ursache waren **drei verschiedene Aufbewahrungsregeln** für dieselben Daten.
+
+- **Server** (`evictOldest`): verdrängt immer den ältesten *nicht*-kritischen Eintrag, Obergrenze `maxErrorsPerFile * 2`. Kritische bleiben, solange normale vorhanden sind. ✔
+- **Snapshot für neue Clients** (`selectWithCriticals`): lieferte nur die letzten `maxErrorsPerFile` Einträge plus bis zu 5 gerettete kritische — also höchstens 15 von 20, obwohl der Server mehr hielt.
+- **Dashboard** (`trimKeepCritical`): behielt die letzten 10 plus höchstens 5 ältere kritische. Dadurch **sank die angezeigte Anzahl kritischer Fehler, je länger die Seite offen war** — simuliert: 15 kritische wurden nach zwölf normalen Fehlern zu 5, während der Server unverändert 15 hielt.
+
+Das untergrub genau den Zweck des Verdrängungsschutzes: kritische Fehler verschwanden aus der Ansicht, obwohl der Server sie noch hatte.
+
+Jetzt gilt **eine** Regel an allen drei Stellen:
+
+- `capKeepCritical()` im Client spiegelt `evictOldest()` des Servers exakt — ältester nicht-kritischer Eintrag weicht, nur bei durchgehend kritischem Array der älteste überhaupt.
+- Die Obergrenze wird nicht mehr doppelt gepflegt: `maxErrorsPerFile` kommt über die `init`-Nachricht zum Client, der daraus `* 2` bildet. Vorher stand im Frontend eine feste 20 bzw. 10.
+- `getAllErrors()` liefert den vollständigen Speicherstand statt ihn erneut zu kürzen — `selectWithCriticals` ist damit entfallen.
+
+**Folge für die Anzeige:** die Zahlen sind höher als vorher (im Test 186 statt 129 Einträge, 58 statt 43 kritisch). Das sind keine neuen Fehler, sondern die, die der Server bereits hielt und die vorher nicht ausgeliefert wurden. `maxErrorsPerFile` ist entsprechend nicht mehr die Anzeigegrenze, sondern der Grundwert für `* 2` — Tabelleneintrag korrigiert.
+
+`test/eviction-priority.js` prüft jetzt beide Regeln gegeneinander: ein Test lässt Server und Client parallel laufen und schlägt an, sobald die Anzahl kritischer Einträge auseinanderdriftet.
+
+**Dateien:** server/watchService.js, server.js, public/js/utils.js, public/js/wsClient.js, public/js/state.js, test/eviction-priority.js, test/priority-wiring.js, README.md
 
 ### 2026-07-30 — 📝 Mustersuche über mehrzeilige Einträge dokumentiert
 
