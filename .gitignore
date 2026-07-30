@@ -12,3 +12,6 @@ temp-ftp/
 temp-restore/
 users.json
 users/
+
+# Screenshots und Arbeitsmaterial (das Projekt hat keine versionierten Bilder)
+*.png
