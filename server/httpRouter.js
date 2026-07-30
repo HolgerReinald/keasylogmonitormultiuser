@@ -5,7 +5,32 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { getEffectiveSession } = require('./sessionMiddleware');
+
+// Auslieferung mit Revalidierung.
+// Vorher sendete der Server für CSS/JS/HTML gar keine Cache-Header — Browser
+// entscheiden dann heuristisch und halten geänderte Dateien fest. Nach jeder
+// Frontend-Änderung war ein harter Reload nötig, sonst suchte man Fehler, die
+// im Code längst behoben waren (bei index.html schlimmer: neue <script>-Tags
+// wurden gar nicht geladen).
+// 'no-cache' heißt nicht "nicht zwischenspeichern", sondern "vor Benutzung
+// nachfragen": der Browser schickt If-None-Match und bekommt bei unveränderter
+// Datei ein 304 ohne Body — also kein erneuter Download.
+function sendWithRevalidation(req, res, data, contentType) {
+  const etag = '"' + crypto.createHash('sha1').update(data).digest('base64').slice(0, 22) + '"';
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache' });
+    res.end();
+    return;
+  }
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-cache',
+    'ETag': etag
+  });
+  res.end(data);
+}
 
 // --- Auth-Guard Konfiguration ---
 
@@ -80,8 +105,7 @@ module.exports = function createRouter(deps) {
       }
       fs.readFile(filePath, 'utf8', (err, data) => {
         if (err) { res.writeHead(404); res.end('Not found'); return; }
-        res.writeHead(200, { 'Content-Type': staticExtensions[ext] + '; charset=utf-8' });
-        res.end(data);
+        sendWithRevalidation(req, res, data, staticExtensions[ext] + '; charset=utf-8');
       });
       return;
     }
@@ -95,8 +119,7 @@ module.exports = function createRouter(deps) {
           res.end('Fehler beim Laden der Seite');
           return;
         }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(data);
+        sendWithRevalidation(req, res, data, 'text/html; charset=utf-8');
       });
       return;
     }

@@ -437,6 +437,17 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-07-30 — ♻️ Kein harter Reload mehr nach Frontend-Änderungen
+
+Der Server lieferte CSS, JS und `index.html` **ohne jeden Cache-Header** aus — kein `Cache-Control`, kein `ETag`, kein `Last-Modified`. Browser entscheiden dann heuristisch und halten geänderte Dateien fest. Nach jeder Frontend-Änderung war ein harter Reload (`Strg+F5`) nötig, sonst suchte man Fehler, die im Code längst behoben waren. Bei `index.html` war es gravierender: neu hinzugefügte `<script>`-Tags wurden gar nicht erst geladen.
+
+- Neue Hilfsfunktion `sendWithRevalidation()` in `server/httpRouter.js`, genutzt von beiden Auslieferungswegen (statische Dateien und `index.html`).
+- `Cache-Control: no-cache` heißt nicht „nicht zwischenspeichern", sondern **„vor Benutzung nachfragen"**: der Browser schickt `If-None-Match`, und bei unveränderter Datei antwortet der Server mit `304` ohne Body — also kein erneuter Download, nur eine sehr kleine Anfrage.
+- Der `ETag` ist ein SHA1 über den Dateiinhalt. Jede inhaltliche Änderung erzeugt automatisch einen neuen ETag und damit ein frisches `200`; identischer Inhalt bleibt beim `304`.
+- Geprüft für `/style.css`, `/js/render.js` und `/`: erster Aufruf `200`, Revalidierung `304`, veralteter ETag wieder `200`.
+
+**Dateien:** server/httpRouter.js
+
 ### 2026-07-30 — 🚨 Alarmknopf statt Rollup-Badge
 
 Die rechte Seite der Datei-Kopfzeile wirkte unruhig: 📂 und 📝 saßen in jeder Zeile an einer anderen Stelle, und zwei rote Pillen (`🔴 10` und der Zähler `18`) standen direkt nebeneinander.
