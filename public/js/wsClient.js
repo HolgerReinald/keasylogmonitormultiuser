@@ -148,7 +148,7 @@ function connect() {
       state.errors[filePath].push(error);
       if (label) state.fileLabels[filePath] = label;
       if (state.errors[filePath].length > 20) {
-        state.errors[filePath] = state.errors[filePath].slice(-10);
+        state.errors[filePath] = Keasy.utils.trimKeepCritical(state.errors[filePath], 10);
       }
       if (!state.paused) {
         scheduleRender();

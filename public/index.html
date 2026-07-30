@@ -193,6 +193,11 @@
         <input type="number" id="cfg-deduplicateMin" min="1" max="1440">
       </div>
       <div class="config-field">
+        <label>Duplikat-Schutz kritisch (Min.):</label>
+        <input type="number" id="cfg-criticalDedupeMin" min="1" max="1440">
+        <span class="config-hint" title="Kritische Fehler (siehe Prioritätsregeln) werden nach dieser Zeit erneut gemeldet und lösen sofort eine Mail aus — unabhängig vom Sende-Intervall. Kurz halten, sonst bleibt ein Dauerproblem stundenlang stumm.">ℹ️</span>
+      </div>
+      <div class="config-field">
         <label>SMTP Host:</label>
         <input type="text" id="cfg-smtpHost">
       </div>
@@ -299,6 +304,14 @@
             Beispiel: Log-Zeile <code>[Memory] WorkingSet: 4523,7 MB</code> → Zeile enthält: <code>WorkingSet:</code>, Einheit: <code>MB</code>, Alarm wenn &gt; <code>4000</code></p>
             <div id="cfg-threshold-list"></div>
             <button class="config-reset-btn" onclick="addThresholdRule()" data-admin-only>+ Schwellwertregel</button>
+          </div>
+          <div class="config-filter-section">
+            <h4 class="config-column-title">🔴 Prioritätsregeln</h4>
+            <p class="config-hint-text">Stuft erkannte Fehler nach Dringlichkeit ein — <strong>ohne</strong> zu beeinflussen, <em>ob</em> etwas als Fehler gilt (das machen die Fehlererkennungs-Patterns oben).<br>
+            <strong>Die Reihenfolge entscheidet:</strong> die erste passende Regel gewinnt, ohne Treffer gilt <code>Normal</code>. Mit ▲▼ umsortieren.<br>
+            Beispiel: Zeile enthält <code>Send_over_SMTP</code> → <code>🔴 Kritisch</code>. Wirkt auch auf JSON-Logs und Schwellwert-Treffer.</p>
+            <div id="cfg-priority-list"></div>
+            <button class="config-reset-btn" onclick="addPriorityRule()" data-admin-only>+ Prioritätsregel</button>
           </div>
         </div>
       </div>
@@ -638,6 +651,7 @@
   <script src="js/cssEditorPanel.js" defer></script>
   <script src="js/watchPathsPanel.js" defer></script>
   <script src="js/thresholdPanel.js" defer></script>
+  <script src="js/priorityPanel.js" defer></script>
   <script src="js/folderPicker.js" defer></script>
   <script src="js/configPanel.js" defer></script>
   <script src="js/toolExport.js" defer></script>

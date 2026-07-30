@@ -8,6 +8,7 @@ window.Keasy.state = {
   maxLogFileSizeMB: 6,
   paused: false,
   totalErrors: 0,
+  criticalErrors: 0,
   searchTerm: '',
   searchRegex: null,
 
@@ -40,6 +41,7 @@ window.Keasy.state = {
   savedConfig: null,
   configFilterPatterns: [],
   configThresholdRules: [],
+  configPriorityRules: [],
 
   // Date Filter
   currentDateStr: '',
@@ -61,6 +63,9 @@ window.Keasy.state = {
   // Notifications
   notificationsEnabled: localStorage.getItem('keasy-notifications') !== 'off',
   lastNotificationTime: 0,
+  // Eigener Zeitstempel für kritische Meldungen — sonst hungert eine Flut
+  // normaler Fehler die kritische Benachrichtigung aus
+  lastCriticalNotificationTime: 0,
 
   // Preload
   preloadHideTimer: null,

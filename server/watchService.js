@@ -9,7 +9,7 @@ const chokidar = require('chokidar');
 const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps } = require('./runtimeStore');
 const { broadcast, broadcastFiltered, filterMapByLabels, labelMessageFilter } = require('./wsBroadcast');
 const { config } = require('./configStore');
-const { matchesFilter, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
 const { bufferErrorForEmail } = require('./emailService');
 
 // --- Tail-Logik ---
@@ -114,14 +114,38 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
   }
 }
 
+// --- Verdrängung (maxErrorsPerFile) ---
+// Kritische Einträge werden zuletzt geopfert: ohne diesen Vorrang kann eine Serie
+// trivialer Fehler genau den Eintrag entfernen, für den die Prioritätsregeln gedacht sind.
+// Das Array ist chronologisch, findIndex trifft also den ältesten nicht-kritischen Eintrag.
+function evictOldest(errors) {
+  const idx = errors.findIndex(e => e.level !== 'kritisch');
+  errors.splice(idx === -1 ? 0 : idx, 1);
+}
+
+// Snapshot für (neu) verbundene Clients: die neuesten max Einträge, aber herausgefallene
+// kritische Fehler werden bis zu einem kleinen Puffer wieder vorangestellt (Reihenfolge
+// bleibt chronologisch, weil die verdrängten Einträge älter sind).
+function selectWithCriticals(errors, max, extra = 5) {
+  if (errors.length <= max) return errors.slice();
+  const recent = errors.slice(-max);
+  const droppedCriticals = errors.slice(0, errors.length - max).filter(e => e.level === 'kritisch');
+  if (droppedCriticals.length === 0) return recent;
+  return droppedCriticals.slice(-extra).concat(recent);
+}
+
 function emitError(filePath, entry, changeDetectedAt, explicitTs) {
   const limited = limitStackTrace(entry.trim());
   const parsedTs = explicitTs || parseEntryTimestamp(entry);
   const timestamp = (parsedTs || new Date()).toISOString();
+  // Einstufung auf dem tatsächlich gespeicherten Text: bei JSON-Logs ist das die
+  // lesbare Zeile aus evaluateJsonEntry, nicht der Roh-Block — was man sieht,
+  // ist also auch das, was die Prioritätsregel getroffen hat.
   const error = {
     timestamp,
     line: limited,
-    file: path.basename(filePath)
+    file: path.basename(filePath),
+    level: classifySeverity(limited)
   };
 
   if (!errorStore.has(filePath)) {
@@ -131,7 +155,7 @@ function emitError(filePath, entry, changeDetectedAt, explicitTs) {
   errors.push(error);
 
   while (errors.length > config.maxErrorsPerFile * 2) {
-    errors.shift();
+    evictOldest(errors);
   }
 
   broadcastFiltered({
@@ -627,7 +651,7 @@ function getAllErrors() {
   const result = {};
   for (const [filePath, errors] of errorStore) {
     result[filePath] = {
-      errors: errors.slice(-config.maxErrorsPerFile),
+      errors: selectWithCriticals(errors, config.maxErrorsPerFile),
       label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || ''
     };
   }

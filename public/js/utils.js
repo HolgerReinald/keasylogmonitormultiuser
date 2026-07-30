@@ -70,6 +70,39 @@ window.Keasy.utils = {
     return `${m}m ${String(s).padStart(2, '0')}s`;
   },
 
+  // Dringlichkeit eines Eintrags — einziger Lesezugriff auf entry.level.
+  // Einträge aus einer älteren Server-Version (oder aus Papierkorb/Analyse-Läufen
+  // von vor dem Update) haben kein level und gelten als 'normal'.
+  entryLevel(entry) {
+    const level = entry && entry.level;
+    return (level === 'kritisch' || level === 'gering') ? level : 'normal';
+  },
+
+  // Client-Trim mit Vorrang für kritische Einträge (Server-Gegenstück:
+  // selectWithCriticals in watchService.js). Ohne diesen Vorrang verdrängt eine
+  // Serie trivialer Fehler genau den Eintrag, der auffallen soll.
+  trimKeepCritical(entries, max, extra = 5) {
+    if (entries.length <= max) return entries;
+    const recent = entries.slice(-max);
+    const droppedCriticals = entries
+      .slice(0, entries.length - max)
+      .filter(e => Keasy.utils.entryLevel(e) === 'kritisch');
+    if (droppedCriticals.length === 0) return recent;
+    return droppedCriticals.slice(-extra).concat(recent);
+  },
+
+  // Einzige Stufe→Darstellung-Map der App (Vorbild: die colors/icons-Maps in showToast).
+  // 'normal' liefert bewusst leere cls/icon: der Standardfall erzeugt kein zusätzliches
+  // Markup und keine zusätzliche Farbe.
+  severityMeta(level) {
+    const map = {
+      kritisch: { icon: '🔴', label: 'Kritisch', cls: 'sev-kritisch' },
+      normal: { icon: '', label: 'Normal', cls: '' },
+      gering: { icon: '', label: 'Gering', cls: 'sev-gering' }
+    };
+    return map[level] || map.normal;
+  },
+
   showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {

@@ -68,6 +68,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **Multi-Log:** Überwacht beliebig viele Log-Dateien gleichzeitig
 - **Gruppiert nach Quelle:** Fehler werden nach konfigurierbarem Label gruppiert (z.B. "MAD Dienst", "VFMService Dienst")
 - **Filterbar:** Konfigurierbare Pattern (Exception, #Fehler, disposed, ...)
+- **🔴 Dringlichkeit:** Prioritätsregeln stufen Fehler in `kritisch` / `normal` / `gering` ein (erste passende Regel gewinnt). Kritische Fehler fallen sofort auf (Badge, Rollup-Zähler pro Datei und Quelle, Browser-Titel), lösen eine Sofort-Mail aus, benachrichtigen auch bei sichtbarem Fenster und werden zuletzt verdrängt. `normal` sieht unverändert aus, `gering` wird gedimmt und benachrichtigt nie
 - **Multi-Line-Erkennung:** Mehrzeilige Log-Einträge werden als ein Fehler gruppiert (Erkennung via Timestamp, Stack-Trace-Pufferung: pollInterval + 200ms)
 - **Stack-Trace-Limit:** Stack Traces werden auf die ersten 5 Zeilen begrenzt
 - **Tagesaktuelle Dateien:** Beim Start werden nur heutige Log-Dateien aktiv überwacht — ältere Dateien werden automatisch aktiviert, sobald sie heute beschrieben werden
@@ -194,6 +195,13 @@ module.exports = {
     'ValidationException'      // Hinweis-Meldungen, die trotz Filter-Treffer NICHT als Fehler gelten
   ],
 
+  // Dringlichkeit: stuft erkannte Fehler ein, entscheidet aber NICHT, ob etwas ein Fehler ist.
+  // Erste passende Regel gewinnt (Reihenfolge = Vorrang), kein Treffer ⇒ 'normal'.
+  priorityRules: [
+    { name: 'SMTP-Versand', contains: 'Send_over_SMTP', level: 'kritisch' },
+    { name: 'Dispose-Rauschen', contains: 'disposed', level: 'gering' }
+  ],
+
   contextLinesBefore: 5,
   loadExistingErrors: true,   // Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen
   maxLogFileSizeMB: 6         // Dateien über 6 MB werden übersprungen
@@ -216,6 +224,9 @@ module.exports = {
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
 | `filterPatterns` | Array von Suchbegriffen (case-insensitive) |
 | `excludePatterns` | Array von Suchbegriffen (case-insensitive). Zeilen, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. Patterns spezifisch halten, sonst werden echte Fehler unterdrückt |
+| `priorityRules` | Array von `{ name, contains, level }` — stuft erkannte Fehler nach **Dringlichkeit** ein, beeinflusst aber **nicht**, ob etwas als Fehler gilt. Erste passende Regel gewinnt (Reihenfolge = Vorrang, im Dashboard mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Leer = Feature aus (alles wie ohne Prioritätsregeln). Wirkt auch auf JSON-Logs und Schwellwert-Treffer |
+| `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Pflichtfeld |
+| `priorityRules[].level` | `kritisch` (🔴 Badge, Rollup-Zähler, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
 | `maxErrorsPerFile` | Wie viele letzte Fehler pro Datei angezeigt werden |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
@@ -224,12 +235,13 @@ module.exports = {
 | `copilotWorkingPathRelease` | Pfad zum Release-Verzeichnis für Copilot-Export. Leer = 🚀-Button deaktiviert |
 | `autoOpen` | Browser automatisch öffnen (true/false) |
 | `email.enabled` | E-Mail-Versand global ein/aus |
-| `email.intervalMinutes` | Alle X Minuten werden gesammelte Fehler versendet |
+| `email.intervalMinutes` | Alle X Minuten werden gesammelte Fehler versendet. Gilt **nicht** für `kritisch` eingestufte Fehler — die lösen sofort einen Versand aus (5 s Bündelung, danach min. 60 s Sperre pro Quelle) |
 | `email.deduplicateMinutes` | Duplikatschutz: gleicher Fehler erst nach X Min. erneut melden (Standard: 60) |
+| `email.criticalDeduplicateMinutes` | Duplikatschutz für `kritisch` eingestufte Fehler (Standard: 15). Kurz halten — mit dem normalen Fenster bliebe ein Dauerproblem stundenlang stumm. Kritische Fehler sind bewusst **nicht** vom Duplikatschutz ausgenommen, sonst würde eine crashende Komponente im Sekundentakt mailen |
 | `email.smtp` | SMTP-Server-Konfiguration (Host, Port, SSL, Auth, family) |
 | `email.smtp.family` | `4` = IPv4 erzwingen, `6` = IPv6 erzwingen (optional, bei Netzwerkproblemen) |
 | `email.from` | Absender-Adresse (muss zur SMTP-Login-Domain passen!) |
-| `email.subject` | Betreff-Template (`{label}` wird durch den Quellnamen ersetzt) |
+| `email.subject` | Betreff-Template (`{label}` wird durch den Quellnamen ersetzt, `{level}` durch `Kritisch`/`Normal`). Bei kritischen Fehlern wird zusätzlich `🔴 KRITISCH: ` vorangestellt |
 
 ### SMTP-Konfiguration
 
@@ -396,7 +408,9 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | Keine Fehler erscheinen | Prüfe ob `watchPaths` korrekt sind und Log-Dateien existieren. Beim Start werden nur tagesaktuelle Dateien geladen — ältere werden automatisch aktiviert sobald sie beschrieben werden |
 | Verbindung getrennt | Dashboard reconnected automatisch nach 3 Sekunden |
 | E-Mail wird nicht versendet | SMTP-Einstellungen prüfen, `emailTo` muss gesetzt sein. Siehe `email.log` für Details |
-| E-Mail-Duplikate | Gleicher Fehler wird erst nach `deduplicateMinutes` (Standard: 60 Min.) erneut gemeldet |
+| E-Mail-Duplikate | Gleicher Fehler wird erst nach `deduplicateMinutes` (Standard: 60 Min.) erneut gemeldet — bei `kritisch` eingestuften Fehlern nach `criticalDeduplicateMinutes` (Standard: 15 Min.) |
+| Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Filter → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
+| Wichtiger Fehler verschwindet aus der Liste | `maxErrorsPerFile` verdrängt die ältesten Einträge. Als `kritisch` eingestufte Fehler werden zuletzt verdrängt — für Dauerbeobachtung zusätzlich das Limit erhöhen |
 | "In Zeile springen" geht nicht | Versucht VS Code → Notepad++ → Notepad. VS Code oder Notepad++ sollte installiert sein für Zeilensprung |
 | Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → WatchPaths → Polling ✓ |
 | Fehler erscheinen verzögert | Polling-Intervall ist 2s (lokal) bzw. 5s (Netzwerk) + 100ms Debounce + Flush (pollInterval + 200ms) = ~4,3s lokal / ~10,3s Netzwerk. Für Analyse: Debug-Logging aktivieren (Einstellungen → Allgemein → Debug-Logging ✓) — zeigt `[TIMING]`-Einträge in der Konsole |
@@ -422,6 +436,37 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-30 — 🔴 Dringlichkeit von Fehlern (Prioritätsregeln)
+
+Bisher sahen alle erkannten Fehler gleich aus: ein fehlgeschlagener Mailversand stand optisch gleichwertig neben `disposed`-Rauschen. Neu ist eine Dringlichkeitsstufe pro Fehler.
+
+**Modell** — neue Config-Liste `priorityRules: [{ name, contains, level }]`, erste Treffer-Regel gewinnt (Reihenfolge = Vorrang, im Tab „Filter" mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Drei Stufen: `kritisch` / `normal` / `gering`.
+- Bewusst **getrennt** von `filterPatterns`: der OR-verknüpfte `filterRegex` kann nicht sagen, welches Muster getroffen hat, und „Send_over_SMTP schlägt fehl" passt gleichzeitig auf `Fehler` und `Send_over_SMTP` — Priorität braucht eine Rangfolge, Erkennung nicht.
+- Wirkt dadurch auch auf **JSON-Logs** (strukturelle Erkennung, nutzt keine filterPatterns) und **Schwellwert-Treffer**.
+- Erkennung (`matchesFilter`) und Einstufung (`classifySeverity`) sind orthogonale Funktionen; `matchesFilter` ist unverändert.
+- `sanitizePriorityRules()` verwirft Regeln ohne `contains` und setzt unbekannte Stufen auf `normal` — `config.js` ist handeditierbar und wird beim Speichern nicht validiert.
+- **Bei leerer Regelliste ist alles wie vorher** — kein Badge, keine Farbe, kein geändertes Verhalten.
+
+**Darstellung** — nur Abweichungen vom Standard kosten Tinte:
+- `kritisch`: 🔴-Badge im Eintrag, kräftigerer linker Rand (3→5 px), eigener Hintergrund; Rollup-Zähler `🔴 n` im Datei- **und** Quellen-Header (wichtig, weil Quellen einklappbar sind); Browser-Titel `🔴 (2/17) Keasy Log Monitor`.
+- `normal`: erzeugt **kein** zusätzliches Markup und keine zusätzliche Farbe — identisch zu vorher.
+- `gering`: gedimmt (`opacity`, `--text-muted`) statt einer dritten Farbe; zählt weiter im Gesamtzähler (ein geduldeter Fehler ist ein Fehler — „0 Fehler" über einer nicht leeren Liste wäre irreführend).
+- Redundante Codierung (Randstärke + ausgeschriebenes „Kritisch" + Farbe): ein reiner Farbwechsel wäre neben dem ohnehin roten `.error-entry`-Rand kaum sichtbar. Neue Variablen `--sev-critical{,-bg,-fg}` in allen drei Themes; bleibt bewusst in der Rot-Familie und kollidiert nicht mit dem Orange der ⏱️-Lücken.
+- ⏱️-Lücken bleiben ihre eigene Klasse von Ereignis — **ohne** Dringlichkeitsstufe.
+
+**Verhalten** bei `kritisch`:
+- **Sofort-Mail** statt Warten auf das Sende-Intervall (in der Praxis bis zu 4 h). Gebündelt: 5 s Debounce plus harte Sperre von 60 s pro Quelle, damit 50 kritische Zeilen **eine** Mail mit 50 Einträgen ergeben und eine crashende Komponente nicht im Sekundentakt mailt. Kein zweiter Timer, kein zweiter Transporter — `sendBufferedEmails(onlyLabel)` wiederverwendet die bestehende Komposition.
+- **Preload-Schutz**: beim Start werden mit `loadExistingErrors` ganze Logdateien neu geparst — ohne Schutz würde jeder *historische* kritische Fehler bei jedem Neustart eine Mail auslösen. Doppelt abgesichert über `preload.running` und das Alter des Eintrags (< 15 Min.).
+- **Eigenes Duplikat-Fenster** `email.criticalDeduplicateMinutes` (Standard 15). Grund: mit dem normalen Fenster (in der Praxis 360 Min.) würde „SMTP kaputt seit 08:00" um 14:00 nie erneut gemeldet. Kritische Fehler sind aber *nicht* vom Duplikatschutz ausgenommen — das würde den Crashloop-Spam öffnen. Das Hash-Aufräumen nutzt jetzt das längere der beiden Fenster.
+- **Desktop-Benachrichtigung** auch bei sichtbarem, fokussiertem Fenster (der Blick kann auf einem anderen Teil der Seite liegen), 3-s-Sperre, eigener `tag`, `requireInteraction`. Eigener Zeitstempel `lastCriticalNotificationTime` — mit einem gemeinsamen würde eine Flut normaler Fehler die kritische Meldung aushungern. `gering` benachrichtigt nie.
+- **Verdrängungsschutz**: `maxErrorsPerFile` verdrängte streng FIFO, bei `maxErrorsPerFile: 10` konnten also 11 triviale Fehler den kritischen unsichtbar machen. `evictOldest()` opfert kritische Einträge zuletzt; `selectWithCriticals()` (Server-Snapshot) und `trimKeepCritical()` (Client) ergänzen herausgefallene kritische Fehler bis zu einem Puffer von 5.
+
+**Tool-Export**: neue Sektion „Prioritätsregeln (Dringlichkeit)" (vorbelegt), beidseitig registriert.
+
+**Tests**: `test/eviction-priority.js` (Verdrängungslogik inkl. „Flut verdrängt den kritischen nicht"), `test/priority-wiring.js` (statische Verdrahtung: DOM-IDs, Ladereihenfolge, Querverweise, Theme-Variablen, Regressionsschutz „normal erzeugt kein Markup").
+
+**Dateien:** server/logParser.js, server/watchService.js, server/analysisService.js, server/emailService.js, server/toolExport.js, server.js, public/js/priorityPanel.js (neu), public/js/render.js, public/js/utils.js, public/js/state.js, public/js/configPanel.js, public/js/boot.js, public/js/wsClient.js, public/js/toolExport.js, public/index.html, public/style.css, test/eviction-priority.js (neu), test/priority-wiring.js (neu)
 
 ### 2026-07-27 — 📖 Dokumentation-Tab übersichtlicher
 

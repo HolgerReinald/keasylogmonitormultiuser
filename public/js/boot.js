@@ -124,15 +124,38 @@ function toggleNotifications() {
 }
 
 function notifyNewError(error) {
-  document.title = state.totalErrors > 0
-    ? `(${state.totalErrors}) Keasy Log Monitor`
-    : 'Keasy Log Monitor';
+  // Titel über die gemeinsame Funktion, damit die 🔴-Anzeige nicht zweimal implementiert ist
+  Keasy.render.updateBrowserTitle();
   if (!state.notificationsEnabled) return;
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const level = Keasy.utils.entryLevel(error);
+  // Geduldete Einträge ("gering") benachrichtigen nie
+  if (level === 'gering') return;
+
   const now = Date.now();
+
+  if (level === 'kritisch') {
+    // Kritische Fehler auch melden, wenn das Dashboard sichtbar und fokussiert ist —
+    // der Blick kann trotzdem auf einem anderen Teil der Seite liegen.
+    // Eigener Zeitstempel: mit einem gemeinsamen würde eine Flut normaler Fehler
+    // die kritische Benachrichtigung aushungern. Eigener tag, damit eine normale
+    // Meldung die kritische im Info-Center nicht still ersetzt.
+    if (now - state.lastCriticalNotificationTime <= 3000) return;
+    state.lastCriticalNotificationTime = now;
+    new Notification('🔴 Keasy Log Monitor — kritischer Fehler', {
+      body: `${error.file}: ${error.line.substring(0, 80)}`,
+      tag: 'keasy-critical',
+      renotify: true,
+      requireInteraction: true
+    });
+    return;
+  }
+
   // Benachrichtigen, wenn das Dashboard nicht im Blick ist: Tab verdeckt ODER Fenster
   // nicht fokussiert (z. B. Keasy im Vordergrund, Dashboard auf dem zweiten Monitor)
   const dashboardNotInView = document.hidden || !document.hasFocus();
-  if (dashboardNotInView && Notification.permission === 'granted' && now - state.lastNotificationTime > 10000) {
+  if (dashboardNotInView && now - state.lastNotificationTime > 10000) {
     state.lastNotificationTime = now;
     new Notification('Keasy Log Monitor', {
       body: `${error.file}: ${error.line.substring(0, 80)}`,

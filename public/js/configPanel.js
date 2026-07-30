@@ -140,6 +140,7 @@ function populateConfigForm(cfg) {
   document.getElementById('cfg-emailEnabled').checked = email.enabled || false;
   document.getElementById('cfg-emailInterval').value = email.intervalMinutes || 5;
   document.getElementById('cfg-deduplicateMin').value = email.deduplicateMinutes || 60;
+  document.getElementById('cfg-criticalDedupeMin').value = email.criticalDeduplicateMinutes || 15;
   const smtp = email.smtp || {};
   document.getElementById('cfg-smtpHost').value = smtp.host || '';
   document.getElementById('cfg-smtpPort').value = smtp.port || 465;
@@ -161,6 +162,9 @@ function populateConfigForm(cfg) {
 
   state.configThresholdRules = JSON.parse(JSON.stringify(cfg.thresholdRules || []));
   Keasy.threshold.renderThresholdRules();
+
+  state.configPriorityRules = JSON.parse(JSON.stringify(cfg.priorityRules || []));
+  Keasy.priority.renderPriorityRules();
 
   // Log-Analyse Pfade laden
   state.analyzePaths = [...(cfg.analyzePaths || [])];
@@ -248,6 +252,7 @@ function buildConfigFromForm() {
       enabled: document.getElementById('cfg-emailEnabled').checked,
       intervalMinutes: parseInt(document.getElementById('cfg-emailInterval').value) || 5,
       deduplicateMinutes: parseInt(document.getElementById('cfg-deduplicateMin').value) || 60,
+      criticalDeduplicateMinutes: parseInt(document.getElementById('cfg-criticalDedupeMin').value) || 15,
       smtp: {
         host: document.getElementById('cfg-smtpHost').value.trim(),
         port: parseInt(document.getElementById('cfg-smtpPort').value) || 465,
@@ -261,6 +266,7 @@ function buildConfigFromForm() {
     filterPatterns: [...state.configFilterPatterns],
     excludePatterns: [...state.configExcludePatterns],
     thresholdRules: Keasy.threshold.getThresholdRulesFromForm(),
+    priorityRules: Keasy.priority.getPriorityRulesFromForm(),
     analyzePaths: [...state.analyzePaths],
     analyzeMaxErrors: parseInt(document.getElementById('analyzeMaxErrors').value) || 100,
     analyzeGapWarnSeconds: parseInt(document.getElementById('analyzeGapWarnSeconds').value) || 0,
@@ -294,8 +300,15 @@ async function saveConfig() {
     showConfigMessage('Schwellwertregel unvollständig: "Zeile enthält" und "Schwellwert" sind Pflichtfelder.', 'error');
     return;
   }
+  // Prioritätsregeln vorab validieren (blockiert Speichern bei Fehler)
+  const priorityRules = Keasy.priority.getPriorityRulesFromForm();
+  if (priorityRules === null) {
+    showConfigMessage('Prioritätsregel unvollständig: "Zeile enthält" ist ein Pflichtfeld.', 'error');
+    return;
+  }
   const cfg = buildConfigFromForm();
   cfg.thresholdRules = thresholdRules;
+  cfg.priorityRules = priorityRules;
 
   const isAdmin = Keasy.state.currentUser && Keasy.state.currentUser.role === 'admin';
   // Globale Validierungen nur für Admins (Nicht-Admins ändern diese Felder nicht)

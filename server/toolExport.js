@@ -28,7 +28,8 @@ const BASE_DEFAULTS = {
   filePattern: '**/*.log',
   filterPatterns: ['Exception', 'Fehler'],
   excludePatterns: [],
-  thresholdRules: []
+  thresholdRules: [],
+  priorityRules: []
 };
 
 // Sektion → Config-Keys, die bei angehakter Sektion aus der Laufzeit-Config übernommen werden.
@@ -38,6 +39,7 @@ const SECTION_KEYS = {
             'loadExistingErrors', 'maxLogFileSizeMB', 'trashAutoCleanupHours'],
   patterns: ['filterPatterns', 'excludePatterns', 'filePattern'],
   thresholds: ['thresholdRules'],
+  priorities: ['priorityRules'],
   watchPaths: ['watchPaths'],
   email: ['email'],
   backup: ['backup']

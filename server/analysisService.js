@@ -9,7 +9,7 @@ const path = require('path');
 const readline = require('readline');
 const { getOrCreateAnalyzeUser } = require('./runtimeStore');
 const { broadcastToUser } = require('./wsBroadcast');
-const { matchesFilter, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
 
 function getAnalyzeErrors(username) {
   if (!username) return {};
@@ -68,7 +68,7 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
         const limited = limitStackTrace(entry.trim());
         const parsedTs = parseEntryTimestamp(entry);
         const timestamp = (parsedTs || new Date()).toISOString();
-        const error = { timestamp, line: limited, file: path.basename(filePath) };
+        const error = { timestamp, line: limited, file: path.basename(filePath), level: classifySeverity(limited) };
         if (!au.store.has(filePath)) au.store.set(filePath, []);
         au.store.get(filePath).push(error);
         au.labelMap.set(filePath, label);

@@ -7,6 +7,7 @@ const CONFIG_SECTIONS = [
   { id: 'general',    label: 'Allgemeine Optionen',                   defaultOn: true  },
   { id: 'patterns',   label: 'Filter- & Ausschluss-Muster',          defaultOn: true  },
   { id: 'thresholds', label: 'Schwellwert-Regeln',                    defaultOn: true  },
+  { id: 'priorities', label: 'Prioritätsregeln (Dringlichkeit)',      defaultOn: true  },
   { id: 'watchPaths', label: 'Watch-Pfade',                           defaultOn: false },
   { id: 'email',      label: 'E-Mail / SMTP (ohne Passwort)',         defaultOn: false },
   { id: 'backup',     label: 'Backup-Ziele & FTP (ohne Passwort)',    defaultOn: false }

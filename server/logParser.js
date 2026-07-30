@@ -22,6 +22,42 @@ let excludeRegex = buildExcludeRegex(config.excludePatterns);
 // Schwellwert-Regeln aus Config
 let thresholdRules = config.thresholdRules || [];
 
+// --- Dringlichkeit (Prioritätsregeln) ---
+// Erkennung ("ist das ein Fehler?") und Einstufung ("wie dringend?") sind bewusst getrennt:
+// matchesFilter bleibt unverändert, classifySeverity ist ein zweiter, unabhängiger Aufruf.
+// Dadurch greift die Einstufung auch bei JSON-Fehlern und Schwellwert-Treffern, die keine
+// filterPatterns nutzen.
+const SEVERITY_LEVELS = ['kritisch', 'normal', 'gering'];
+const DEFAULT_LEVEL = 'normal';
+
+// config.js ist handeditierbar und wird beim Speichern nicht validiert — deshalb defensiv:
+// Regeln ohne "contains" fliegen raus, unbekannte Stufen werden zu 'normal'. Ein Tippfehler
+// darf nicht pro Log-Eintrag eine Exception werfen.
+function sanitizePriorityRules(rules) {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .filter(r => r && typeof r.contains === 'string' && r.contains.trim())
+    .map(r => ({
+      name: (r.name || r.contains).trim(),
+      contains: r.contains.trim(),
+      level: SEVERITY_LEVELS.includes(r.level) ? r.level : DEFAULT_LEVEL
+    }));
+}
+
+let priorityRules = sanitizePriorityRules(config.priorityRules);
+
+// Erste Treffer-Regel gewinnt (Reihenfolge in der Config = Vorrang), kein Treffer ⇒ 'normal'.
+// Bewusst Substring statt Regex: kein Escaping nötig, ein Regelinhalt mit "(" oder "*"
+// kann im Hot Path nicht werfen.
+function classifySeverity(text) {
+  if (priorityRules.length === 0 || !text) return DEFAULT_LEVEL;
+  const textLower = text.toLowerCase();
+  for (const rule of priorityRules) {
+    if (textLower.includes(rule.contains.toLowerCase())) return rule.level;
+  }
+  return DEFAULT_LEVEL;
+}
+
 function extractNumber(line, contains, before) {
   const idx = line.toLowerCase().indexOf(contains.toLowerCase());
   if (idx === -1) return null;
@@ -71,6 +107,10 @@ function rebuildExcludeRegex(patterns) {
 
 function rebuildThresholdRules(rules) {
   thresholdRules = rules || [];
+}
+
+function rebuildPriorityRules(rules) {
+  priorityRules = sanitizePriorityRules(rules);
 }
 
 // Regex: Neuer Log-Eintrag beginnt mit Timestamp (DD.MM.YY HH:MM:SS.mmm)
@@ -242,5 +282,5 @@ function evaluateJsonEntry(block) {
 }
 
 
-module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, timestampRegex, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap };
+module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, rebuildPriorityRules, classifySeverity, SEVERITY_LEVELS, DEFAULT_LEVEL, timestampRegex, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap };
 

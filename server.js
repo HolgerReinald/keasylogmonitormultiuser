@@ -15,7 +15,7 @@ const { broadcast, clients, broadcastTrash, disconnectUser, filterMapByLabels } 
 const configStore = require('./server/configStore');
 const { config } = configStore;
 const { getVisibleLabels, mergeConfigForUser } = require('./server/userConfigStore');
-const { rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules } = require('./server/logParser');
+const { rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, rebuildPriorityRules } = require('./server/logParser');
 const { getTrashSnapshot } = require('./server/trashService');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
@@ -52,6 +52,9 @@ function applyConfigChanges(newConfig) {
 
   // Schwellwert-Regeln aktualisieren
   rebuildThresholdRules(newConfig.thresholdRules);
+
+  // Prioritätsregeln aktualisieren (kein Watcher-Neustart nötig — werden pro Eintrag frisch gelesen)
+  rebuildPriorityRules(newConfig.priorityRules);
 
   // Email-Timer aktualisieren
   restartEmailTimer();
