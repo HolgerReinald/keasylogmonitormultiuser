@@ -309,7 +309,8 @@
             <h4 class="config-column-title">🔴 Prioritätsregeln</h4>
             <p class="config-hint-text">Stuft erkannte Fehler nach Dringlichkeit ein — <strong>ohne</strong> zu beeinflussen, <em>ob</em> etwas als Fehler gilt (das machen die Fehlererkennungs-Patterns oben).<br>
             <strong>Die Reihenfolge entscheidet:</strong> die erste passende Regel gewinnt, ohne Treffer gilt <code>Normal</code>. Mit ▲▼ umsortieren.<br>
-            Beispiel: Zeile enthält <code>Send_over_SMTP</code> → <code>🔴 Kritisch</code>. Wirkt auch auf JSON-Logs und Schwellwert-Treffer.</p>
+            Beispiel: Zeile enthält <code>Send_over_SMTP</code> → <code>🔴 Kritisch</code>. Wirkt auch auf JSON-Logs und Schwellwert-Treffer.<br>
+            <strong>Praxistipp:</strong> Der Suchbegriff wird im <em>gesamten</em> Eintrag gesucht, auch über Zeilenumbrüche hinweg. Keasy-Meldungen beginnen häufig mit <code>Der folgende #Fehler ist aufgetreten:</code> — diese Ankündigung trifft <em>alles</em> und taugt nicht als Regel. Aussagekräftig ist der Typ in der Folgezeile, z.&nbsp;B. <code>TimeoutException</code>, <code>AggregateException</code> oder <code>ServiceResponseException</code>.</p>
             <div id="cfg-priority-list"></div>
             <button class="config-reset-btn" onclick="addPriorityRule()" data-admin-only>+ Prioritätsregel</button>
           </div>

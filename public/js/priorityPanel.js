@@ -71,7 +71,8 @@ function renderPriorityRules(expandIndex) {
       </div>
       <div class="threshold-rule-body">
         <label>Zeile enthält:</label>
-        <input type="text" data-field="contains" placeholder="z.B. Send_over_SMTP">
+        <input type="text" data-field="contains" placeholder="z.B. Send_over_SMTP"
+               title="Wird im gesamten Eintrag gesucht, auch über Zeilenumbrüche hinweg — der Begriff muss also nicht in der ersten Zeile stehen.&#10;&#10;Tipp: Keasy-Meldungen beginnen oft mit „Der folgende #Fehler ist aufgetreten:“. Diese Ankündigung trifft alles und taugt nicht als Regel. Aussagekräftig ist der Typ in der Folgezeile, z. B. TimeoutException, AggregateException oder ServiceResponseException.">
         <label>Dringlichkeit:</label>
         <select data-field="level">
           ${LEVEL_OPTIONS.map(o => `<option value="${o.value}">${o.text}</option>`).join('')}

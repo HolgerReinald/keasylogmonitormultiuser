@@ -225,8 +225,8 @@ module.exports = {
 | `filterPatterns` | Array von Suchbegriffen (case-insensitive) |
 | `excludePatterns` | Array von Suchbegriffen (case-insensitive). Zeilen, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. Patterns spezifisch halten, sonst werden echte Fehler unterdrückt |
 | `priorityRules` | Array von `{ name, contains, level }` — stuft erkannte Fehler nach **Dringlichkeit** ein, beeinflusst aber **nicht**, ob etwas als Fehler gilt. Erste passende Regel gewinnt (Reihenfolge = Vorrang, im Dashboard mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Leer = Feature aus (alles wie ohne Prioritätsregeln). Wirkt auch auf JSON-Logs und Schwellwert-Treffer |
-| `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Pflichtfeld |
-| `priorityRules[].level` | `kritisch` (🔴 Badge, Rollup-Zähler, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
+| `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Wird im **gesamten Eintrag** gesucht, auch über Zeilenumbrüche hinweg — der Begriff muss also nicht in der ersten Zeile stehen. Pflichtfeld. Siehe Abschnitt „Prioritätsregeln in der Praxis" |
+| `priorityRules[].level` | `kritisch` (🚨 Alarmknopf mit Sprung zum Eintrag, roter Blockrahmen, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
 | `maxErrorsPerFile` | Wie viele letzte Fehler pro Datei angezeigt werden |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
@@ -242,6 +242,29 @@ module.exports = {
 | `email.smtp.family` | `4` = IPv4 erzwingen, `6` = IPv6 erzwingen (optional, bei Netzwerkproblemen) |
 | `email.from` | Absender-Adresse (muss zur SMTP-Login-Domain passen!) |
 | `email.subject` | Betreff-Template (`{label}` wird durch den Quellnamen ersetzt, `{level}` durch `Kritisch`/`Normal`). Bei kritischen Fehlern wird zusätzlich `🔴 KRITISCH: ` vorangestellt |
+
+### Prioritätsregeln in der Praxis
+
+Der Suchbegriff wird über den **gesamten** Eintrag gesucht, nicht nur über die erste Zeile. Das ist wichtig, weil Keasy-Fehler typischerweise so aufgebaut sind:
+
+```
+30.07.26 18:15:34.751
+                                    ← mehrere Leerzeilen
+Der folgende #Fehler ist aufgetreten:
+Type: TimeoutException
+Message: The operation has timed out.
+   at Keasy.Workflow.…
+```
+
+Daraus folgen drei Dinge:
+
+- **Die Ankündigungszeile taugt nicht als Regel.** `Der folgende #Fehler ist aufgetreten:` steht über nahezu jedem Eintrag — eine Regel darauf trifft *alles* und würde jeden Fehler zu `kritisch` machen.
+- **Aussagekräftig ist der Typ in der Folgezeile.** Eine Regel auf `TimeoutException` funktioniert einwandfrei, obwohl der Begriff erst in Zeile 4 steht — genau deshalb wird der ganze Eintrag durchsucht.
+- **Fast alles bleibt durchsuchbar.** Vor dem Speichern werden nur überzählige Stack-Trace-Zeilen entfernt (`   at …`, ab der sechsten, siehe `limitStackTrace`). Alle übrigen Zeilen bleiben vollständig erhalten.
+
+**Reihenfolge beachten:** Die erste passende Regel gewinnt. Eine allgemeine Regel auf `Exception` → `kritisch` oberhalb einer spezifischen Regel auf `UserFriendlyException` → `gering` verschluckt die spezifische. Deshalb gilt: **spezifisch oben, allgemein unten.** Im Dashboard lässt sich die Reihenfolge mit ▲▼ ändern.
+
+Brauchbare Begriffe für Regeln sind Ausnahme-Typen, keine Fließtexte — zum Beispiel `TimeoutException`, `AggregateException`, `ServiceResponseException`, `NullReferenceException`, `TargetInvocationException`. Für Meldungen, die sich an Anwender richten statt einen Systemfehler zu beschreiben (etwa `UserFriendlyException`, `ValidationException`), ist `gering` in der Regel die passende Stufe — sie bleiben sichtbar und im Fehlerzähler, benachrichtigen aber nicht.
 
 ### SMTP-Konfiguration
 
@@ -436,6 +459,17 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-30 — 📝 Prioritätsregeln: Praxiswissen dokumentiert
+
+Beim Prüfen der Benachrichtigungen an echten Log-Daten fiel auf, dass Keasy-Fehler fast immer mit der Zeile `Der folgende #Fehler ist aufgetreten:` beginnen und den eigentlichen Typ erst in der Folgezeile tragen. Das ist für Prioritätsregeln entscheidend und war nirgends hinterlegt.
+
+- **Neuer Doku-Abschnitt „Prioritätsregeln in der Praxis"** (unter Konfiguration): Aufbau eines typischen Keasy-Eintrags, warum die Ankündigungszeile als Regel *alles* trifft, warum eine Regel auf `TimeoutException` trotzdem greift (der gesamte Eintrag wird durchsucht, nicht nur die erste Zeile), und dass nur überzählige Stack-Trace-Zeilen entfernt werden. Dazu die Konsequenz aus „erste passende Regel gewinnt": **spezifisch oben, allgemein unten.**
+- **Hinweistext im Tab „Filter"** um denselben Praxistipp ergänzt, mit den Typen, die in Keasy-Logs tatsächlich vorkommen.
+- **Tooltip am Feld „Zeile enthält"** in den Prioritätsregeln: erklärt die mehrzeilige Suche und nennt brauchbare Suchbegriffe.
+- Tabellenzeile zu `priorityRules[].contains` präzisiert (Suche über den gesamten Eintrag), `priorityRules[].level` an den Alarmknopf angepasst.
+
+**Dateien:** README.md, public/index.html, public/js/priorityPanel.js
 
 ### 2026-07-30 — 🔔 Desktop-Benachrichtigungen mit Aussagekraft
 
