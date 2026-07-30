@@ -279,6 +279,8 @@
           </div>
           <div class="config-filter-section">
             <h4 class="config-column-title">⚠️ Fehlererkennung</h4>
+            <p class="config-hint-text">Ein Pattern greift, sobald es <strong>irgendwo im Eintrag</strong> vorkommt — ein Eintrag ist alles zwischen zwei Zeitstempeln und bei Keasy oft ein Dutzend Zeilen lang. <code>TimeoutException</code> erkennt einen Fehler also auch dann, wenn der Begriff erst in Zeile 4 steht.<br>
+            Umgekehrt trifft ein breites Pattern wie <code>Fehler</code> schon die Ankündigungszeile <code>Der folgende #Fehler ist aufgetreten:</code>, die über nahezu jedem Eintrag steht — für die Erkennung meist gewollt, aber gut zu wissen.</p>
             <div class="config-filter-list-wrap">
               <div class="config-list" id="cfg-filter-list"></div>
             </div>
@@ -289,7 +291,8 @@
           </div>
           <div class="config-filter-section">
             <h4 class="config-column-title">🚫 Ausschluss-Patterns</h4>
-            <p class="config-hint-text">Zeilen mit diesen Begriffen gelten <strong>nicht</strong> als Fehler, auch wenn sie ein Fehlererkennungs-Pattern enthalten (z.B. <code>ValidationException</code> als Anwender-Hinweis). Patterns spezifisch halten – ein zu allgemeines Pattern (z.B. <code>Exception</code>) würde echte Fehler unterdrücken.</p>
+            <p class="config-hint-text">Einträge mit diesen Begriffen gelten <strong>nicht</strong> als Fehler, auch wenn sie ein Fehlererkennungs-Pattern enthalten (z.B. <code>ValidationException</code> als Anwender-Hinweis).<br>
+            <strong>Achtung:</strong> Ein Treffer an <em>beliebiger Stelle</em> unterdrückt den <strong>kompletten</strong> Eintrag — nicht nur die betroffene Zeile. Steht <code>ValidationException</code> als <em>InnerException</em> in einem echten <code>TimeoutException</code>-Fehler, verschwindet dieser mit. Patterns deshalb so eng wie möglich fassen; für Meldungen an Anwender ist eine Prioritätsregel mit Stufe <code>Gering</code> oft die bessere Wahl — sie bleiben sichtbar, benachrichtigen aber nicht.</p>
             <div class="config-filter-list-wrap">
               <div class="config-list" id="cfg-exclude-list"></div>
             </div>

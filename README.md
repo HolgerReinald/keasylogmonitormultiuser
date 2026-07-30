@@ -222,8 +222,8 @@ module.exports = {
 | `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
 | `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
-| `filterPatterns` | Array von Suchbegriffen (case-insensitive) |
-| `excludePatterns` | Array von Suchbegriffen (case-insensitive). Zeilen, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. Patterns spezifisch halten, sonst werden echte Fehler unterdrückt |
+| `filterPatterns` | Array von Suchbegriffen (case-insensitive). Geprüft gegen den **gesamten Eintrag**, nicht gegen einzelne Zeilen — siehe Abschnitt „Muster und mehrzeilige Einträge" |
+| `excludePatterns` | Array von Suchbegriffen (case-insensitive). **Einträge**, die hierauf matchen, gelten **nicht** als Fehler – auch wenn sie ein `filterPatterns`-Pattern enthalten (z.B. `ValidationException` als Anwender-Hinweis). Leer = kein Ausschluss. **Ein Treffer an beliebiger Stelle unterdrückt den kompletten mehrzeiligen Eintrag** — auch einen echten Fehler, der den Begriff nur als InnerException enthält. Patterns deshalb so eng wie möglich fassen |
 | `priorityRules` | Array von `{ name, contains, level }` — stuft erkannte Fehler nach **Dringlichkeit** ein, beeinflusst aber **nicht**, ob etwas als Fehler gilt. Erste passende Regel gewinnt (Reihenfolge = Vorrang, im Dashboard mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Leer = Feature aus (alles wie ohne Prioritätsregeln). Wirkt auch auf JSON-Logs und Schwellwert-Treffer |
 | `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Wird im **gesamten Eintrag** gesucht, auch über Zeilenumbrüche hinweg — der Begriff muss also nicht in der ersten Zeile stehen. Pflichtfeld. Siehe Abschnitt „Prioritätsregeln in der Praxis" |
 | `priorityRules[].level` | `kritisch` (🚨 Alarmknopf mit Sprung zum Eintrag, roter Blockrahmen, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
@@ -243,9 +243,9 @@ module.exports = {
 | `email.from` | Absender-Adresse (muss zur SMTP-Login-Domain passen!) |
 | `email.subject` | Betreff-Template (`{label}` wird durch den Quellnamen ersetzt, `{level}` durch `Kritisch`/`Normal`). Bei kritischen Fehlern wird zusätzlich `🔴 KRITISCH: ` vorangestellt |
 
-### Prioritätsregeln in der Praxis
+### Muster und mehrzeilige Einträge
 
-Der Suchbegriff wird über den **gesamten** Eintrag gesucht, nicht nur über die erste Zeile. Das ist wichtig, weil Keasy-Fehler typischerweise so aufgebaut sind:
+**Alle vier Musterlisten** — Fehlererkennung, Ausschluss, Schwellwertregeln und Prioritätsregeln — werden gegen den **gesamten Log-Eintrag** geprüft, nicht gegen einzelne Zeilen. Ein Eintrag ist alles zwischen zwei Zeitstempeln und umfasst bei Keasy typischerweise ein Dutzend Zeilen:
 
 ```
 30.07.26 18:15:34.751
@@ -253,18 +253,26 @@ Der Suchbegriff wird über den **gesamten** Eintrag gesucht, nicht nur über die
 Der folgende #Fehler ist aufgetreten:
 Type: TimeoutException
 Message: The operation has timed out.
-   at Keasy.Workflow.…
+InnerException: ValidationException — IBAN-Prüfung fehlgeschlagen
+   at Keasy.Workflow.Run()
 ```
 
-Daraus folgen drei Dinge:
+Daraus folgt für jede Liste etwas anderes:
 
-- **Die Ankündigungszeile taugt nicht als Regel.** `Der folgende #Fehler ist aufgetreten:` steht über nahezu jedem Eintrag — eine Regel darauf trifft *alles* und würde jeden Fehler zu `kritisch` machen.
-- **Aussagekräftig ist der Typ in der Folgezeile.** Eine Regel auf `TimeoutException` funktioniert einwandfrei, obwohl der Begriff erst in Zeile 4 steht — genau deshalb wird der ganze Eintrag durchsucht.
-- **Fast alles bleibt durchsuchbar.** Vor dem Speichern werden nur überzählige Stack-Trace-Zeilen entfernt (`   at …`, ab der sechsten, siehe `limitStackTrace`). Alle übrigen Zeilen bleiben vollständig erhalten.
+**Fehlererkennung (`filterPatterns`)** — ein Muster greift, egal in welcher Zeile es steht. `TimeoutException` erkennt den Eintrag oben zuverlässig, obwohl der Begriff erst in Zeile 4 auftaucht. Umgekehrt trifft ein breites Muster wie `Fehler` bereits die Ankündigungszeile `Der folgende #Fehler ist aufgetreten:` — und die steht über nahezu jedem Eintrag. Für die *Erkennung* ist das meist gewollt, man sollte es aber wissen.
 
-**Reihenfolge beachten:** Die erste passende Regel gewinnt. Eine allgemeine Regel auf `Exception` → `kritisch` oberhalb einer spezifischen Regel auf `UserFriendlyException` → `gering` verschluckt die spezifische. Deshalb gilt: **spezifisch oben, allgemein unten.** Im Dashboard lässt sich die Reihenfolge mit ▲▼ ändern.
+**Ausschluss (`excludePatterns`)** — hier ist die Wirkung am folgenreichsten: **ein Treffer an beliebiger Stelle unterdrückt den kompletten Eintrag.** Im Beispiel oben würde ein Ausschluss auf `ValidationException` oder `IBAN-Prüfung fehlgeschlagen` den echten `TimeoutException`-Fehler mitverschlucken, weil der Begriff als *InnerException* in Zeile 6 steht. Ausschluss-Muster deshalb so eng wie möglich fassen — je allgemeiner, desto größer die Gefahr, dass sie einen echten Fehler mitnehmen, der sie nur zufällig als Nebensatz enthält.
 
-Brauchbare Begriffe für Regeln sind Ausnahme-Typen, keine Fließtexte — zum Beispiel `TimeoutException`, `AggregateException`, `ServiceResponseException`, `NullReferenceException`, `TargetInvocationException`. Für Meldungen, die sich an Anwender richten statt einen Systemfehler zu beschreiben (etwa `UserFriendlyException`, `ValidationException`), ist `gering` in der Regel die passende Stufe — sie bleiben sichtbar und im Fehlerzähler, benachrichtigen aber nicht.
+**Schwellwertregeln (`thresholdRules`)** — die Zahl wird ab der Position von „Zeile enthält" gesucht und kann daher aus einer *Folgezeile* stammen. Bei `WorkingSet:` am Zeilenende und der Zahl in der nächsten Zeile greift die Regel trotzdem. Das ist meist hilfreich, kann aber die falsche Zahl erwischen, wenn zwischen Begriff und gewünschtem Wert noch eine andere Zahl steht.
+
+**Prioritätsregeln (`priorityRules`)** — hier ist die Ankündigungszeile als Regel unbrauchbar: sie trifft *alles* und würde jeden Fehler zu `kritisch` machen. Aussagekräftig ist der Typ in der Folgezeile. Zusätzlich gilt: **die erste passende Regel gewinnt.** Eine allgemeine Regel auf `Exception` → `kritisch` oberhalb einer spezifischen auf `UserFriendlyException` → `gering` verschluckt die spezifische — also **spezifisch oben, allgemein unten** (im Dashboard mit ▲▼ sortierbar).
+
+Brauchbare Begriffe sind Ausnahme-Typen, keine Fließtexte: `TimeoutException`, `AggregateException`, `ServiceResponseException`, `NullReferenceException`, `TargetInvocationException`. Für Meldungen, die sich an Anwender richten statt einen Systemfehler zu beschreiben (`UserFriendlyException`, `ValidationException`), ist `gering` meist passender als ein Ausschluss — sie bleiben sichtbar und im Fehlerzähler, benachrichtigen aber nicht.
+
+**Zwei Ausnahmen von der Regel:**
+
+- **JSON-Logs** (`includeJson`) werden strukturell ausgewertet (`Error`-Objekt oder `Success: false`), nicht über `filterPatterns`. Dort wirken `excludePatterns` bewusst **nur auf Typ und Meldung**, nicht auf den ganzen Block — sonst könnten Wörter im KI-Prompt-Text eine Unterdrückung auslösen.
+- **Stack-Traces** werden vor dem Speichern gekürzt: ab der sechsten `   at …`-Zeile entfällt der Rest (`limitStackTrace`). Prioritätsregeln sehen also den gekürzten Text; alle Zeilen außerhalb des Stack-Traces bleiben vollständig erhalten. Erkennung und Ausschluss laufen dagegen auf dem ungekürzten Eintrag.
 
 ### SMTP-Konfiguration
 
@@ -460,14 +468,23 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
-### 2026-07-30 — 📝 Prioritätsregeln: Praxiswissen dokumentiert
+### 2026-07-30 — 📝 Mustersuche über mehrzeilige Einträge dokumentiert
 
-Beim Prüfen der Benachrichtigungen an echten Log-Daten fiel auf, dass Keasy-Fehler fast immer mit der Zeile `Der folgende #Fehler ist aufgetreten:` beginnen und den eigentlichen Typ erst in der Folgezeile tragen. Das ist für Prioritätsregeln entscheidend und war nirgends hinterlegt.
+Beim Prüfen der Benachrichtigungen an echten Log-Daten fiel auf, dass Keasy-Fehler fast immer mit `Der folgende #Fehler ist aufgetreten:` beginnen und den eigentlichen Typ erst in einer Folgezeile tragen. Das betrifft **alle vier Musterlisten**, nicht nur die Prioritätsregeln — und war nirgends hinterlegt.
 
-- **Neuer Doku-Abschnitt „Prioritätsregeln in der Praxis"** (unter Konfiguration): Aufbau eines typischen Keasy-Eintrags, warum die Ankündigungszeile als Regel *alles* trifft, warum eine Regel auf `TimeoutException` trotzdem greift (der gesamte Eintrag wird durchsucht, nicht nur die erste Zeile), und dass nur überzählige Stack-Trace-Zeilen entfernt werden. Dazu die Konsequenz aus „erste passende Regel gewinnt": **spezifisch oben, allgemein unten.**
-- **Hinweistext im Tab „Filter"** um denselben Praxistipp ergänzt, mit den Typen, die in Keasy-Logs tatsächlich vorkommen.
-- **Tooltip am Feld „Zeile enthält"** in den Prioritätsregeln: erklärt die mehrzeilige Suche und nennt brauchbare Suchbegriffe.
-- Tabellenzeile zu `priorityRules[].contains` präzisiert (Suche über den gesamten Eintrag), `priorityRules[].level` an den Alarmknopf angepasst.
+Am Code verifiziert und dokumentiert: alle Listen werden gegen den **gesamten Eintrag** geprüft (alles zwischen zwei Zeitstempeln), mit unterschiedlichen Folgen:
+
+- **Fehlererkennung:** ein Muster greift unabhängig von der Zeile — `TimeoutException` erkennt einen Fehler auch in Zeile 4. Umgekehrt trifft `Fehler` bereits die Ankündigungszeile über nahezu jedem Eintrag.
+- **Ausschluss:** die folgenreichste Wirkung — **ein Treffer an beliebiger Stelle unterdrückt den kompletten Eintrag.** Ein Ausschluss auf `ValidationException` verschluckt damit auch einen echten `TimeoutException`-Fehler, der den Begriff nur als InnerException enthält. Für Anwender-Meldungen ist eine Prioritätsregel mit Stufe `gering` meist die bessere Wahl.
+- **Schwellwertregeln:** die Zahl wird ab der Position von „Zeile enthält" gesucht und kann aus einer Folgezeile stammen.
+- **Prioritätsregeln:** die Ankündigungszeile taugt nicht als Regel (trifft alles); aussagekräftig ist der Typ in der Folgezeile. Und weil die erste passende Regel gewinnt: **spezifisch oben, allgemein unten.**
+- **Zwei Ausnahmen:** bei JSON-Logs wirken `excludePatterns` bewusst nur auf Typ und Meldung, nicht auf den ganzen Block. Und Stack-Traces werden vor dem Speichern gekürzt — Prioritätsregeln sehen den gekürzten Text, Erkennung und Ausschluss den vollständigen.
+
+Hinterlegt an drei Stellen: neuer Doku-Abschnitt „Muster und mehrzeilige Einträge", Hinweistexte in den Tab-Abschnitten Fehlererkennung / Ausschluss / Prioritätsregeln, und ein Tooltip am Feld „Zeile enthält".
+
+Dabei zwei sachliche Fehler in der bestehenden Doku korrigiert: sowohl der Hinweistext als auch die Einstellungstabelle sprachen bei `excludePatterns` von „Zeilen" statt von Einträgen — genau daraus entsteht die Falle.
+
+Eine Stichprobe über 26.240 Einträge aus 38 lokalen Logdateien ergab keinen Fall, in dem ein echter Fehler durch einen Ausschluss-Treffer in einer anderen Zeile verlorenging (die Netzlaufwerke `X:`/`Y:` waren dabei nicht einsehbar).
 
 **Dateien:** README.md, public/index.html, public/js/priorityPanel.js
 
