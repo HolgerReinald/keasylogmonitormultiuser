@@ -116,6 +116,7 @@
     <div class="config-tabs">
       <button class="config-tab active" onclick="switchConfigTab('general')">⚙️ Allgemein</button>
       <button class="config-tab" onclick="switchConfigTab('watchpaths')" title="Pfadüberwachung">🕵️ Monitor</button>
+      <button class="config-tab" onclick="switchConfigTab('monitorsettings')" title="Fehlererkennung, Ausschluss, Schwellwerte, Priorität, Copilot-Export">⚙️ Monitor-Einstellungen</button>
       <button class="config-tab" onclick="switchConfigTab('email')" data-admin-only>✉️ E-Mail</button>
       <button class="config-tab" onclick="switchConfigTab('emaillog')">📧 E-Mail Log</button>
       <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
@@ -232,10 +233,8 @@
     </div>
 
     <div class="config-section" id="config-watchpaths">
-      <div class="config-columns config-columns-monitor">
-        <div class="config-column">
-          <h4 class="config-column-title">📂 Überwachte Pfade</h4>
-          <table class="config-watchpaths-table">
+      <h4 class="config-column-title">📂 Überwachte Pfade</h4>
+      <table class="config-watchpaths-table">
             <thead>
               <tr><th>Pfad</th><th>Label</th><th>E-Mail an</th><th title="Für Netzlaufwerke aktivieren insbesondere bei VPN (prüft alle 5 Sek. statt Echtzeit-Events). Beim Import wird Polling automatisch aktiviert.">Polling ℹ️</th><th title="Zusätzlich .json-Logs in diesem Pfad überwachen (z. B. KI-Schnittstelle). Nur pro Pfad aktivieren, um Netzlaufwerke nicht unnötig zu durchsuchen.">JSON ℹ️</th><th title="Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus.">⏱️ Gap (s) ℹ️</th><th title="Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = 30.">Idle (min) ℹ️</th><th></th></tr>
             </thead>
@@ -259,24 +258,10 @@
               <span style="font-size:0.8em; color:var(--text-secondary); margin-left:auto;">CSV · Excel · TXT</span>
             </div>
           </div>
-        </div>
+    </div>
 
-        <div class="config-column">
-          <h4 class="config-column-title">🤖 Copilot-Export</h4>
-          <div class="config-group">
-            <div class="config-field">
-              <label>Working-Pfad Develop:</label>
-              <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Pfad zum Develop-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
-              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
-              <span class="config-hint" title="Fehler werden per 🤖-Button als Markdown-Datei in dieses Develop-Verzeichnis exportiert.">ℹ️</span>
-            </div>
-            <div class="config-field">
-              <label>Working-Pfad Release:</label>
-              <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Pfad zum Release-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
-              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
-              <span class="config-hint" title="Fehler werden per 🚀-Button als Markdown-Datei in dieses Release-Verzeichnis exportiert.">ℹ️</span>
-            </div>
-          </div>
+    <div class="config-section" id="config-monitorsettings">
+      <div class="config-rules-grid">
           <div class="config-filter-section">
             <h4 class="config-column-title">⚠️ Fehlererkennung</h4>
             <p class="config-hint-text">Ein Pattern greift, sobald es <strong>irgendwo im Eintrag</strong> vorkommt — ein Eintrag ist alles zwischen zwei Zeitstempeln und bei Keasy oft ein Dutzend Zeilen lang. <code>TimeoutException</code> erkennt einen Fehler also auch dann, wenn der Begriff erst in Zeile 4 steht.<br>
@@ -317,7 +302,22 @@
             <div id="cfg-priority-list"></div>
             <button class="config-reset-btn" onclick="addPriorityRule()" data-admin-only>+ Prioritätsregel</button>
           </div>
-        </div>
+          <div class="config-filter-section">
+            <h4 class="config-column-title">🤖 Copilot-Export</h4>
+            <p class="config-hint-text">Zielverzeichnisse für den Export einzelner Fehler als Markdown (🤖- und 🚀-Button am Eintrag). Leer = Button deaktiviert. Diese Pfade gelten <strong>pro Benutzer</strong>.</p>
+            <div class="config-group">
+              <div class="config-field">
+                <label>Working-Pfad Develop:</label>
+                <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Pfad zum Develop-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
+                <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
+              </div>
+              <div class="config-field">
+                <label>Working-Pfad Release:</label>
+                <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Pfad zum Release-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
+                <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
+              </div>
+            </div>
+          </div>
       </div>
     </div>
 

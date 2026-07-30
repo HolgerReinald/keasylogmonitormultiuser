@@ -440,7 +440,7 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | Verbindung getrennt | Dashboard reconnected automatisch nach 3 Sekunden |
 | E-Mail wird nicht versendet | SMTP-Einstellungen prüfen, `emailTo` muss gesetzt sein. Siehe `email.log` für Details |
 | E-Mail-Duplikate | Gleicher Fehler wird erst nach `deduplicateMinutes` (Standard: 60 Min.) erneut gemeldet — bei `kritisch` eingestuften Fehlern nach `criticalDeduplicateMinutes` (Standard: 15 Min.) |
-| Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Filter → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
+| Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Monitor-Einstellungen → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
 | Wichtiger Fehler verschwindet aus der Liste | `maxErrorsPerFile` verdrängt die ältesten Einträge. Als `kritisch` eingestufte Fehler werden zuletzt verdrängt — für Dauerbeobachtung zusätzlich das Limit erhöhen |
 | "In Zeile springen" geht nicht | Versucht VS Code → Notepad++ → Notepad. VS Code oder Notepad++ sollte installiert sein für Zeilensprung |
 | Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → WatchPaths → Polling ✓ |
@@ -467,6 +467,19 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-07-30 — 🗂️ Monitor-Tab entlastet: eigener Tab „Monitor-Einstellungen"
+
+Der Monitor-Tab platzte rechts. Ursache war die Struktur: ein Raster **3fr / 2fr**, links nur die Pfad-Tabelle, rechts **fünf** gestapelte Abschnitte (Copilot-Export, Fehlererkennung, Ausschluss, Schwellwerte, Priorität). Gleichzeitig hatte die Tabelle mit ihren acht Spalten in `3fr` zu wenig Platz und scrollte horizontal — es lief also rechts über, während links gescrollt werden musste.
+
+- **Neuer Tab „⚙️ Monitor-Einstellungen"** direkt nach „🕵️ Monitor" nimmt alle fünf Abschnitte auf. Der Monitor-Tab hat damit genau eine Aufgabe: die überwachten Pfade, über die volle Breite und ohne horizontales Scrollen.
+- Die fünf Abschnitte liegen als gleichwertige Karten in `.config-rules-grid` — `repeat(auto-fit, minmax(340px, 1fr))` stellt sich je Fensterbreite selbst auf eine, zwei oder drei Spalten ein, **ohne** Media Query. Reihenfolge: die vier Regel-Abschnitte zuerst, der Copilot-Export zuletzt (einmal eingestellt, dann nicht mehr angefasst).
+- Reiner Markup- und CSS-Umbau: alle IDs, `onclick`-Handler, `title`-Tooltips und `data-admin-only`-Attribute unverändert. `switchConfigTab` ist generisch (`#config-<tab>`) und brauchte keine Änderung. Kein Eingriff in Lade- oder Speicherlogik.
+- Die Copilot-Textfelder hatten über `.config-column .config-field input[type="text"]` feste **350 px**. Nach dem Umzug greift der Selektor nicht mehr, und 350 px hätten eine 340-px-Karte gesprengt — im Raster jetzt `flex: 1; min-width: 0`. Die beiden ℹ️-Tooltips sind zu einem Hinweissatz zusammengefasst, der zusätzlich festhält, dass diese Pfade **pro Benutzer** gelten.
+- `.config-columns-monitor` und die zugehörige Media-Query-Zeile entfernt (toter Code).
+- **Korrigiert:** README verwies an zwei Stellen auf einen Tab „Filter", den es nie gab — die Abschnitte lagen im Monitor-Tab. Richtig ist jetzt „Monitor-Einstellungen".
+
+**Dateien:** public/index.html, public/style.css, README.md
 
 ### 2026-07-30 — 🔢 Dashboard zeigte zu wenige kritische Fehler
 
@@ -561,7 +574,7 @@ Die rechte Seite der Datei-Kopfzeile wirkte unruhig: 📂 und 📝 saßen in jed
 
 Bisher sahen alle erkannten Fehler gleich aus: ein fehlgeschlagener Mailversand stand optisch gleichwertig neben `disposed`-Rauschen. Neu ist eine Dringlichkeitsstufe pro Fehler.
 
-**Modell** — neue Config-Liste `priorityRules: [{ name, contains, level }]`, erste Treffer-Regel gewinnt (Reihenfolge = Vorrang, im Tab „Filter" mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Drei Stufen: `kritisch` / `normal` / `gering`.
+**Modell** — neue Config-Liste `priorityRules: [{ name, contains, level }]`, erste Treffer-Regel gewinnt (Reihenfolge = Vorrang, im Tab „Monitor-Einstellungen" mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Drei Stufen: `kritisch` / `normal` / `gering`.
 - Bewusst **getrennt** von `filterPatterns`: der OR-verknüpfte `filterRegex` kann nicht sagen, welches Muster getroffen hat, und „Send_over_SMTP schlägt fehl" passt gleichzeitig auf `Fehler` und `Send_over_SMTP` — Priorität braucht eine Rangfolge, Erkennung nicht.
 - Wirkt dadurch auch auf **JSON-Logs** (strukturelle Erkennung, nutzt keine filterPatterns) und **Schwellwert-Treffer**.
 - Erkennung (`matchesFilter`) und Einstufung (`classifySeverity`) sind orthogonale Funktionen; `matchesFilter` ist unverändert.

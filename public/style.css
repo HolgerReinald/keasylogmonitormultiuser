@@ -1330,19 +1330,37 @@ body.theme-blue .performance-header {
   padding: 10px 12px;
 }
 
-/* Monitor-Tab: 60/40 Split für Tabelle + Regeln */
-.config-columns-monitor {
-  grid-template-columns: 3fr 2fr;
+/* Monitor-Einstellungen: gleichwertige Karten in einem Raster, das sich über
+   auto-fit selbst auf ein, zwei oder drei Spalten einstellt — ohne Media Query.
+   Vorher standen diese Abschnitte gestapelt in der 2fr-Spalte des Monitor-Tabs
+   und liefen dort über. */
+.config-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+  align-items: start;
 }
 
-.config-columns-monitor>.config-column:first-child {
-  overflow-x: auto;
+.config-rules-grid > .config-filter-section {
+  margin-top: 0;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+/* Textfelder in den Karten fließend statt fest: .config-column .config-field
+   input hatte 350px, was eine 340px-Karte sprengen würde — und der Selektor
+   greift hier ohnehin nicht mehr, weil es kein .config-column mehr gibt. */
+.config-rules-grid .config-field input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 @media (max-width: 900px) {
 
-  .config-columns,
-  .config-columns-monitor {
+  .config-columns {
     grid-template-columns: 1fr;
   }
 }
