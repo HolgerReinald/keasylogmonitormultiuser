@@ -165,6 +165,64 @@ try {
   failed++;
 }
 
+console.log('\n=== Type/Message statt Ankuendigungszeile ===');
+{
+  const block = [
+    '18.08.26 15:40:35.663\t================================================',
+    'Der folgende #Fehler ist aufgetreten:',
+    '',
+    '\tType:       IOException',
+    '\tMessage:    Alle Pipeinstanzen sind ausgelastet.',
+    '\tData:       0 entries',
+    '\tStack trace:'
+  ].join('\n');
+  const s = Keasy.utils.entrySummary(block, 120);
+  const checks = [
+    ['Ankuendigungszeile faellt weg', !/Der folgende/.test(s)],
+    ['Typ steht vorn', s.startsWith('IOException')],
+    ['Meldung ist enthalten', s.includes('Alle Pipeinstanzen sind ausgelastet.')],
+    ['nur Type ohne Message', Keasy.utils.entrySummary('x\n\tType: SqlException', 120) === 'SqlException'],
+    ['nur Message ohne Type',
+      Keasy.utils.entrySummary('x\n\tMessage: Datei fehlt', 120) === 'Datei fehlt'],
+    // Eintraege ohne solchen Block laufen unveraendert weiter
+    ['Rueckfall: Ankuendigung wird zusammengezogen',
+      Keasy.utils.entrySummary('Fehler beim Speichern:\nDatenbank nicht erreichbar', 120)
+        === 'Fehler beim Speichern: Datenbank nicht erreichbar'],
+    ['Rueckfall: einzeilig bleibt einzeilig',
+      Keasy.utils.entrySummary('Fehler bei der Frame-Abfrage', 120) === 'Fehler bei der Frame-Abfrage']
+  ];
+  for (const [name, cond] of checks) {
+    console.log((cond ? '  ok   ' : '  FAIL ') + name);
+    if (!cond) failed++;
+  }
+  console.log('  Beispiel: ' + s);
+}
+
+console.log('\n=== Kuerzung an der Wortgrenze ===');
+{
+  const lang = 'Das Schema muss aktualisiert werden. Bitte den Systemadministrator kontaktieren. Sql Text folgt hier';
+  const kurz = Keasy.utils.entrySummary(lang, 60);
+  // Sauber geschnitten heisst: der Rumpf ist ein Praefix des Originals und
+  // direkt dahinter steht im Original ein Leerzeichen — dann endete kein Wort
+  // mittendrin. (Ein Buchstabe vor dem … ist normal, das letzte Wort ist ja ganz.)
+  const rumpf = kurz.replace(/…$/, '');
+  const checks = [
+    ['kuerzt auf die Vorgabe', kurz.length <= 60],
+    ['endet mit Auslassungszeichen', kurz.endsWith('…')],
+    ['schneidet nicht mitten im Wort', lang.startsWith(rumpf) && lang[rumpf.length] === ' '],
+    ['kein Leerzeichen vor dem Auslassungszeichen', !/ …$/.test(kurz)],
+    ['kurzer Text bleibt unangetastet', Keasy.utils.entrySummary('Kurz und knapp', 60) === 'Kurz und knapp'],
+    // Ein einzelnes langes Token hat keine brauchbare Wortgrenze — harter Schnitt
+    ['langes Einzeltoken wird hart geschnitten',
+      Keasy.utils.entrySummary('C:\\sehr\\langer\\pfad\\ohne\\leerzeichen\\der\\ueber\\die\\grenze\\geht', 30).length === 30]
+  ];
+  for (const [name, cond] of checks) {
+    console.log((cond ? '  ok   ' : '  FAIL ') + name);
+    if (!cond) failed++;
+  }
+  console.log('  Beispiel: ' + kurz);
+}
+
 const summaryBad = empty + startsWithTimestamp + onlySeparator + announcementOnly;
 if (summaryBad > 0) { console.log('\n  FAIL ' + summaryBad + ' unbrauchbare Beschriftung(en)'); failed++; }
 

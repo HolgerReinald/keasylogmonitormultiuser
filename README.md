@@ -408,6 +408,7 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 | Alle / 🔴 Nur kritische | Filtert die **Navigation**, nicht die Daten — die Anzeige rechts bleibt vollständig |
 | ▼/▶ Quellen-Kopf | Klappt die Quelle auf/zu — wirkt zugleich in der Hauptansicht |
 | Klick auf eine Zeile | Klappt Quelle und Datei auf, scrollt zum Eintrag und markiert ihn |
+| (beim Scrollen) | Die Liste markiert mit, wo man gerade liest, und holt die Zeile in Sicht |
 
 - **Gruppiert nach Quelle**, je Quelle neu nummeriert. Eine fortlaufende Nummer über alle Watchpaths würde eine Reihenfolge behaupten, die es nicht gibt
 - **Der Quellen-Kopf klebt** beim Scrollen — sowohl in der Liste als auch in der Hauptansicht. Sonst ist mitten in einem langen Stack-Trace unklar, in welchem Watchpath man liest
@@ -542,7 +543,28 @@ Der Filter saß zunächst als kleine Pille im Kopf und wurde schlicht übersehen
 
 `test/error-index-wiring.js` prüft die Verdrahtung statisch: DOM-IDs, Inline-Handler gegen die window-Globals, Ladereihenfolge, dass es nur *eine* Textaufbereitung und *eine* Sprungmechanik gibt, dass Lücken nicht im Index landen, und dass die Markierung ohne `!important` und ohne `--sev-critical` auskommt.
 
-**Dateien:** public/js/errorIndexPanel.js (neu), public/js/render.js, public/js/actions.js, public/js/utils.js, public/js/state.js, public/js/boot.js, public/index.html, public/style.css, test/error-index-wiring.js (neu), AGENTS.md, README.md
+**Nachgereicht: die Seitenleiste folgt dem Scrollen.** Beim Lesen in der Hauptliste zeigt der Index jetzt mit, wo man gerade ist — die Seitenleiste ist eine Karte, „du bist hier" ist ihre Aufgabe.
+
+Es gibt dadurch zwei Bedeutungen, die nach **Ort** getrennt sind statt nach Farbe: die Seitenleiste zeigt die Leseposition und folgt dem Scrollen, der Rahmen im Fehlertext bleibt das **Sprungziel**. Ein mitwandernder Rahmen mitten im Lesebereich wäre Unruhe; in der schmalen Liste ist die wandernde Zeile dagegen genau die gesuchte Auskunft. Ein Sprung setzt beide, danach läuft nur noch die Liste mit.
+
+- **`IntersectionObserver`** statt Scroll-Handler — ein Listener müsste bei jedem Frame über alle Einträge laufen.
+- **Leseband** `rootMargin: -25% / -65%`: nur was das obere Viertel bis Drittel des Fensters kreuzt, gilt als „hier bin ich". Ohne Band wären bei langen Stack-Traces mehrere Einträge gleichzeitig sichtbar.
+- Der Beobachter wird **nach jedem Neuaufbau neu gesetzt** (und der alte vorher getrennt) — `renderAll()` ersetzt sämtliche Eintrags-Elemente, alte Beobachtungen zeigten ins Leere.
+- Die Lesemarke hängt wie das Sprungziel an der **Objektreferenz**, nicht an der Element-ID.
+- Die Seitenleiste holt die Zeile über `scrollTop` in Sicht, nicht über `scrollIntoView` — das würde die Seite darunter mitscrollen und den Blick vom Fehlertext wegreißen.
+
+**Nachgereicht: Ankuendigungszeile faellt weg.** Keasy-Fehlerbloecke beginnen mit „Der folgende #Fehler ist aufgetreten:“ — einer Zeile, die ueber nahezu jedem Eintrag steht und fuer sich nichts sagt. Sie kostete 37 Zeichen, sodass dahinter nur noch der Exception-Typ Platz hatte und die eigentliche Meldung wegfiel. `entrySummary()` wertet jetzt die Felder `Type:` und `Message:` aus:
+
+```
+vorher:  Der folgende #Fehler ist aufgetreten: Type: IOException
+jetzt:   IOException — Alle Pipeinstanzen sind ausgelastet.
+```
+
+An 77 echten Eintraegen gegengerechnet: 27 werden dadurch aussagekraeftig, 50 ohne solchen Block laufen unveraendert ueber die bisherige Logik (Ankuendigungszeile mit der Folgezeile zusammenziehen). Die Zeile wird dabei im Schnitt 13 Zeichen *laenger* — es ging nie um Platz, sondern darum, was die Zeichen tragen. Wirkt auch auf die Desktop-Benachrichtigung; das fuehrt das Ziel des Commits vom 30.07. fort, in dem die eigentliche Fehlermeldung sichtbar werden sollte.
+
+**Nachgereicht: Kuerzung an der Wortgrenze.** `entrySummary()` schnitt bei Erreichen der Laengengrenze mitten im Wort ab (`… Bitte den Systemadministrator kontaktieren. Sql T`). Jetzt wird an der letzten Wortgrenze geschnitten und ein … angehaengt. Der Rueckschnitt greift nur, wenn dabei nicht mehr als 40 % verlorengehen — bei einem einzelnen langen Token (Pfad, GUID, Stack-Zeile) gibt es keine brauchbare Grenze, dann bleibt es beim harten Schnitt. Wirkt auch auf die Desktop-Benachrichtigung, es ist dieselbe Funktion.
+
+**Dateien:** public/js/errorIndexPanel.js (neu), public/js/render.js, public/js/actions.js, public/js/utils.js, public/js/state.js, public/js/boot.js, public/index.html, public/style.css, test/error-index-wiring.js (neu), test/error-index-live.js (neu), AGENTS.md, README.md
 
 
 ### 2026-07-30 — 🗂️ Monitor-Tab entlastet: eigener Tab „Monitor-Einstellungen"

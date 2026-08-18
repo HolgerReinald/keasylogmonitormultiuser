@@ -190,5 +190,33 @@ console.log('\n12) Klebende Koepfe');
     'Drei gestapelte klebende Ebenen fressen spuerbar Bildschirmhoehe');
 }
 
+console.log('\n13) Lesemarke folgt dem Scrollen');
+{
+  check('IntersectionObserver statt Scroll-Handler', /new IntersectionObserver/.test(panel),
+    'Ein Scroll-Listener wuerde bei jedem Frame ueber alle Eintraege laufen');
+  check('faengt fehlenden IntersectionObserver ab',
+    /typeof IntersectionObserver === 'undefined'/.test(panel));
+  check('Leseband statt voller Sichtbarkeit', /rootMargin:/.test(panel),
+    'Ohne Band waeren bei langen Stack-Traces mehrere Eintraege gleichzeitig sichtbar');
+  check('Beobachter wird nach jedem Neuaufbau neu gesetzt',
+    /scroll\.innerHTML = html[\s\S]{0,400}observeEntries\(\)/.test(panel),
+    'renderAll() ersetzt alle Eintrags-Elemente — alte Beobachtungen zeigen ins Leere');
+  check('alter Beobachter wird vorher getrennt',
+    /function observeEntries[\s\S]{0,200}spyObserver\.disconnect\(\)/.test(panel),
+    'Sonst sammeln sich mit jedem Fehler weitere Beobachter an');
+  check('Lesemarke haengt an der Objektreferenz, nicht an der ID',
+    /inViewRef/.test(panel) && /n\.ref === inViewRef/.test(panel),
+    'IDs werden bei jedem renderAll neu vergeben');
+  // Auf den Aufruf mit Klammern pruefen: der Kommentar darueber nennt
+  // scrollIntoView selbst, ein Treffer darauf waere ein Fehlalarm.
+  check('Seitenleiste scrollt ueber scrollTop, nicht scrollIntoView',
+    /function setActiveRow[\s\S]*?scroll\.scrollTop =/.test(panel) &&
+    !/scrollIntoView\(/.test(panel),
+    'scrollIntoView wuerde die Seite darunter mitscrollen und den Blick wegreissen');
+  check('Rahmen im Fehlertext folgt dem Scrollen NICHT',
+    !/function observeEntries[\s\S]*?is-current/.test(panel),
+    'Ein mitwandernder Rahmen im Lesebereich waere Unruhe — die Seitenleiste traegt die Auskunft');
+}
+
 console.log(failed === 0 ? '\n✅ Verdrahtung vollstaendig\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);

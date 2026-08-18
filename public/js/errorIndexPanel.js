@@ -82,8 +82,73 @@ function applyCurrentEntry() {
   if (!nav) return;
   const el = document.getElementById(nav.id);
   if (el) el.classList.add('is-current');
-  const row = document.querySelector(`.idx-row[data-entry="${nav.id}"]`);
-  if (row) row.classList.add('is-active');
+  // Beim Sprung führt das Sprungziel auch die Liste
+  setActiveRow(nav.ref);
+}
+
+// --- „Du bist hier": Seitenleiste folgt dem Scrollen der Hauptliste ---
+//
+// Eine Markierung, zwei Auslöser: ein Sprung setzt sie, Scrollen verschiebt sie.
+// Der Rahmen im Fehlertext (.is-current) bleibt davon unberührt und markiert
+// weiter das Sprungziel — ein mitwandernder Rahmen mitten im Lesebereich wäre
+// Unruhe, in der schmalen Liste ist die wandernde Zeile dagegen genau die
+// gesuchte Auskunft.
+
+let inViewRef = null;   // Objektreferenz statt ID: IDs wechseln beim Neuaufbau
+let spyObserver = null;
+
+function setActiveRow(ref) {
+  inViewRef = ref || null;
+  const scroll = document.getElementById('indexScroll');
+  if (!scroll) return;
+
+  scroll.querySelectorAll('.idx-row.is-active').forEach(el => el.classList.remove('is-active'));
+  if (!inViewRef) return;
+
+  const nav = state.navEntries.find(n => n.ref === inViewRef);
+  if (!nav) return;
+  const row = scroll.querySelector(`.idx-row[data-entry="${nav.id}"]`);
+  if (!row) return;   // Zeile ausgefiltert oder Quelle zugeklappt
+  row.classList.add('is-active');
+
+  // In Sicht holen — bewusst über scrollTop statt scrollIntoView: das würde
+  // auch die Seite darunter scrollen und den Blick vom Fehlertext wegreißen.
+  const top = row.offsetTop;
+  const bottom = top + row.offsetHeight;
+  if (top < scroll.scrollTop) scroll.scrollTop = top - 8;
+  else if (bottom > scroll.scrollTop + scroll.clientHeight) {
+    scroll.scrollTop = bottom - scroll.clientHeight + 8;
+  }
+}
+
+// Beobachtet die Einträge der Hauptliste. Muss nach jedem Neuaufbau neu
+// aufgesetzt werden — renderAll() ersetzt sämtliche Elemente.
+function observeEntries() {
+  if (spyObserver) spyObserver.disconnect();
+  if (typeof IntersectionObserver === 'undefined') return;
+  const container = document.getElementById('container');
+  if (!container) return;
+
+  const visible = new Set();
+  spyObserver = new IntersectionObserver(changes => {
+    for (const c of changes) {
+      if (c.isIntersecting) visible.add(c.target.id);
+      else visible.delete(c.target.id);
+    }
+    // navEntries hat dieselbe Reihenfolge wie das DOM (beides entsteht in
+    // buildErrorEntryHtml) — der erste Treffer ist also der oberste Eintrag.
+    const hit = state.navEntries.find(n => visible.has(n.id));
+    const ref = hit ? hit.ref : null;
+    if (ref !== inViewRef) setActiveRow(ref);
+  }, {
+    // Leseband: nur was das obere Viertel bis Drittel des Fensters kreuzt,
+    // gilt als „hier bin ich". Ohne dieses Band waeren bei langen
+    // Stack-Traces mehrere Eintraege gleichzeitig „sichtbar".
+    rootMargin: '-25% 0px -65% 0px',
+    threshold: 0
+  });
+
+  container.querySelectorAll('.error-entry[id]').forEach(el => spyObserver.observe(el));
 }
 
 function buildRowHtml(entry, nr) {
@@ -165,11 +230,17 @@ function renderErrorIndex() {
   scroll.innerHTML = html;
   scroll.scrollTop = scrollTop;
   applyCurrentEntry();
+  // Beobachter neu aufsetzen: renderAll() hat alle Eintrags-Elemente ersetzt.
+  // Danach die Lesemarke wiederherstellen — sie haengt an der Objektreferenz,
+  // ueberlebt den Neuaufbau also, braucht aber die neue Zeile.
+  observeEntries();
+  if (inViewRef && !state.currentEntry) setActiveRow(inViewRef);
 }
 
 window.Keasy.errorIndex = {
   renderErrorIndex, toggleIndexPanel, swapIndexSide,
-  setIndexSeverity, toggleIndexGroup, applyCurrentEntry, applyIndexLayout
+  setIndexSeverity, toggleIndexGroup, applyCurrentEntry, applyIndexLayout,
+  setActiveRow, observeEntries
 };
 
 Object.assign(window, {

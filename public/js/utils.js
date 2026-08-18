@@ -127,13 +127,40 @@ window.Keasy.utils = {
       .split('\n')
       .map(clean)
       .filter(l => l && !/^[=\-_*#~+.]+$/.test(l)); // reine Trennlinien überspringen
-    let message = meaningful[0] || clean(raw);
-    // Ankündigungszeilen wie "Der folgende #Fehler ist aufgetreten:" sagen für sich
-    // genommen nichts — dann die nächste inhaltliche Zeile anhängen.
-    if (meaningful[1] && message.length < 60 && /:$/.test(message)) {
+
+    // Keasy-Fehlerblöcke tragen die Aussage in den Feldern "Type:" und "Message:".
+    // Die Zeile darüber — "Der folgende #Fehler ist aufgetreten:" — steht über
+    // nahezu jedem Eintrag und sagt für sich nichts. Sie kostete 37 Zeichen,
+    // sodass dahinter nur noch der Exception-Typ Platz hatte und die eigentliche
+    // Meldung wegfiel. An 77 echten Einträgen geprüft: 27 werden dadurch
+    // aussagekräftig, 50 ohne solchen Block laufen unverändert weiter.
+    const field = name => {
+      const hit = meaningful.find(l => l.toLowerCase().startsWith(name + ':'));
+      return hit ? hit.substring(name.length + 1).trim() : '';
+    };
+    const type = field('type');
+    const msg = field('message');
+    const hasFields = !!(type || msg);
+
+    let message = hasFields
+      ? [type, msg].filter(Boolean).join(' — ')
+      : (meaningful[0] || clean(raw));
+
+    // Rückfall für Einträge ohne Type/Message-Block: eine Ankündigungszeile mit
+    // der Folgezeile zusammenziehen, sonst sagt die Meldung nichts aus.
+    if (!hasFields && meaningful[1] && message.length < 60 && /:$/.test(message)) {
       message += ' ' + meaningful[1];
     }
-    return message.substring(0, maxLen || 120);
+
+    const limit = maxLen || 120;
+    if (message.length <= limit) return message;
+    // An der letzten Wortgrenze schneiden statt mitten im Wort ("… Sql T").
+    // Der Rückschnitt wird nur genommen, wenn dabei nicht zu viel verlorengeht —
+    // bei einem einzelnen langen Token (Pfad, GUID, Stack-Zeile) gibt es keine
+    // brauchbare Grenze, dann bleibt es beim harten Schnitt.
+    const cut = message.substring(0, limit - 1);
+    const space = cut.lastIndexOf(' ');
+    return (space > (limit - 1) * 0.6 ? cut.substring(0, space) : cut).replace(/\s+$/, '') + '…';
   },
 
   showToast(message, type = 'info') {
