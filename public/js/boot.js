@@ -123,40 +123,20 @@ function toggleNotifications() {
   updateNotifButton();
 }
 
-// Führenden Zeitstempel entfernen. Ohne das besteht der sichtbare Teil einer
-// Benachrichtigung aus Datum und Uhrzeit statt aus dem Fehlertext.
-// Zwei Formate: das Log-Format (30.07.26 16:58:20.123) und das aus JSON-Logs
-// zusammengesetzte (30.7.2026, 16:58:20).
-function stripLeadingTimestamp(line) {
-  return line
-    .replace(/^\s*\d{1,2}\.\d{1,2}\.\d{2,4},?\s+\d{1,2}:\d{2}:\d{2}(\.\d{3})?\s*/, '')
-    .replace(/^[\s\t]+/, '');
-}
-
 // Text der Desktop-Benachrichtigung.
 // Reihenfolge ist entscheidend: Windows kürzt hinten ab. Deshalb steht die
 // Fehlermeldung zuerst und der Dateiname darunter — der darf wegfallen, die
 // Meldung nicht. (Vorher stand der Dateiname vorn und verdrängte mit ~55
 // Zeichen den kompletten Fehlertext.)
-// Nicht einfach die erste Zeile nehmen: Keasy-Einträge bestehen häufig aus
-// "Zeitstempel + Tab", danach mehreren Leerzeilen, und erst dann folgt die
-// eigentliche Meldung. Manche Einträge beginnen zudem mit einer Trennlinie
-// aus "="-Zeichen. Gesucht ist die erste Zeile mit echtem Inhalt.
+// Die Kurzfassung selbst liefert Keasy.utils.entrySummary() — dieselbe Funktion,
+// die auch der Fehler-Index nutzt. Sie schneidet den führenden Zeitstempel ab,
+// überspringt Trennlinien und zieht Ankündigungszeilen mit der Folgezeile
+// zusammen; Keasy-Einträge beginnen sonst mit "Zeitstempel + Tab" und mehreren
+// Leerzeilen, und die Benachrichtigung sagte nichts aus.
 function buildNotificationBody(error) {
-  const raw = error.line || '';
-  const clean = l => stripLeadingTimestamp(l).replace(/\s+/g, ' ').trim();
-  const meaningful = raw
-    .split('\n')
-    .map(clean)
-    .filter(l => l && !/^[=\-_*#~+.]+$/.test(l)); // reine Trennlinien überspringen
-  let message = meaningful[0] || clean(raw);
-  // Ankündigungszeilen wie "Der folgende #Fehler ist aufgetreten:" sagen für sich
-  // genommen nichts — dann die nächste inhaltliche Zeile anhängen.
-  if (meaningful[1] && message.length < 60 && /:$/.test(message)) {
-    message += ' ' + meaningful[1];
-  }
+  const message = Keasy.utils.entrySummary(error.line || '', 180);
   const file = error.file ? `\n${error.file}` : '';
-  return message.substring(0, 180) + file;
+  return message + file;
 }
 
 // Quellenname bevorzugen — im Dashboard denkt man in "VFMService Dienst",
@@ -245,6 +225,10 @@ function initApp() {
 
   // Theme
   initTheme();
+
+  // Fehler-Index: gemerkte Seite und Sichtbarkeit sofort anwenden, sonst steht
+  // die Leiste bis zum ersten renderAll() auf der Vorgabeseite
+  if (Keasy.errorIndex) Keasy.errorIndex.applyIndexLayout();
 
   // Date Filter
   initDateFilters();

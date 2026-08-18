@@ -25,6 +25,9 @@ scripts/          → Build/Dev-Hilfsskripte (update-docs.js etc.)
 | `markConfigDirty()` | `configPanel.js` | Save-Button aktivieren bei Config-Änderungen |
 | `buildConfigFromForm()` | `configPanel.js` | Vollständige Config aus aktuellem Formular-State bauen |
 | `renderAll()` | `render.js` | Fehler-Liste komplett neu rendern |
+| `renderErrorIndex()` | `errorIndexPanel.js` | Fehler-Index (Seitenleiste) neu aufbauen — wird von `renderAll()` aufgerufen |
+| `jumpToEntry(id, event)` | `actions.js` | Zu einem Eintrag springen (klappt Quelle + Datei auf, markiert dauerhaft) |
+| `entrySummary(text, maxLen)` | `utils.js` | Aussagekräftige Kurzfassung eines mehrzeiligen Eintrags — **einzige** Stelle dafür (Benachrichtigung + Index) |
 | `escapeHtml(str)` | `utils.js` | HTML-Entities escapen |
 | `escapeJs(str)` | `utils.js` | JS-String escapen |
 | `getLocalDateStr(date?)` | `utils.js` | Datum als YYYY-MM-DD |
@@ -40,6 +43,7 @@ scripts/          → Build/Dev-Hilfsskripte (update-docs.js etc.)
 - `Keasy.backup.targets` — Backup-Ziele Modul
 - `Keasy.watchPaths` — Watch-Paths Modul
 - `Keasy.threshold` — Schwellwert-Regeln Modul
+- `Keasy.errorIndex` — Fehler-Index (Seitenleiste) Modul
 
 ## ⚠️ Regeln & Anti-Patterns
 
@@ -66,6 +70,10 @@ backupPanel.js → systemCheckPanel.js → trashPanel.js → wsClient.js → boo
 ```
 boot.js initialisiert alles — Event-Listener, Theme, WebSocket-Verbindung.
 
+`errorIndexPanel.js` wird direkt nach `render.js` geladen (`renderAll()` ruft
+`renderErrorIndex()` auf). Die Liste hier ist gekürzt — maßgeblich ist die
+tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft sie.
+
 ## Versionierung & Dokumentation
 - `package.json` Version: `YYYY.MM.DD-HH:MM` Format
 - `README.md` enthält Historie aller Änderungen
@@ -73,7 +81,10 @@ boot.js initialisiert alles — Event-Listener, Theme, WebSocket-Verbindung.
 
 ## Tests
 - Keine automatisierten Unit-Tests vorhanden
-- Smoke-Tests werden manuell / visuell durchgeführt
+- Statische Verdrahtungs-Prüfungen: `node test/priority-wiring.js`,
+  `node test/error-index-wiring.js`, `node test/eviction-priority.js`
+  (kein Server nötig — fangen fehlende DOM-IDs, nicht exportierte Globals
+  und vergessene `<script>`-Tags)
 - Änderungen immer im Browser testen
 
 ## Einsatz & Security-Kontext

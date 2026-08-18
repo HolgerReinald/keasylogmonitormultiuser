@@ -626,6 +626,8 @@
     <span class="controls-separator"></span>
     <button id="clearAllBtn" onclick="clearAll()" title="Alle Einträge löschen (nur Live-Monitoring)" data-admin-only>🗑️ Alle löschen</button>
     <button onclick="pauseToggle()" id="pauseBtn" title="Live-Aktualisierung pausieren (nur Live-Monitoring)">⏸️ Pause</button>
+    <button id="collapseAllBtn" onclick="toggleAllSources()" title="Alle Quellen zuklappen">⊟ Alle zu</button>
+    <button id="indexToggleBtn" onclick="toggleIndexPanel()" aria-pressed="true" title="Fehler-Index ausblenden">🧭 Index</button>
     <input type="text" id="searchInput" placeholder="Suche in Fehler & Dateiname... (Strg+K)" title="Strg+K: Suchfeld fokussieren | Escape: Suche leeren | Wildcard: * (z.B. Exc*tion, KeasyServer*)" oninput="onSearch(this.value)">
     <select id="themeSelect" onchange="onThemeChange(this.value)">
       <option value="theme-light">☀️ Hell</option>
@@ -635,10 +637,26 @@
     <button id="notifToggle" onclick="toggleNotifications()" title="Desktop-Benachrichtigungen ein/aus">🔔</button>
   </div>
 
-  <div id="container">
-    <div class="empty-state" id="emptyState">
-      <h2>✅ Keine Fehler</h2>
-      <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
+  <div class="app-main" id="appMain" data-side="left">
+    <!-- Fehler-Index: Sprungliste, nach Quelle gruppiert -->
+    <nav class="error-index" id="errorIndex" aria-label="Fehler-Index">
+      <div class="index-head">
+        <span class="index-title">🧭 Fehler-Index</span>
+        <button class="index-swap-btn" type="button" onclick="swapIndexSide()" title="Index auf die andere Seite legen" aria-label="Index auf die andere Seite legen">⇄</button>
+        <span class="index-total" id="indexTotal" title="Anzahl Einträge im Index">0</span>
+      </div>
+      <div class="index-filter-row" role="group" aria-label="Dringlichkeit filtern">
+        <button class="index-filter-btn" type="button" id="indexFilterAll" aria-pressed="true" onclick="setIndexSeverity(false)">Alle</button>
+        <button class="index-filter-btn" type="button" id="indexFilterCrit" aria-pressed="false" onclick="setIndexSeverity(true)" title="Nur kritische Fehler auflisten — die Anzeige rechts bleibt vollständig">🔴 Nur kritische</button>
+      </div>
+      <div class="index-scroll" id="indexScroll"></div>
+    </nav>
+
+    <div id="container">
+      <div class="empty-state" id="emptyState">
+        <h2>✅ Keine Fehler</h2>
+        <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
+      </div>
     </div>
   </div>
 
@@ -650,6 +668,7 @@
   <script src="js/utils.js" defer></script>
   <script src="js/state.js" defer></script>
   <script src="js/render.js" defer></script>
+  <script src="js/errorIndexPanel.js" defer></script>
   <script src="js/actions.js" defer></script>
   <script src="js/docsPanel.js" defer></script>
   <script src="js/cssEditorPanel.js" defer></script>

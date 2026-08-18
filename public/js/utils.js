@@ -107,6 +107,35 @@ window.Keasy.utils = {
     return map[level] || map.normal;
   },
 
+  // Zeitstempel am Zeilenanfang entfernen ("18.08.26 13:27:11.204<TAB>…")
+  stripLeadingTimestamp(line) {
+    return line
+      .replace(/^\s*\d{1,2}\.\d{1,2}\.\d{2,4},?\s+\d{1,2}:\d{2}:\d{2}(\.\d{3})?\s*/, '')
+      .replace(/^[\s\t]+/, '');
+  },
+
+  // Aussagekräftige Kurzfassung eines mehrzeiligen Eintrags.
+  // Gemeinsame Grundlage von Desktop-Benachrichtigung (boot.js) und Fehler-Index
+  // (errorIndexPanel.js) — zwei getrennte Implementierungen würden auseinanderlaufen,
+  // und dann stünde in der Benachrichtigung etwas anderes als in der Liste.
+  // Keasy-Einträge bestehen typischerweise aus "Zeitstempel + Tab", mehreren
+  // Leerzeilen und erst danach der Meldung; manche beginnen mit einer ====-Trennlinie.
+  entrySummary(text, maxLen) {
+    const clean = l => Keasy.utils.stripLeadingTimestamp(l).replace(/\s+/g, ' ').trim();
+    const raw = String(text || '');
+    const meaningful = raw
+      .split('\n')
+      .map(clean)
+      .filter(l => l && !/^[=\-_*#~+.]+$/.test(l)); // reine Trennlinien überspringen
+    let message = meaningful[0] || clean(raw);
+    // Ankündigungszeilen wie "Der folgende #Fehler ist aufgetreten:" sagen für sich
+    // genommen nichts — dann die nächste inhaltliche Zeile anhängen.
+    if (meaningful[1] && message.length < 60 && /:$/.test(message)) {
+      message += ' ' + meaningful[1];
+    }
+    return message.substring(0, maxLen || 120);
+  },
+
   showToast(message, type = 'info') {
     let container = document.getElementById('toast-container');
     if (!container) {

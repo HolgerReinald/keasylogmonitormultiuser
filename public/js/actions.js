@@ -43,6 +43,45 @@ function toggleSource(header, label) {
   localStorage.setItem('keasy-collapsed-sources', JSON.stringify(state.collapsedSources));
   const arrow = header.querySelector('.toggle-arrow');
   if (arrow) arrow.textContent = isCollapsed ? '▶' : '▼';
+  // Die Seitenleiste folgt: EIN Auf-/Zu-Zustand je Quelle, nicht zwei.
+  // Sonst zeigen Hauptansicht und Index verschiedene Wahrheiten.
+  if (Keasy.errorIndex) Keasy.errorIndex.renderErrorIndex();
+  updateCollapseAllButton();
+}
+
+// Alle Quellen auf einmal zu- oder aufklappen. Zielzustand: ist irgendeine
+// Quelle offen, werden alle zugeklappt — sonst alle aufgeklappt.
+// Setzt den Zustand gebündelt und schreibt einmal in den localStorage,
+// statt toggleSource je Quelle aufzurufen (das würde N-mal neu rendern).
+function toggleAllSources() {
+  const headers = [...document.querySelectorAll('.source-header[data-collapse-key]')];
+  if (headers.length === 0) return;
+
+  const collapseAll = headers.some(h => !h.nextElementSibling.classList.contains('collapsed'));
+
+  for (const header of headers) {
+    const content = header.nextElementSibling;
+    if (content.classList.contains('collapsed') === collapseAll) continue; // schon im Ziel
+    content.classList.toggle('collapsed', collapseAll);
+    const arrow = header.querySelector('.toggle-arrow');
+    if (arrow) arrow.textContent = collapseAll ? '▶' : '▼';
+    state.collapsedSources[header.dataset.collapseKey] = collapseAll;
+  }
+
+  localStorage.setItem('keasy-collapsed-sources', JSON.stringify(state.collapsedSources));
+  if (Keasy.errorIndex) Keasy.errorIndex.renderErrorIndex();
+  updateCollapseAllButton();
+}
+
+// Beschriftung sagt, was der Klick tut — nicht, wie der Zustand gerade ist.
+function updateCollapseAllButton() {
+  const btn = document.getElementById('collapseAllBtn');
+  if (!btn) return;
+  const headers = [...document.querySelectorAll('.source-header[data-collapse-key]')];
+  btn.disabled = headers.length === 0;
+  const anyOpen = headers.some(h => !h.nextElementSibling.classList.contains('collapsed'));
+  btn.textContent = anyOpen ? '⊟ Alle zu' : '⊞ Alle auf';
+  btn.title = anyOpen ? 'Alle Quellen zuklappen' : 'Alle Quellen aufklappen';
 }
 
 // Eintragsliste einer Datei einblenden und den ersten kritischen Eintrag zurückgeben
@@ -50,6 +89,43 @@ function expandAndFindCritical(fileGroup) {
   const list = fileGroup.querySelector('.error-list');
   if (list) list.style.display = 'block';
   return fileGroup.querySelector('.error-entry.sev-kritisch');
+}
+
+// Gemeinsamer Abschluss aller Sprünge: Liste einblenden, markieren, hinscrollen,
+// kurz aufblitzen. Eine Stelle, damit Alarmknopf und Fehler-Index nicht zwei
+// verschiedene Sprungmechaniken haben.
+function focusEntry(target) {
+  if (!target) return;
+  const list = target.closest('.error-list');
+  if (list) list.style.display = 'block';
+
+  // Dauerhafte Markierung über die Objektreferenz merken — sie überlebt den
+  // Neuaufbau durch renderAll(), eine Element-ID täte das nicht.
+  const nav = state.navEntries.find(n => n.id === target.id);
+  state.currentEntry = nav ? { ref: nav.ref, filePath: nav.filePath } : null;
+  if (Keasy.errorIndex) Keasy.errorIndex.applyCurrentEntry();
+
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Aufblitzen neu starten, auch wenn derselbe Eintrag erneut angesprungen wird
+  target.classList.remove('jump-flash');
+  void target.offsetWidth;
+  target.classList.add('jump-flash');
+}
+
+// Sprung aus dem Fehler-Index. Klappt die Quelle auf, falls sie zu ist —
+// toggleSource() merkt sich den Zustand, deshalb nicht direkt am DOM drehen.
+function jumpToEntry(entryId, event) {
+  if (event) event.stopPropagation();
+  const target = document.getElementById(entryId);
+  if (!target) return;
+
+  const sourceGroup = target.closest('.source-group');
+  const content = sourceGroup && sourceGroup.querySelector('.source-content');
+  if (content && content.classList.contains('collapsed')) {
+    const nav = state.navEntries.find(n => n.id === entryId);
+    toggleSource(sourceGroup.querySelector('.source-header'), nav ? nav.collapseKey : '');
+  }
+  focusEntry(target);
 }
 
 // 🚨-Alarmknopf: zum ersten kritischen Eintrag springen.
@@ -75,12 +151,7 @@ function jumpToCritical(btn, event, label) {
     if (firstCriticalFile) target = expandAndFindCritical(firstCriticalFile);
   }
 
-  if (!target) return;
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  // Aufblitzen neu starten, auch wenn derselbe Eintrag erneut angesprungen wird
-  target.classList.remove('jump-flash');
-  void target.offsetWidth;
-  target.classList.add('jump-flash');
+  focusEntry(target);
 }
 
 function clearAll() {
@@ -301,7 +372,7 @@ window.Keasy.actions = {
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
   copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
-  jumpToCritical
+  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
 };
 
 Object.assign(window, {
@@ -309,6 +380,6 @@ Object.assign(window, {
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
   copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
-  jumpToCritical
+  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
 });
 })();

@@ -4,6 +4,18 @@ window.Keasy = window.Keasy || {};
 const { state } = Keasy;
 const { escapeHtml, escapeJs, highlightPatterns, highlightSearch } = Keasy.utils;
 
+// Attributwert absichern. escapeHtml() lässt Anführungszeichen stehen, und
+// Quellen-Labels sind frei konfigurierbar — ein " im Label würde sonst das
+// data-collapse-key-Attribut sprengen.
+const attr = s => escapeHtml(String(s)).replace(/"/g, '&quot;');
+
+
+// Laufende Nummer der Eintrags-IDs, bei jedem renderAll() zurückgesetzt.
+// Die IDs müssen über einen Neuaufbau hinweg NICHT stabil sein — der
+// angesprungene Eintrag wird über die Objektreferenz wiedergefunden.
+let entryIdCounter = 0;
+
+
 function updateBrowserTitle() {
   if (state.criticalErrors > 0) {
     document.title = `🔴 (${state.criticalErrors}/${state.totalErrors}) Keasy Log Monitor`;
@@ -104,7 +116,11 @@ function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, ex
 // Fehler-Eintrag mit Zeile-öffnen/Kopieren/Copilot-Buttons (Live und Analyse)
 // Dringlichkeit: nur Abweichungen vom Standard erzeugen Markup — 'normal' rendert
 // exakt wie vor Einführung der Prioritätsregeln (keine Klasse, kein Badge).
-function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze) {
+// Jeder Eintrag bekommt zusätzlich eine ID und einen Datensatz in state.navEntries —
+// das ist die Grundlage des Fehler-Index. Bewusst hier und nicht in einem zweiten
+// Durchlauf: die Schleifen über die gefilterten Einträge existieren bereits, und so
+// zeigt der Index garantiert dieselbe Menge wie die Anzeige.
+function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze, label) {
   const time = new Date(err.timestamp).toLocaleTimeString('de-DE');
   const errTextEscaped = escapeJs(err.line.split('\n')[0]);
   const sev = Keasy.utils.severityMeta(Keasy.utils.entryLevel(err));
@@ -112,8 +128,25 @@ function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze) {
   const sevBadge = sev.icon
     ? `<span class="sev-badge sev-badge-kritisch" title="Dringlichkeit: ${sev.label}">${sev.icon} ${sev.label}</span>`
     : '';
+
+  const entryId = `err-${entryIdCounter++}`;
+  state.navEntries.push({
+    id: entryId,
+    ref: err,
+    filePath,
+    isAnalyze,
+    label: label || 'Sonstige',
+    // Schlüssel, unter dem renderAll() den Auf-/Zu-Zustand der Quelle merkt —
+    // jumpToEntry() braucht ihn, um über toggleSource() aufzuklappen
+    collapseKey: isAnalyze ? `analyze:${label}` : label,
+    level: Keasy.utils.entryLevel(err),
+    time,
+    file: err.file || filePath.split('\\').pop(),
+    summary: Keasy.utils.entrySummary(err.line, 120)
+  });
+
   return `
-          <div class="error-entry${sevClass}">
+          <div class="error-entry${sevClass}" id="${entryId}">
             <div class="error-time">
               ${sevBadge}${time}
               <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
@@ -143,6 +176,10 @@ function buildGapEntryHtml(filePath, entry) {
 
 function renderAll() {
   const container = document.getElementById('container');
+  // Index-Daten bei jedem Durchlauf neu sammeln — sie entstehen in
+  // buildErrorEntryHtml() und spiegeln damit exakt die angezeigte Menge.
+  state.navEntries = [];
+  entryIdCounter = 0;
   const keys = Object.keys(state.errors).filter(k => state.errors[k].length > 0);
   const analyzeKeys = Object.keys(state.analyzeErrors).filter(k => state.analyzeErrors[k].length > 0);
   const perfKeys = Object.keys(state.performanceEntries).filter(k => state.performanceEntries[k].length > 0);
@@ -158,6 +195,8 @@ function renderAll() {
         <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
       </div>`;
     updateLiveControlStates(0);
+    renderErrorIndex();
+  updateCollapseAllButton();
     renderTrash();
     if (window.Keasy && window.Keasy.auth && window.Keasy.auth.applyUserRole) {
       window.Keasy.auth.applyUserRole();
@@ -238,7 +277,7 @@ function renderAll() {
       let fileCriticalCount = 0;
       for (const err of [...filtered].reverse()) {
         if (Keasy.utils.entryLevel(err) === 'kritisch') fileCriticalCount++;
-        entriesHtml += buildErrorEntryHtml(filePath, err, state.errors[filePath].indexOf(err), false);
+        entriesHtml += buildErrorEntryHtml(filePath, err, state.errors[filePath].indexOf(err), false, label);
       }
       groupCriticalCount += fileCriticalCount;
       // „Kritisch schlägt aktuellste": .file-group.has-kritisch (zwei Klassen)
@@ -273,7 +312,7 @@ function renderAll() {
 
     html += `
       <div class="source-group">
-        <div class="source-header" onclick="toggleSource(this, '${escapeJs(label)}')">
+        <div class="source-header" data-collapse-key="${attr(label)}" onclick="toggleSource(this, '${escapeJs(label)}')">
           <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(label)}${isPaused ? ' (pausiert)' : ''}</span>
           <div class="source-actions">
             ${emailBtn}
@@ -324,7 +363,7 @@ function renderAll() {
         const isCollapsed = (state.searchTerm && groupCount > 0) ? false : state.collapsedSources[collapseKey] === true;
         html += `
           <div class="source-group performance-source">
-            <div class="source-header performance-header" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
+            <div class="source-header performance-header" data-collapse-key="${attr(collapseKey)}" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
               <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ⏱️ ${escapeHtml(label)} <span style="font-size:0.85em; opacity:0.7;">(Performance)</span></span>
               <div class="source-actions">
                 <button class="action-btn" title="Performance-Einträge dieser Quelle löschen" onclick="clearPerformanceSource('${escapeJs(label)}', event)" data-admin-only>🗑️</button>
@@ -377,7 +416,7 @@ function renderAll() {
             entriesHtml += buildGapEntryHtml(filePath, err);
           } else {
             if (Keasy.utils.entryLevel(err) === 'kritisch') fileCriticalCount++;
-            entriesHtml += buildErrorEntryHtml(filePath, err, state.analyzeErrors[filePath].indexOf(err), true);
+            entriesHtml += buildErrorEntryHtml(filePath, err, state.analyzeErrors[filePath].indexOf(err), true, label);
           }
         }
         groupCriticalCount += fileCriticalCount;
@@ -398,7 +437,7 @@ function renderAll() {
         const groupGapBadge = groupGapCount > 0 ? `<span class="source-badge gap-badge" title="Anzahl Performance-Gaps (Analyse)">⏱️ ${groupGapCount}</span>` : '';
         html += `
           <div class="source-group analyze-source">
-            <div class="source-header analyze-header" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
+            <div class="source-header analyze-header" data-collapse-key="${attr(collapseKey)}" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
               <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(label)}${analyzeUserHint}</span>
               <div class="source-actions">
                 <button class="action-btn"${clearDisabled} onclick="clearAnalyzeSource('${escapeJs(label)}', event)">🗑️</button>
@@ -424,6 +463,8 @@ function renderAll() {
         <p>Kein Fehler-Eintrag passt zum Filter/Zeitraum.</p>
       </div>`;
     updateLiveControlStates(0);
+    renderErrorIndex();
+  updateCollapseAllButton();
     renderTrash();
     if (window.Keasy && window.Keasy.auth && window.Keasy.auth.applyUserRole) {
       window.Keasy.auth.applyUserRole();
@@ -437,6 +478,8 @@ function renderAll() {
   updateBrowserTitle();
   container.innerHTML = html;
   updateLiveControlStates(liveTotal);
+  renderErrorIndex();
+  updateCollapseAllButton();
   renderTrash();
   // Re-apply admin-only restrictions to dynamically rendered buttons
   if (window.Keasy && window.Keasy.auth && window.Keasy.auth.applyUserRole) {

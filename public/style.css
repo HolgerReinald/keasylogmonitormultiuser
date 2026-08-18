@@ -687,15 +687,8 @@ body.theme-blue .performance-header {
   background: color-mix(in srgb, var(--sev-critical) 26%, var(--file-header-bg));
 }
 
-/* Kurzes Aufblitzen des angesprungenen Eintrags (nur per Klick ausgelöst) */
-@keyframes jumpFlash {
-  0%, 100% { box-shadow: none; }
-  25%      { box-shadow: 0 0 0 3px var(--sev-critical); }
-}
-
-.error-entry.jump-flash {
-  animation: jumpFlash 1.2s ease;
-}
+/* Aufblitzen und Markierung des angesprungenen Eintrags stehen am Ende der
+   Datei im Abschnitt "Fehler-Index" — sie sind bewusst nicht mehr rot codiert. */
 
 /* Sortier-Buttons der Prioritätsregeln */
 .rule-move-btn[disabled] {
@@ -2521,3 +2514,308 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 }
 .docs-section-body { padding: 4px 14px 12px; }
 
+
+/* ===================================================================
+   Fehler-Index (Seitenleiste)
+   Kompakte Sprungliste neben der Fehleranzeige, gruppiert nach Quelle.
+   Bewusst am Ende der Datei: .error-entry.is-current muss .sev-kritisch
+   schlagen, und beide haben zwei Klassen — bei gleicher Spezifitaet
+   gewinnt die spaetere Regel, ganz ohne !important.
+   =================================================================== */
+
+.app-main {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.app-main[data-side="right"] { flex-direction: row-reverse; }
+.app-main[data-side="off"] .error-index { display: none; }
+
+#container { flex: 1; min-width: 0; }
+
+.error-index {
+  flex: 0 0 300px;
+  align-self: flex-start;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.index-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--file-header-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.index-title { flex: 1; min-width: 0; }
+
+.index-total {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  padding: 0 7px;
+  font-size: 0.72rem;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.index-swap-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 3px 7px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.index-swap-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Dringlichkeits-Filter ueber die volle Breite. Als kleine Pille im Kopf
+   wurde er schlicht uebersehen — ein Bedienelement, das man suchen muss,
+   ist keins. Er filtert nur den Index, die Anzeige bleibt vollstaendig. */
+.index-filter-row {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.index-filter-btn {
+  flex: 1;
+  font: inherit;
+  font-size: 0.76rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.index-filter-btn:hover { background: var(--file-group-bg); }
+
+.index-filter-btn[aria-pressed="true"] {
+  background: var(--file-header-bg);
+  border-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+#indexFilterCrit[aria-pressed="true"] {
+  border-color: var(--sev-critical);
+  color: var(--sev-critical);
+}
+
+.index-scroll {
+  overflow-y: auto;
+  padding: 0 4px 4px;
+  flex: 1;
+}
+
+/* Quellen-Kopf bleibt beim Scrollen stehen — sonst weiss man nach ein paar
+   Zeilen nicht mehr, in welchem Watchpath man gerade liest. Genau das
+   macht eine Sprungliste ueber mehrere Watchpaths sonst wertlos. */
+.idx-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 8px;
+  margin-top: 4px;
+  background: var(--file-header-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.idx-group-head:hover { background: var(--file-header-hover); }
+.idx-group-head.is-analyze { background: var(--bg-tertiary); }
+.idx-group-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idx-group-meta { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.idx-arrow { color: var(--text-muted); }
+.idx-group-crit { color: var(--sev-critical); font-weight: 700; font-size: 0.72rem; }
+
+.idx-count {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zeitspalte vom Inhalt bestimmen lassen: eine feste Pixelbreite ist zu
+   schmal fuer "13:28:02" in der Monospace-Schrift — die Uhrzeit lief ueber
+   und verschluckte den Spaltenabstand. Alle Zeiten sind gleich breit
+   (tabular-nums), die Spalten fluchten also trotzdem. Wichtig, weil die
+   Schriftgroesse ueber den CSS-Editor aenderbar ist. */
+.idx-row {
+  display: grid;
+  grid-template-columns: 20px max-content 1fr;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 5px 7px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.idx-row:hover { background: var(--file-group-bg); }
+
+.idx-nr {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.idx-time {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.idx-text { font-size: 0.76rem; line-height: 1.35; min-width: 0; }
+
+/* Nur die Meldung wird auf zwei Zeilen begrenzt. Laege die Begrenzung auf
+   dem ganzen Block, verschwaende bei zweizeiliger Meldung der Dateiname —
+   also genau die Herkunftsangabe, wegen der nach Quelle gruppiert wird. */
+.idx-msg {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.idx-origin {
+  display: block;
+  font-size: 0.67rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.idx-row.lvl-kritisch { border-left-color: var(--sev-critical); }
+.idx-row.lvl-kritisch .idx-msg { color: var(--sev-critical); font-weight: 600; }
+.idx-row.lvl-gering { opacity: 0.62; }
+
+/* Aktive Zeile wie der Eintrag rechts codiert: Helligkeit, Form, dann Farbe.
+   --file-header-bg lag in den dunklen Themes zu nah an --bg-secondary und
+   war in Graustufen praktisch unsichtbar. */
+.idx-row.is-active {
+  background: var(--bg-tertiary);
+  border-left-color: var(--accent);
+  border-left-width: 5px;
+  padding-left: 5px;
+}
+
+.idx-row.is-active .idx-msg { text-decoration: underline; text-underline-offset: 2px; }
+
+.idx-empty {
+  padding: 16px 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Angesprungener Eintrag — bleibt markiert, bis der naechste angesprungen wird.
+   Ein reines Aufblitzen war nach gut einer Sekunde weg; danach war nicht mehr
+   zu sehen, wo man gelandet ist.
+
+   Bewusst NICHT rot: die Anzeige ist ohnehin rot dominiert, ein roter Rahmen
+   auf rotem Grund traegt kaum Information — bei Rot-Gruen-Sehschwaeche gar
+   keine. Wie bei den Prioritaetsregeln deshalb redundant codiert, zwei der
+   drei Signale kommen ohne Farbe aus:
+     1. Helligkeit — --bg-tertiary hebt sich in allen drei Themes deutlich von
+        --error-entry-bg ab (in Graustufen pruefbar)
+     2. Form — Rahmen rundum plus doppelt dicker linker Balken
+     3. Farbe — Akzent, die einzige Nicht-Rot-Farbe der Fehleranzeige
+   Nebenwirkung bei kritischen Eintraegen: die Markierung ueberschreibt deren
+   roten Grund. Die Dringlichkeit bleibt ueber das ausgeschriebene Abzeichen
+   "Kritisch" ablesbar — genau dafuer ist es redundant codiert. */
+.error-entry.is-current {
+  background: var(--bg-tertiary);
+  border-left-width: 6px;
+  border-left-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Kurzer Puls beim Ankommen, ebenfalls im Akzent statt in Rot. Nur ein
+   Zusatz: die Markierung oben traegt die Information auch ohne ihn. */
+@keyframes jumpFlashAccent {
+  0%, 100% { box-shadow: none; }
+  30%      { box-shadow: 0 0 0 6px var(--accent); }
+}
+
+.error-entry.jump-flash { animation: jumpFlashAccent 0.9s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .error-entry.jump-flash { animation: none; }
+}
+
+/* Ab hier wird die Seitenleiste zum Platzraeuber — die Fehlertexte sind
+   breit und mehrzeilig. Der Knopf bleibt bedienbar, die Leiste ist nur aus. */
+@media (max-width: 1100px) {
+  .error-index { display: none; }
+}
+
+/* Quellen-Kopf bleibt beim Scrollen der Hauptansicht stehen — dieselbe
+   Begruendung wie in der Seitenleiste: mitten in einem langen Stack-Trace
+   soll ablesbar bleiben, in welchem Watchpath man liest. Wirkt auch dann,
+   wenn der Index ausgeblendet oder das Fenster zu schmal fuer ihn ist.
+
+   Bewusst nur diese eine Ebene. Die Steuerleiste bricht auf schmalen
+   Fenstern in mehrere Reihen um und wuerde klebend dauerhaft ein Viertel
+   der Hoehe fressen; der Dateiname steht ohnehin in jeder Index-Zeile.
+
+   Der Hintergrund ist mit var(--accent) bereits deckend — bei einem
+   durchscheinenden Kopf wuerde der Text darunter hindurchlaufen. */
+.source-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* Seitenleiste buendig zum gleichen Anschlag, sonst stehen die beiden
+   klebenden Elemente nebeneinander auf verschiedener Hoehe. */
+.error-index {
+  top: 0;
+  max-height: calc(100vh - 12px);
+}

@@ -33,6 +33,19 @@ window.Keasy.state = {
   performanceEntries: {},
   performanceLabels: {},
 
+  // Fehler-Index (Seitenleiste)
+  // navEntries wird bei jedem renderAll() neu aufgebaut und hält je Eintrag eine
+  // Referenz auf das Fehler-Objekt. Darüber wird der angesprungene Eintrag nach
+  // einem Neuaufbau wiedergefunden — eine laufende Nummer taugt dafür nicht,
+  // weil sich die Reihenfolge mit jedem neuen Fehler verschiebt.
+  navEntries: [],
+  currentEntry: null,
+  indexVisible: localStorage.getItem('keasy-index-visible') !== 'off',
+  indexSide: localStorage.getItem('keasy-index-side') === 'right' ? 'right' : 'left',
+  indexCritOnly: localStorage.getItem('keasy-index-crit') === 'on',
+  // Auf-/Zu-Zustand der Quellen teilt sich der Index mit der Hauptansicht
+  // (collapsedSources weiter oben) — zwei Gedächtnisse liefen auseinander.
+
   // Papierkorb
   trashData: {},
   trashTotalCount: 0,

@@ -82,8 +82,10 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **Einträge löschen pro Quelle:** Fehleranzeige einer einzelnen Quelle leeren (berücksichtigt Datumsfilter)
 - **Monitor beenden:** Server direkt über das Dashboard stoppen (kein manuelles CMD-Schließen nötig)
 - **Suche:** Volltextsuche mit Wildcard-Unterstützung (`*`) und **gelber Treffer-Markierung** — klappt automatisch nur Quellen mit Treffern auf. Shortcut: `Strg+K` (fokussiert + selektiert), `Escape` (leert + verlässt)
+- **🧭 Fehler-Index:** Seitenleiste mit allen Fehlern als Sprungliste, gruppiert nach Quelle und je Quelle neu nummeriert. Ein Klick klappt Quelle und Datei auf, scrollt zum Eintrag und markiert ihn dauerhaft. Der Quellen-Kopf bleibt beim Scrollen stehen. Filter `Alle` / `🔴 Nur kritische` wirkt nur auf die Navigation — die Anzeige bleibt vollständig. Ein-/ausblendbar (`🧭 Index`), links oder rechts (`⇄`), Zustand wird gespeichert. Enthält Live-Fehler immer und Analyse-Treffer, sobald welche vorliegen; ⏱️-Lücken nie
+- **⊟ Alle zu / ⊞ Alle auf:** Alle Quellen auf einen Schlag ein- oder ausklappen
 - **E-Mail-Benachrichtigung:** Gesammelter E-Mail-Versand per SMTP pro Quelle mit Countdown-Timer
-- **Einklappbare Sektionen:** Quellen und Dateigruppen ein-/ausklappbar (Zustand wird gespeichert)
+- **Einklappbare Sektionen:** Quellen und Dateigruppen ein-/ausklappbar (Zustand wird gespeichert). Hauptansicht und Fehler-Index teilen sich denselben Zustand — ein Klick wirkt in beiden
 - **⚙️ Einstellungen im Dashboard:** Alle Config-Werte direkt im Browser bearbeiten (kein Editor nötig)
 - **🎨 Live CSS-Editor:** CSS direkt im Dashboard bearbeiten mit Live-Vorschau. Speichern-Button erst aktiv nach Änderungen. Backup und Standard-Wiederherstellung integriert
 - **📂 Log-Analyse:** Einmalige Analyse von Log-Dateien ohne Watcher — historische Logs oder Anwender-Logs auswerten. Streaming-Read für große Dateien, eigener Store getrennt vom Live-Monitoring, Abbrechen-Option, Fortschrittsanzeige
@@ -368,6 +370,8 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | 📅 Von / Bis | Zeitraum-Filter — nur Fehler aus diesem Datumsbereich anzeigen (wechselt automatisch um Mitternacht) |
 | 🗑️ Alle löschen | Löscht nur Live-Einträge im gewählten Zeitraum — ohne Datumsfilter werden alle gelöscht (Analyse nicht betroffen) |
 | ⏸️ Pause | Stoppt die Live-Aktualisierung global |
+| ⊟ Alle zu / ⊞ Alle auf | Klappt alle Quellen zu bzw. auf. Ist irgendeine offen, klappt der Knopf alle zu — die Beschriftung sagt, was der Klick tut |
+| 🧭 Index | Blendet den Fehler-Index (Seitenleiste) ein oder aus |
 | ⬇️ Neueste | Scrollt zum neuesten Fehler |
 | 🔍 Suche | Volltextsuche mit Wildcard-Unterstützung (`*`) — klappt Quellen mit Treffern automatisch auf |
 | ☀️/🌙/🔵 Theme | Wechsel zwischen Hell, Dunkel und Blau (wird gespeichert) |
@@ -393,6 +397,24 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | 📋 Kopieren | Fehlertext in die Zwischenablage kopieren |
 | 🤖 Develop | Fehler als `copilot-error-context.md` ins Develop-Verzeichnis exportieren |
 | 🚀 Release | Fehler als `copilot-error-context.md` ins Release-Verzeichnis exportieren (grün) |
+
+### 🧭 Fehler-Index (Seitenleiste)
+
+Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Menge** wie die Anzeige — Suche und Zeitraumfilter wirken automatisch mit.
+
+| Element | Funktion |
+|---|---|
+| ⇄ | Legt die Seitenleiste auf die andere Seite (links/rechts, wird gespeichert) |
+| Alle / 🔴 Nur kritische | Filtert die **Navigation**, nicht die Daten — die Anzeige rechts bleibt vollständig |
+| ▼/▶ Quellen-Kopf | Klappt die Quelle auf/zu — wirkt zugleich in der Hauptansicht |
+| Klick auf eine Zeile | Klappt Quelle und Datei auf, scrollt zum Eintrag und markiert ihn |
+
+- **Gruppiert nach Quelle**, je Quelle neu nummeriert. Eine fortlaufende Nummer über alle Watchpaths würde eine Reihenfolge behaupten, die es nicht gibt
+- **Der Quellen-Kopf klebt** beim Scrollen — sowohl in der Liste als auch in der Hauptansicht. Sonst ist mitten in einem langen Stack-Trace unklar, in welchem Watchpath man liest
+- **Die Beschriftung** wird aus dem Eintrag berechnet (`Keasy.utils.entrySummary`) — dieselbe Funktion, die auch die Desktop-Benachrichtigung füllt: Zeitstempel abschneiden, Trennlinien überspringen, Ankündigungszeilen wie „Der folgende #Fehler ist aufgetreten:" mit der Folgezeile zusammenziehen
+- **Der angesprungene Eintrag bleibt markiert**, bis der nächste angesprungen wird — bewusst nicht rot, sondern über Helligkeit, Rahmen und Akzentfarbe (siehe Historie)
+- **Umfang ist eine Regel, keine Einstellung:** Live-Fehler immer, Analyse-Treffer sobald welche vorliegen, ⏱️-Lücken nie
+- Unterhalb von 1100 px Fensterbreite blendet sich die Leiste aus — die Fehlertexte brauchen dort den Platz
 
 ### Sonstiges
 
@@ -467,6 +489,61 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-18 — 🧭 Fehler-Index: Sprungliste statt Scrollen
+
+Der Weg **zum nächsten Fehler** kostete unverhältnismäßig viel Zeit. Ursache war die Struktur der Anzeige: Quelle → Datei → Einträge, wobei die Eintragslisten zugeklappt starten (`.error-list` wird mit `display:none` gerendert). Man klappte also eine Datei auf, scrollte durch mehrzeilige Stack-Traces, und der nächste Fehler lag weit darunter. Bei ~90 Einträgen über vier Quellen war das der Hauptzeitfresser.
+
+Neu ist eine **Seitenleiste mit allen Fehlern als Sprungliste**, gruppiert nach Quelle. Ein Klick klappt Quelle und Datei auf, scrollt zum Eintrag und markiert ihn.
+
+**Vorlage und Entscheidungen** wurden vorab an einem bedienbaren Mockup getroffen, nicht im Code. Drei Gliederungen standen zur Wahl (nach Quelle / flach chronologisch / Baum Quelle→Datei→Eintrag); es wurde **nach Quelle** — bei fünf Watchpaths bleibt das überschaubar, während der Baum das Auf- und Zuklappen nur in die Seitenleiste verlagert hätte.
+
+**Verworfen: eine Vor/Zurück-Leiste** `‹ 12/91 ›`. Sie war als billige Vorstufe geplant (~1 h, kein Layout-Eingriff) und wurde am Mockup abgelehnt: sie steppt quer über alle Watchpaths, und ohne Angabe der Quelle ist der Sprung wertlos — bei einer einzigen Log-Datei tragfähig, bei fünf Quellen nicht. Aus demselben Grund wird **je Quelle neu nummeriert**: eine fortlaufende Nummer über vier Watchpaths behauptet eine Reihenfolge, die es nicht gibt.
+
+**Umfang ist eine Regel, keine Einstellung.** Live-Fehler immer, Analyse-Treffer sobald welche da sind, ⏱️-Lücken nie. Weil die Analyse bewusst gestartet wird, braucht es dafür keinen Schalter — der Index folgt einfach der Anzeige. Das ist *weniger* Code als eine Einstellung „nur Live", die eine Filterbedingung bräuchte. Lücken bleiben außen vor: sie sind keine Fehler und haben keine Dringlichkeitsstufe.
+
+**Keine zweite Textaufbereitung.** Die Kurzfassung im Index entsteht mit derselben Logik, die schon die Desktop-Benachrichtigung füllt — dafür wanderte `buildNotificationBody()` aus `boot.js` als `Keasy.utils.entrySummary()` in die Utilities (Zeitstempel abschneiden, Trennlinien überspringen, Ankündigungszeile wie „Der folgende #Fehler ist aufgetreten:" mit der Folgezeile zusammenziehen). Zwei Implementierungen wären auseinandergelaufen, und dann stünde in der Benachrichtigung etwas anderes als in der Liste.
+
+**Keine zweite Sprungmechanik.** `jumpToCritical()` (🚨-Alarmknopf) und der neue `jumpToEntry()` teilen sich `focusEntry()`. Beide klappen die Quelle über `toggleSource()` auf, damit der gemerkte Auf-/Zu-Zustand nicht umgangen wird.
+
+**Kein zweiter Durchlauf über die Daten.** `state.navEntries` wird in `buildErrorEntryHtml()` gefüllt — also in den Schleifen, die die Anzeige ohnehin baut. Der Index zeigt dadurch garantiert dieselbe gefilterte Menge wie die Anzeige; Suche und Zeitraumfilter wirken automatisch mit.
+
+**Das Sprungziel ist nicht mehr rot.** Bisher blitzte der angesprungene Eintrag in `--sev-critical` auf — auf einer ohnehin rot dominierten Anzeige trug das kaum Information, bei Rot-Grün-Sehschwäche gar keine. Und nach 1,2 s war es weg, danach war nicht mehr zu sehen, wo man gelandet war. Jetzt **bleibt** die Markierung stehen und ist wie bei den Prioritätsregeln redundant codiert; zwei der drei Signale kommen ohne Farbe aus:
+
+1. **Helligkeit** — `--bg-tertiary` hebt sich in allen drei Themes deutlich von `--error-entry-bg` ab (in Graustufen prüfbar; `--file-header-bg` tat das *nicht*, es liegt in Dunkel und Blau zu nah an `--bg-secondary`)
+2. **Form** — Rahmen rundum plus doppelt dicker linker Balken
+3. **Farbe** — Akzent, die einzige Nicht-Rot-Farbe der Fehleranzeige
+
+Bei kritischen Einträgen überschreibt die Markierung deren roten Grund. Die Dringlichkeit bleibt über das ausgeschriebene Abzeichen „🔴 Kritisch" ablesbar — genau dafür ist es redundant codiert.
+
+**Nachgereicht nach der Erprobung — ein Auf-/Zu-Zustand, nicht zwei.** Der Index brachte zunaechst ein eigenes Gedaechtnis fuer eingeklappte Quellen mit (`indexCollapsed`). Damit liefen Hauptansicht und Seitenleiste auseinander: ein Klick auf den Watchpath in der Anzeige liess die Gruppe im Index unberuehrt. Beide teilen sich jetzt `state.collapsedSources` — der Index-Kopf sucht den Quellen-Kopf ueber ein neues `data-collapse-key` und ruft `toggleSource()` auf. Zustand, Pfeil und Persistenz werden dadurch an genau einer Stelle gepflegt; das ist weniger Code als vorher.
+
+**Ausserdem neu: `⊟ Alle zu` / `⊞ Alle auf`** in der Steuerleiste — klappt alle Quellen auf einen Schlag zu oder auf. Ist irgendeine offen, klappt der Knopf alle zu, sonst alle auf; die Beschriftung sagt, was der Klick tut. Der Zustand wird gebuendelt gesetzt und einmal geschrieben, statt `toggleSource()` je Quelle aufzurufen (das wuerde N-mal neu rendern).
+
+**Und der Quellen-Kopf klebt jetzt auch in der Hauptansicht** (`position: sticky`) — mitten in einem langen Stack-Trace bleibt ablesbar, in welchem Watchpath man liest. Bewusst nur diese eine Ebene: die Steuerleiste bricht auf schmalen Fenstern in mehrere Reihen um und wuerde klebend dauerhaft ein Viertel der Hoehe fressen, und der Dateiname steht ohnehin in jeder Index-Zeile. Ohne Schalter — eine klebende Zeile hat keinen Nachteil, der eine Einstellung rechtfertigt.
+
+**Bedienung** — drei Elemente, alle merken sich ihren Zustand in `localStorage`:
+
+| | wo | was |
+|---|---|---|
+| 🧭 Index | Steuerleiste | Seitenleiste ein/aus |
+| ⇄ | Kopf der Seitenleiste | links oder rechts |
+| Alle / 🔴 Nur kritische | Filterzeile | filtert die **Navigation**, nicht die Daten — die Anzeige bleibt vollständig |
+
+Der Filter saß zunächst als kleine Pille im Kopf und wurde schlicht übersehen; er steht jetzt als eigene Zeile über die volle Breite. Ein Bedienelement, das man suchen muss, ist keins.
+
+**Weitere Details aus der Erprobung:**
+
+- **Der Quellen-Kopf klebt** beim Scrollen der Liste (`position: sticky`). Sonst ist nach ein paar Zeilen wieder unklar, in welchem Watchpath man liest — dasselbe Problem, an dem die Vor/Zurück-Leiste gescheitert ist.
+- **Die Zeitspalte wird vom Inhalt bestimmt** (`max-content`), nicht von einer festen Pixelbreite. 46 px waren zu schmal für `13:28:02` in Cascadia Code — die Uhrzeit lief über und verschluckte den Spaltenabstand. Feste Breiten für Text sind hier besonders heikel, weil die Schriftgröße über den Tab „CSS-Style" änderbar ist.
+- **Nur die Meldung** ist auf zwei Zeilen begrenzt, nicht der ganze Textblock. Sonst verschwand bei zweizeiliger Meldung der Dateiname — ausgerechnet bei den langen Einträgen, wo man die Herkunft am ehesten braucht.
+- **Scrollposition und Markierung überleben den Neuaufbau.** `renderAll()` baut bei jedem eingehenden Fehler das komplette HTML neu auf; ohne Gegenmaßnahme spränge die Liste im Live-Betrieb dauernd an den Anfang. Der aktive Eintrag wird über die **Objektreferenz** wiedergefunden, nicht über eine Element-ID oder eine laufende Nummer — die werden bei jedem Durchlauf neu vergeben.
+- Unterhalb von 1100 px Fensterbreite blendet sich die Leiste aus; die Fehlertexte brauchen dort den Platz.
+
+`test/error-index-wiring.js` prüft die Verdrahtung statisch: DOM-IDs, Inline-Handler gegen die window-Globals, Ladereihenfolge, dass es nur *eine* Textaufbereitung und *eine* Sprungmechanik gibt, dass Lücken nicht im Index landen, und dass die Markierung ohne `!important` und ohne `--sev-critical` auskommt.
+
+**Dateien:** public/js/errorIndexPanel.js (neu), public/js/render.js, public/js/actions.js, public/js/utils.js, public/js/state.js, public/js/boot.js, public/index.html, public/style.css, test/error-index-wiring.js (neu), AGENTS.md, README.md
+
 
 ### 2026-07-30 — 🗂️ Monitor-Tab entlastet: eigener Tab „Monitor-Einstellungen"
 
@@ -1711,6 +1788,7 @@ Komplette Modularisierung der Codebasis in 6 Phasen, basierend auf Triple-Review
 │     ├─ wsClient.js              │  WebSocket, rAF-Batching, Banner
 │     ├─ render.js                │  DOM-Rendering (Live/Gaps/Analyse)
 │     ├─ actions.js               │  User-Aktionen
+│     ├─ errorIndexPanel.js       │  Fehler-Index (Sprungliste)
 │     ├─ loginPanel.js            │  Login, Rollen (data-admin-only)
 │     ├─ configPanel.js           │  Einstellungen (Koordinator)
 │     ├─ watchPathsPanel.js       │  WatchPaths-Tabelle inkl. Gaps
