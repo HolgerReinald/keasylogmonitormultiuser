@@ -131,19 +131,26 @@ Alle Einstellungen können auf zwei Wegen bearbeitet werden:
 
 ### 1. Im Dashboard (empfohlen)
 
-Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel mit neun Tabs:
+Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel. Die Tabs in der Reihenfolge, in der sie dort stehen:
 
 | Tab | Einstellungen |
 |---|---|
-| **⚙️ Allgemein** | Linke Spalte: Server (Port, Browser auto-öffnen, Debug-Logging), Dateien & Fehler (Max. Fehler, Datei-Pattern, Bestehende Fehler einlesen, Max. Log-Dateigröße). Rechte Spalte: 🤖 Copilot-Export (Develop + Release Pfade), ⚠️ Fehlererkennung (Filter-Patterns verwalten), 🗑️ Papierkorb (Auto-Cleanup) |
-| **🕵️ WatchPaths** | Überwachte Verzeichnisse hinzufügen/entfernen mit Label, E-Mail-Empfänger und Polling-Option |
-| **✉️ E-Mail** | SMTP-Konfiguration, Intervall, Duplikatschutz, Absender, Betreff |
+| **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler pro Datei, Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) |
+| **🕵️ Monitor** | 📂 Überwachte Pfade als Tabelle: Pfad, Label, E-Mail an, Polling, JSON, ⏱️ Gap (s), Idle (min). Pfade hinzufügen/entfernen, Ordnerauswahl, Import per 📥 (auch Drag & Drop) |
+| **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln · 🤖 Copilot-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
+| **✉️ E-Mail** 🔒 | SMTP-Konfiguration, Intervall, Duplikatschutz (normal und kritisch), Absender, Betreff |
 | **📧 E-Mail Log** | E-Mail-Versandprotokoll einsehen, aktualisieren und löschen |
-| **🎨 CSS-Style** | Live CSS-Editor mit Vorschau, Speichern und Zurücksetzen |
-| **📂 Log-Analyse** | Analyse-Pfade verwalten, Analyse starten/abbrechen |
-| **🗄️ Backup** | Beliebig viele lokale Ziele (Multi-Local) + FTP mit Hybrid-Labels (📁/☁️/💾/✏️), Zeitplan, Rotation, optionales Komplett-Backup des Programmverzeichnisses, Restore mit Preview und Bestätigungsdialog |
-| **🧪 System-Check** | Read-only Health-Checks (HTTP, WebSocket, Config, Dateisystem, Backup, E-Mail) mit Live-Ergebnissen |
-| **📖 Dokumentation** | README als formatiertes HTML mit einklappbaren Sektionen |
+| **📖 Dokumentation** | README als formatiertes HTML: Inhaltsverzeichnis, Suche, einklappbare Abschnitte, ✏️ Bearbeiten mit Live-Vorschau |
+| **🕘 Historie** | Alle Einträge der Änderungshistorie als Sprungliste, mit Suche, „Alle auf/zu" und Trefferzahl |
+| **🗄️ Backup** 🔒 | Beliebig viele lokale Ziele + FTP, Zeitplan, Rotation, optionales Komplett-Backup des Programmverzeichnisses, Wiederherstellen mit Vorschau und Bestätigungsdialog |
+| **📤 Weitergabe** 🔒 | Bereinigtes Tool-Paket als ZIP erzeugen — ohne Zugangsdaten, Benutzerkonten, Logs und `node_modules` |
+| **🧪 System-Check** 🔒 | Health-Checks ohne Seiteneffekte (HTTP, WebSocket, Config, Dateisystem, Backup, E-Mail) mit Live-Ergebnissen |
+| **👥 Benutzer** 🔒 | Eigenes Passwort ändern, Benutzer anlegen und verwalten. Nur vorhanden, wenn das Rechte-System aktiv ist |
+| **🎨 CSS-Style** 🔒 | Live-CSS-Editor mit Vorschau, Speichern und Zurücksetzen |
+
+🔒 = **nur für Administratoren.** Diese Tabs sind für Benutzer der Rolle *User* nicht versteckt, sondern **deaktiviert** — mit dem Hinweis „🔒 Nur für Administratoren" als Tooltip. Bei abgeschaltetem Rechte-System (`authEnabled: false`) gibt es keine Rollen, alle Tabs sind bedienbar, und der Tab **👥 Benutzer** entfällt ganz.
+
+**Die 📂 Log-Analyse ist kein Tab dieses Panels**, sondern ein eigenes Panel über den gleichnamigen Knopf im Header — inklusive eigener Pfadliste und Lücken-Schwellwerte.
 
 - Änderungen werden mit **💾 Speichern** sofort wirksam (Hot-Reload)
 - **💾 Speichern** ist nur aktiv, wenn tatsächlich Änderungen vorgenommen wurden
@@ -204,7 +211,6 @@ module.exports = {
     { name: 'Dispose-Rauschen', contains: 'disposed', level: 'gering' }
   ],
 
-  contextLinesBefore: 5,
   loadExistingErrors: true,   // Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen
   maxLogFileSizeMB: 6         // Dateien über 6 MB werden übersprungen
 };
@@ -236,6 +242,7 @@ module.exports = {
 | `copilotWorkingPathDevelop` | Pfad zum Develop-Verzeichnis für Copilot-Export. Leer = 🤖-Button deaktiviert |
 | `copilotWorkingPathRelease` | Pfad zum Release-Verzeichnis für Copilot-Export. Leer = 🚀-Button deaktiviert |
 | `autoOpen` | Browser automatisch öffnen (true/false) |
+| `debugLogging` | Ausführliche Server-Protokollierung in der Konsole (true/false). Standard: `false` |
 | `email.enabled` | E-Mail-Versand global ein/aus |
 | `email.intervalMinutes` | Alle X Minuten werden gesammelte Fehler versendet. Gilt **nicht** für `kritisch` eingestufte Fehler — die lösen sofort einen Versand aus (5 s Bündelung, danach min. 60 s Sperre pro Quelle) |
 | `email.deduplicateMinutes` | Duplikatschutz: gleicher Fehler erst nach X Min. erneut melden (Standard: 60) |
@@ -466,7 +473,7 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 | Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Regeln → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
 | Wichtiger Fehler verschwindet aus der Liste | `maxErrorsPerFile` verdrängt die ältesten Einträge. Als `kritisch` eingestufte Fehler werden zuletzt verdrängt — für Dauerbeobachtung zusätzlich das Limit erhöhen |
 | "In Zeile springen" geht nicht | Versucht VS Code → Notepad++ → Notepad. VS Code oder Notepad++ sollte installiert sein für Zeilensprung |
-| Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → WatchPaths → Polling ✓ |
+| Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → Monitor → Polling ✓ |
 | Fehler erscheinen verzögert | Polling-Intervall ist 2s (lokal) bzw. 5s (Netzwerk) + 100ms Debounce + Flush (pollInterval + 200ms) = ~4,3s lokal / ~10,3s Netzwerk. Für Analyse: Debug-Logging aktivieren (Einstellungen → Allgemein → Debug-Logging ✓) — zeigt `[TIMING]`-Einträge in der Konsole |
 | Notifications erscheinen nicht | Browser-Berechtigung erforderlich. 🔔-Button im Dashboard prüfen |
 | Bestehende Fehler fehlen nach Neustart | `loadExistingErrors` muss `true` sein (Standard). Dateien über `maxLogFileSizeMB` (Standard: 6 MB) werden übersprungen — Limit ggf. erhöhen |
@@ -490,6 +497,40 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-19 — 🧭 Abschnitt „Konfiguration" war verrottet, jetzt maschinell abgeglichen
+
+Die Tab-Tabelle unter „1. Im Dashboard" beschrieb einen Zustand, den es seit Monaten nicht mehr gab. Aufgefallen beim Lesen, nicht durch einen Fehler — beide Seiten sahen für sich plausibel aus.
+
+| Doku sagte | Wirklichkeit |
+|---|---|
+| „neun Tabs" | zwölf |
+| **🕵️ WatchPaths** | heißt **🕵️ Monitor** |
+| **📂 Log-Analyse** als Tab | gibt es dort nicht — eigenes Panel über den Header-Knopf |
+| Allgemein enthält „🤖 Copilot-Export, ⚠️ Fehlererkennung" | beides zog am 30.07. in den Regeln-Tab; Allgemein hat Server, Dateien & Fehler, Papierkorb |
+| — | fehlten ganz: **📋 Regeln**, **🕘 Historie**, **📤 Weitergabe**, **👥 Benutzer** |
+| — | kein Hinweis, dass sechs Tabs nur für Admins sind |
+
+Die Tabelle steht jetzt in der Reihenfolge des Panels, mit 🔒 an den Admin-Tabs. Zwei Feinheiten sind neu hinterlegt, weil sie leicht zu Fehlschlüssen führen: die Admin-Tabs sind für die Rolle *User* **nicht versteckt, sondern deaktiviert** (Tooltip „🔒 Nur für Administratoren"), und bei abgeschaltetem Rechte-System entfällt der Tab **👥 Benutzer** ganz.
+
+**Zwei weitere Fehler im selben Abschnitt**, gefunden beim Gegenrechnen des `config.js`-Beispiels gegen die echte Konfiguration:
+
+- **`contextLinesBefore: 5` war eine Phantom-Option** — im Beispiel dokumentiert, aber von keiner Zeile im Code gelesen. Sie tut nichts. Entfernt. Das ist die unangenehmste Sorte Doku-Fehler: man stellt sie ein und wundert sich, warum nichts passiert.
+- **`debugLogging` fehlte** in der Einstellungstabelle, obwohl es im Dashboard einstellbar ist. Ergänzt.
+- Und eine dritte veraltete Wegbeschreibung: „Einstellungen → **WatchPaths** → Polling ✓" in der Fehlerbehebung heißt jetzt „→ Monitor".
+
+Nicht angefasst: die Nennungen in der Historie (dort waren die Namen korrekt, als die Einträge geschrieben wurden) und `WatchPaths-Tabelle` im Architekturdiagramm — das beschreibt die Datei `watchPathsPanel.js`, ist also ein Codename, kein Tab.
+
+**Der eigentliche Ertrag ist der Test.** `test/docs-tabs-sync.js` (neu) vergleicht die Doku gegen `index.html`:
+
+1. gleiche Tabs, gleiche Anzahl, **gleiche Reihenfolge** wie im Panel
+2. 🔒 in der Doku ↔ `data-admin-only` im Markup, tabweise
+3. kein Tab für die Analyse behauptet
+4. **jede Wegbeschreibung „Einstellungen → X" zeigt auf einen Tab, den es gibt** — der Abschnitt Historie ausgenommen, dort sind alte Namen richtig
+
+Der Test hätte alle sechs Abweichungen gefunden. Damit ist die Tabelle nicht mehr Fleißarbeit, sondern geprüfte Zusage: wer künftig einen Tab hinzufügt, umbenennt oder verschiebt, bekommt einen roten Test statt einer stillen Lüge in der Doku. Dass die Reihenfolge mitgeprüft wird, ist Absicht — die Tabelle behauptet „in der Reihenfolge, in der sie dort stehen", also muss sie es auch tun.
+
+**Dateien:** README.md, test/docs-tabs-sync.js (neu)
 
 ### 2026-08-19 — 🕘 Eigener Tab „Historie", Tab „Monitor-Einstellungen" heißt jetzt „Regeln"
 
