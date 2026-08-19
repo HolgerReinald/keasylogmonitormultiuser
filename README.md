@@ -491,11 +491,52 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-19 — 📂 Hinweistexte einklappbar, und was dabei auffiel
+
+Die Hinweistexte in den vier Regel-Karten nahmen mehr Platz als die Einstellungen, die sie erklären — bei den Prioritätsregeln zehn Zeilen über einer einzigen Regel. Mit jedem weiteren Pattern wächst das weiter. Sie stehen jetzt hinter einer **beschrifteten Klappzeile**, eingeklappt per Vorgabe.
+
+**Beschriftet statt ℹ️.** Drei Varianten standen am Mockup zur Wahl: ein ℹ️ im Kartenkopf, eine stehenbleibende erste Zeile mit „▾ mehr", oder eine Zeile, die sagt, was sie öffnet. Es wurde die dritte — „Wie Muster wirken", „⚠️ Unterdrückt den *kompletten* Eintrag", „Beispiel", „Reihenfolge und Praxistipp". Der Grund ist die zweite Beschriftung: bei den Ausschluss-Patterns ist die Warnung die wichtigste Aussage der Karte, und sie steht so **auch eingeklappt** da, in vier Wörtern statt vier Zeilen. Ein nacktes ℹ️ hätte sie verschluckt. Das folgt derselben Regel wie der Alarmknopf und die „Alle zu"-Umschaltung: die Beschriftung sagt, was der Klick tut.
+
+**Verworfen: die stehenbleibende erste Zeile.** Sie hätte keine Kernaussage verloren, spart aber weniger Höhe und kostet in jeder Karte eine dauerhaft sichtbare Zeile — bei vier Karten genau der Platz, um den es ging. Ihre **Textumstellung wurde übernommen**: der tragende Satz steht jetzt in allen vier Blöcken vorn.
+
+- Ausschluss-Patterns: die Warnung stand im zweiten Absatz und steht jetzt zuerst.
+- Prioritätsregeln: „Die erste passende Regel gewinnt — spezifisch oben, allgemein unten" nach vorn. Dabei fiel ein **sachlicher Fehler** auf: „(das machen die Fehlererkennungs-Patterns *oben*)" stimmte seit dem Umbau ins Karten-Raster nicht mehr — die Fehlererkennung liegt je nach Fensterbreite daneben, nicht darüber. „oben" ist gestrichen.
+- Schwellwertregeln: fehlendes Komma.
+
+**Verworfen: Prioritätsregeln über die volle Breite.** Sie stehen in der zweiten Rasterzeile allein neben zwei leeren Spalten. Volle Breite füllt die Lücke, lässt aber die Regelzeilen unnötig weit auseinanderlaufen — die Lücke ist der geringere Preis.
+
+**Der Zustand liegt an einer Stelle.** Gespeichert werden nur die *offenen* Karten (`keasy-hints-open`); die Vorgabe „eingeklappt" gilt damit ohne Sonderfall, auch für Karten, die später dazukommen. Versteckt wird über **CSS** (`.config-hint .config-hint-text`), nicht per `style.display` aus dem JS: dadurch blitzt der Volltext beim Laden nicht auf, und es gibt genau einen Zustand — die Klasse am Container — statt zusätzlich einen Inline-Style, der auseinanderlaufen kann.
+
+**Beim Erproben fiel auf, dass der Text zu klein ist** — und zwar schon immer. Der Umbau hat das nicht verursacht, sondern sichtbar gemacht: hinter einem Klick öffnet man den Text bewusst und liest ihn, statt ihn zu überblättern. Ursache war eine relative Angabe in einer ansonsten absolut gesetzten Umgebung:
+
+| Element | vorher | jetzt |
+|---|---|---|
+| Pattern-Chips | 16 px (erben, keine Angabe) | unverändert |
+| Kartentitel | 14 px | unverändert |
+| Feld-Label | 13 px | unverändert |
+| Hinweistext | **12,8 px** (`0.8em` von der 16-px-Browser-Basis) | **14 px**, `line-height: 1.5` |
+| `<code>` darin | ohne Angabe → Monospace rendert optisch kleiner | **13 px** |
+| Klappzeile | 12,8 px | **14 px** |
+
+`0.8em` hing an der Browser-Basis, während alles ringsum absolute Werte trägt — der Erklärtext war damit das kleinste Element der Karte, und die eingebetteten Muster (`Send_over_SMTP`, `TimeoutException`) fielen als Monospace noch darunter ab. Ausgerechnet die Begriffe, um die es im jeweiligen Satz geht. Die Zeilen standen zudem auf Kante, deshalb `line-height: 1.5`.
+
+**Die Klappzeile war nicht als Klickziel zu erkennen.** Mit `background: none` lag sie farbgleich auf der Karte; ein 1-px-Rahmen allein ist kein Signal. Sie ist jetzt mit `--bg-secondary` gefüllt — der Hausgriff für anklickbare Zeilen, der in derselben Karte schon zweimal steht: die Regelzeilen (`.threshold-rule-card`) direkt darunter und die einklappbaren Abschnitte im Doku-Tab nutzen genau diese Füllung auf `--bg-tertiary`-Grund. Der Abstand trägt in allen drei Themes, hell wird heller, dunkel und blau dunkler. Ein eigenes Aussehen hätte behauptet, es sei etwas anderes als die Regelzeile zwei Zentimeter darunter — beides klappt auf.
+
+Der **Pfeil in Akzentfarbe** kommt als drittes Signal hinzu, zwei der drei kommen ohne Farbwahrnehmung aus (Füllung, Rahmen, Farbe). Ein *dauerhaft* farbiger Rahmen wurde verworfen: vier durchgehend blau umrandete Zeilen konkurrieren mit den Kartentiteln, die schon in Akzentfarbe stehen.
+
+**Nachgereicht: die Copilot-Felder liefen gegen eine Kappe.** Die Karte hat seit dem Eintrag darunter die volle Rasterbreite, die Felder blieben aber bei `max-width: 350px` aus `.config-field input[type="text"]` — rund 54 Zeichen statt der behaupteten 150. Behoben wie im Backup-Tab, der diese Basisregel aus demselben Grund schon überschreibt; die neue Ausnahme steht direkt daneben, damit ein künftiger Eingriff in die 350 px beide Abhängigkeiten sieht. Jetzt rund 170 Zeichen bei ~1400 px Fenster. Die Regel hängt an `.config-card-wide` und damit an genau einem Element — über die Rasterregel gelöst wären die Muster-Eingabefelder mitgewachsen.
+
+**Nicht umgesetzt:** ein globales „Alle Hinweise auf/zu" wie im Doku-Tab. Bei vier Karten schien der zusätzliche Knopf in der Steuerleiste mehr Aufwand als Nutzen. Und der Hinweis im **Copilot-Export** bleibt sichtbar — ein einzelner Satz in einer Karte über die volle Breite kostet eine Zeile, dafür lohnt kein Bedienelement.
+
+`test/hint-collapse-wiring.js` (neu) prüft 27 Punkte statisch: dass jede Regel-Karte einen Block hat, dass kein Hinweistext außerhalb des Containers hängengeblieben ist, dass `toggleHint` als window-Global steht, dass die Vorgabe leer ist, dass das Verstecken ohne `style.display` auskommt und dass jede Klappzeile eine Beschriftung von mindestens sechs Zeichen trägt. Der Test hat sich sofort bezahlt: er meldete fünf Hinweistexte auf vier Einklapper — die Copilot-Ausnahme ist dadurch als bewusste Entscheidung festgeschrieben statt als Zufall.
+
+**Dateien:** public/index.html, public/style.css, public/js/configPanel.js, public/js/state.js, public/js/boot.js, test/hint-collapse-wiring.js (neu), README.md
+
 ### 2026-08-19 — 📐 Monitor-Einstellungen: gleich hohe Karten, Copilot-Pfade über die volle Breite
 
 Zwei Layoutmängel im Tab „Monitor-Einstellungen", beide aus derselben Ursache: das Raster `repeat(auto-fit, minmax(340px, 1fr))` behandelt alle fünf Abschnitte als gleich breite Karten auf Inhaltshöhe. Für die Musterlisten passt das, für zwei Pfadfelder nicht.
 
-**Die Copilot-Pfade waren unlesbar kurz.** In einer 340-px-Karte blieben nach dem 160-px-Label und dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60 Zeichen lang sind (`C:\vfm\keasyrepository\Keasy_Release26.2hotfix`). Sichtbar war damit nie der Teil, auf den es ankommt — das Ende, das Develop von Release unterscheidet. Die Karte bekommt über die neue Klasse `.config-card-wide` mit `grid-column: 1 / -1` die volle Rasterbreite; die Felder haben dort schon `flex: 1` und wachsen von selbst mit, bei ~1400 px Fenster von rund 15 auf rund 150 Zeichen.
+**Die Copilot-Pfade waren unlesbar kurz.** In einer 340-px-Karte blieben nach dem 160-px-Label und dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60 Zeichen lang sind (`C:\vfm\keasyrepository\Keasy_Release26.2hotfix`). Sichtbar war damit nie der Teil, auf den es ankommt — das Ende, das Develop von Release unterscheidet. Die Karte bekommt über die neue Klasse `.config-card-wide` mit `grid-column: 1 / -1` die volle Rasterbreite; die Felder haben dort schon `flex: 1` und wachsen von selbst mit — allerdings nur bis rund 54 Zeichen. **Korrigiert im Eintrag darüber:** hier stand ursprünglich „rund 150 Zeichen". Übersehen war die Basisregel `.config-field input[type="text"]` mit `max-width: 350px`, die weiter griff — die breite Karte brachte den Feldern damit weit weniger als behauptet.
 
 **Kein fester Pixelwert.** Vor dem Umzug in dieses Raster hatten die Felder über `.config-column .config-field input[type="text"]` feste 350 px — genau der Wert, der eine 340-px-Karte gesprengt hätte und deshalb damals auf `flex: 1` wich. Eine Zahl wäre hier auch grundsätzlich falsch: die Schriftgröße ist über den Tab „CSS-Style" änderbar, eine in Pixeln gesetzte Feldbreite trägt dann eine andere Zeichenzahl.
 

@@ -1305,10 +1305,86 @@ body.theme-blue .performance-header {
   flex-shrink: 0;
 }
 
+/* 14px wie der Kartentitel, statt 0.8em. Relativ gerechnet hing die Groesse an
+   der Browser-Basis (16px → 12,8px), waehrend alles ringsum absolute Werte
+   traegt: Titel 14px, Feld-Label 13px, und die Pattern-Chips erben ohne eigene
+   Angabe die vollen 16px. Der Erklaertext war damit das kleinste Element der
+   Karte — bei den Prioritaetsregeln ein zehnzeiliger Block in der kleinsten
+   Schrift weit und breit. line-height 1.5, weil die Zeilen vorher auf Kante
+   standen. */
 .config-hint-text {
-  font-size: 0.8em;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text-secondary);
   margin: 0 0 8px 0;
+}
+
+/* Monospace rendert bei gleicher Punktzahl optisch kleiner — ohne eigene
+   Angabe fielen die eingebetteten Begriffe gegenueber dem Fliesstext ab,
+   ausgerechnet die Muster, um die es im Satz geht. */
+.config-hint-text code {
+  font-size: 13px;
+}
+
+/* Hinweistexte in den Regel-Karten: eingeklappt hinter einer beschrifteten
+   Zeile. Der Text war der laengste Block jeder Karte und waechst mit jedem
+   weiteren Pattern weiter. Beschriftet statt nur ein ℹ️, damit die Zeile auch
+   eingeklappt die Kernaussage traegt — bei den Ausschluss-Patterns die Warnung,
+   dass ein Treffer den kompletten Eintrag unterdrueckt. Gleiches Muster wie die
+   einklappbaren Abschnitte im Doku-Tab. */
+.config-hint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  /* Gefuellt statt transparent: mit background:none lag die Zeile farbgleich
+     auf der Karte und war als Klickziel nicht zu erkennen. --bg-secondary ist
+     dafuer der Hausgriff — die Regelzeilen (.threshold-rule-card) und die
+     Doku-Abschnitte nutzen genau diese Fuellung auf --bg-tertiary-Grund, in
+     jedem Theme mit deutlichem Abstand (hell wird heller, dunkel und blau
+     dunkler). */
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  /* 14px wie der Hinweistext, den die Zeile oeffnet — ein Bedienelement darf
+     nicht kleiner sein als sein Inhalt. Absolut statt relativ, weil die
+     Nachbarn in der Karte es auch so machen (Titel 14px, Label 13px). */
+  font-size: 14px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s;
+}
+
+.config-hint-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* Der Pfeil in Akzentfarbe als zweites, farbunabhaengig lesbares Signal —
+   Fuellung und Rahmen tragen die Form, die Farbe kommt hinzu. */
+.hint-chevron {
+  display: inline-block;
+  color: var(--accent);
+  transition: transform 0.15s;
+}
+
+.config-hint.is-open .hint-chevron {
+  transform: rotate(90deg);
+}
+
+/* Der Text haengt am Zustand des Containers — ein Selektor, kein zweiter
+   Zustand. Dadurch ist auch nichts sichtbar, bevor das JS gelaufen ist. */
+.config-hint .config-hint-text {
+  display: none;
+}
+
+.config-hint.is-open .config-hint-text {
+  display: block;
 }
 
 .config-column .config-field input[type="text"] {
@@ -1415,6 +1491,17 @@ body.theme-blue .performance-header {
 }
 
 .backup-card .config-field input[type="text"] {
+  width: auto;
+  max-width: none;
+}
+
+/* Copilot-Export: dieselbe Ausnahme wie bei den Backup-Karten, aus demselben
+   Grund. Die Karte hat ueber .config-card-wide die volle Rasterbreite, die
+   Felder liefen aber weiter gegen die max-width: 350px der Basisregel — rund
+   54 Zeichen, waehrend die Pfade 40–60 lang sind und das Unterscheidende
+   (…Keasy_n8Dev gegen …Keasy_Release26.2hotfix) am Ende steht. Ohne diese
+   Zeile bringt die breite Karte den Feldern nichts. */
+.config-card-wide .config-field input[type="text"] {
   width: auto;
   max-width: none;
 }

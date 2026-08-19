@@ -264,8 +264,11 @@
       <div class="config-rules-grid">
           <div class="config-filter-section">
             <h4 class="config-column-title">⚠️ Fehlererkennung</h4>
-            <p class="config-hint-text">Ein Pattern greift, sobald es <strong>irgendwo im Eintrag</strong> vorkommt — ein Eintrag ist alles zwischen zwei Zeitstempeln und bei Keasy oft ein Dutzend Zeilen lang. <code>TimeoutException</code> erkennt einen Fehler also auch dann, wenn der Begriff erst in Zeile 4 steht.<br>
-            Umgekehrt trifft ein breites Pattern wie <code>Fehler</code> schon die Ankündigungszeile <code>Der folgende #Fehler ist aufgetreten:</code>, die über nahezu jedem Eintrag steht — für die Erkennung meist gewollt, aber gut zu wissen.</p>
+            <div class="config-hint" data-hint="filter">
+              <button type="button" class="config-hint-toggle" onclick="toggleHint('filter')" aria-expanded="false"><span class="hint-chevron">▸</span> Wie Muster wirken</button>
+              <p class="config-hint-text">Ein Pattern greift, sobald es <strong>irgendwo im Eintrag</strong> vorkommt — nicht nur in der ersten Zeile. Ein Eintrag ist alles zwischen zwei Zeitstempeln und bei Keasy oft ein Dutzend Zeilen lang. <code>TimeoutException</code> erkennt einen Fehler also auch dann, wenn der Begriff erst in Zeile 4 steht.<br>
+              Umgekehrt trifft ein breites Pattern wie <code>Fehler</code> schon die Ankündigungszeile <code>Der folgende #Fehler ist aufgetreten:</code>, die über nahezu jedem Eintrag steht — für die Erkennung meist gewollt, aber gut zu wissen.</p>
+            </div>
             <div class="config-filter-list-wrap">
               <div class="config-list" id="cfg-filter-list"></div>
             </div>
@@ -276,8 +279,11 @@
           </div>
           <div class="config-filter-section">
             <h4 class="config-column-title">🚫 Ausschluss-Patterns</h4>
-            <p class="config-hint-text">Einträge mit diesen Begriffen gelten <strong>nicht</strong> als Fehler, auch wenn sie ein Fehlererkennungs-Pattern enthalten (z.B. <code>ValidationException</code> als Anwender-Hinweis).<br>
-            <strong>Achtung:</strong> Ein Treffer an <em>beliebiger Stelle</em> unterdrückt den <strong>kompletten</strong> Eintrag — nicht nur die betroffene Zeile. Steht <code>ValidationException</code> als <em>InnerException</em> in einem echten <code>TimeoutException</code>-Fehler, verschwindet dieser mit. Patterns deshalb so eng wie möglich fassen; für Meldungen an Anwender ist eine Prioritätsregel mit Stufe <code>Gering</code> oft die bessere Wahl — sie bleiben sichtbar, benachrichtigen aber nicht.</p>
+            <div class="config-hint" data-hint="exclude">
+              <button type="button" class="config-hint-toggle" onclick="toggleHint('exclude')" aria-expanded="false"><span class="hint-chevron">▸</span> ⚠️ Unterdrückt den <em>kompletten</em> Eintrag</button>
+              <p class="config-hint-text"><strong>Achtung:</strong> Ein Treffer an <em>beliebiger Stelle</em> unterdrückt den <strong>kompletten</strong> Eintrag — nicht nur die betroffene Zeile. Einträge mit diesen Begriffen gelten <strong>nicht</strong> als Fehler, auch wenn sie ein Fehlererkennungs-Pattern enthalten (z.B. <code>ValidationException</code> als Anwender-Hinweis).<br>
+              Steht <code>ValidationException</code> als <em>InnerException</em> in einem echten <code>TimeoutException</code>-Fehler, verschwindet dieser mit. Patterns deshalb so eng wie möglich fassen; für Meldungen an Anwender ist eine Prioritätsregel mit Stufe <code>Gering</code> oft die bessere Wahl — sie bleiben sichtbar, benachrichtigen aber nicht.</p>
+            </div>
             <div class="config-filter-list-wrap">
               <div class="config-list" id="cfg-exclude-list"></div>
             </div>
@@ -288,17 +294,22 @@
           </div>
           <div class="config-filter-section">
             <h4 class="config-column-title">📊 Schwellwertregeln</h4>
-            <p class="config-hint-text">Erkennt Fehler wenn ein Zahlenwert in einer Log-Zeile einen Schwellwert über-/unterschreitet.<br>
-            Beispiel: Log-Zeile <code>[Memory] WorkingSet: 4523,7 MB</code> → Zeile enthält: <code>WorkingSet:</code>, Einheit: <code>MB</code>, Alarm wenn &gt; <code>4000</code></p>
+            <div class="config-hint" data-hint="threshold">
+              <button type="button" class="config-hint-toggle" onclick="toggleHint('threshold')" aria-expanded="false"><span class="hint-chevron">▸</span> Beispiel</button>
+              <p class="config-hint-text">Erkennt Fehler, wenn ein Zahlenwert in einer Log-Zeile einen Schwellwert über-/unterschreitet.<br>
+              Beispiel: Log-Zeile <code>[Memory] WorkingSet: 4523,7 MB</code> → Zeile enthält: <code>WorkingSet:</code>, Einheit: <code>MB</code>, Alarm wenn &gt; <code>4000</code></p>
+            </div>
             <div id="cfg-threshold-list"></div>
             <button class="config-reset-btn" onclick="addThresholdRule()" data-admin-only>+ Schwellwertregel</button>
           </div>
           <div class="config-filter-section">
             <h4 class="config-column-title">🔴 Prioritätsregeln</h4>
-            <p class="config-hint-text">Stuft erkannte Fehler nach Dringlichkeit ein — <strong>ohne</strong> zu beeinflussen, <em>ob</em> etwas als Fehler gilt (das machen die Fehlererkennungs-Patterns oben).<br>
-            <strong>Die Reihenfolge entscheidet:</strong> die erste passende Regel gewinnt, ohne Treffer gilt <code>Normal</code>. Mit ▲▼ umsortieren.<br>
-            Beispiel: Zeile enthält <code>Send_over_SMTP</code> → <code>🔴 Kritisch</code>. Wirkt auch auf JSON-Logs und Schwellwert-Treffer.<br>
-            <strong>Praxistipp:</strong> Der Suchbegriff wird im <em>gesamten</em> Eintrag gesucht, auch über Zeilenumbrüche hinweg. Keasy-Meldungen beginnen häufig mit <code>Der folgende #Fehler ist aufgetreten:</code> — diese Ankündigung trifft <em>alles</em> und taugt nicht als Regel. Aussagekräftig ist der Typ in der Folgezeile, z.&nbsp;B. <code>TimeoutException</code>, <code>AggregateException</code> oder <code>ServiceResponseException</code>.</p>
+            <div class="config-hint" data-hint="priority">
+              <button type="button" class="config-hint-toggle" onclick="toggleHint('priority')" aria-expanded="false"><span class="hint-chevron">▸</span> Reihenfolge und Praxistipp</button>
+              <p class="config-hint-text"><strong>Die erste passende Regel gewinnt</strong> — spezifisch oben, allgemein unten. Ohne Treffer gilt <code>Normal</code>; mit ▲▼ umsortieren.<br>
+              Stuft erkannte Fehler nach Dringlichkeit ein, <strong>ohne</strong> zu beeinflussen, <em>ob</em> etwas als Fehler gilt — das machen die Fehlererkennungs-Patterns. Beispiel: Zeile enthält <code>Send_over_SMTP</code> → <code>🔴 Kritisch</code>. Wirkt auch auf JSON-Logs und Schwellwert-Treffer.<br>
+              <strong>Praxistipp:</strong> Der Suchbegriff wird im <em>gesamten</em> Eintrag gesucht, auch über Zeilenumbrüche hinweg. Keasy-Meldungen beginnen häufig mit <code>Der folgende #Fehler ist aufgetreten:</code> — diese Ankündigung trifft <em>alles</em> und taugt nicht als Regel. Aussagekräftig ist der Typ in der Folgezeile, z.&nbsp;B. <code>TimeoutException</code>, <code>AggregateException</code> oder <code>ServiceResponseException</code>.</p>
+            </div>
             <div id="cfg-priority-list"></div>
             <button class="config-reset-btn" onclick="addPriorityRule()" data-admin-only>+ Prioritätsregel</button>
           </div>

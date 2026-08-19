@@ -230,6 +230,10 @@ function initApp() {
   // die Leiste bis zum ersten renderAll() auf der Vorgabeseite
   if (Keasy.errorIndex) Keasy.errorIndex.applyIndexLayout();
 
+  // Hinweistexte: gemerkten Auf-/Zu-Zustand anwenden. Eingeklappt braucht kein
+  // Zutun (das macht CSS), aber die aufgeklappten und die Pfeile schon.
+  if (Keasy.config) Keasy.config.applyAllHints();
+
   // Date Filter
   initDateFilters();
   scheduleMidnightUpdate();

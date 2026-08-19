@@ -403,13 +403,51 @@ function hidePreloadBanner(data) {
   }, 5000);
 }
 
+// === Hinweistexte in den Regel-Karten (Tab „Monitor-Einstellungen") ===
+//
+// Der Hinweistext ist der laengste Block jeder Karte und waechst mit jedem
+// weiteren Pattern weiter. Er startet deshalb eingeklappt hinter einer
+// beschrifteten Zeile — dasselbe Muster wie im Doku-Tab. Die Beschriftung sagt,
+// was sie oeffnet, statt nur ein ℹ️ zu sein: eingeklappt traegt sie damit noch
+// die Kernaussage, bei den Ausschluss-Patterns die Warnung.
+//
+// Das Verstecken macht CSS (`.config-hint .config-hint-text`), nicht JS —
+// dadurch ist nichts sichtbar, bevor dieser Code laeuft, und es gibt nur einen
+// Zustand: die Klasse am Container.
+function persistHints() {
+  try {
+    localStorage.setItem('keasy-hints-open', JSON.stringify(state.hintsOpen));
+  } catch (e) { /* privater Modus */ }
+}
+
+function applyHint(key) {
+  const box = document.querySelector(`.config-hint[data-hint="${key}"]`);
+  if (!box) return;
+  const open = !!state.hintsOpen[key];
+  box.classList.toggle('is-open', open);
+  const btn = box.querySelector('.config-hint-toggle');
+  if (btn) btn.setAttribute('aria-expanded', String(open));
+}
+
+function applyAllHints() {
+  document.querySelectorAll('.config-hint[data-hint]').forEach(box => applyHint(box.dataset.hint));
+}
+
+function toggleHint(key) {
+  if (state.hintsOpen[key]) delete state.hintsOpen[key];
+  else state.hintsOpen[key] = true;
+  persistHints();
+  applyHint(key);
+}
+
 window.Keasy.config = {
   markConfigDirty, toggleConfigPanel, switchConfigTab,
   resetConfig, loadEmailLog, clearEmailLog, loadConfig, populateConfigForm,
   renderFilterList, addFilterPattern, removeFilterPattern,
   renderExcludeList, addExcludePattern, removeExcludePattern,
   buildConfigFromForm, saveConfig, showConfigMessage,
-  showPreloadBanner, updatePreloadBanner, hidePreloadBanner
+  showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
+  toggleHint, applyAllHints
 };
 
 Object.assign(window, {
@@ -418,7 +456,8 @@ Object.assign(window, {
   addExcludePattern, removeExcludePattern, saveConfig, resetConfig,
   loadEmailLog, clearEmailLog, markConfigDirty,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
-  showConfigMessage, loadConfig, populateConfigForm
+  showConfigMessage, loadConfig, populateConfigForm,
+  toggleHint
 });
 
 })();
