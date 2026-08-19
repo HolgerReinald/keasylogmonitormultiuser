@@ -1327,11 +1327,16 @@ body.theme-blue .performance-header {
    auto-fit selbst auf ein, zwei oder drei Spalten einstellt — ohne Media Query.
    Vorher standen diese Abschnitte gestapelt in der 2fr-Spalte des Monitor-Tabs
    und liefen dort über. */
+/* align-items: stretch (statt start) hält alle Karten einer Rasterzeile auf
+   gleicher Höhe — die Fehlererkennung ist mit langem Hinweistext und zehn
+   Patterns die höchste, Ausschluss und Schwellwerte endeten daneben deutlich
+   kürzer. Die Regel wirkt zeilenweise und gilt daher unverändert bei einer,
+   zwei oder drei Spalten; es braucht keine Media Query. */
 .config-rules-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .config-rules-grid > .config-filter-section {
@@ -1340,6 +1345,30 @@ body.theme-blue .performance-header {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Eingabezeile bzw. „+"-Knopf an den Kartenfuß: sonst endet die Bedienzeile in
+   der kürzeren Karte mitten im Feld, mit einem Loch darunter. So liegen die
+   Zeilen über alle Karten hinweg auf einer Linie. */
+.config-rules-grid > .config-filter-section > .config-filter-add,
+.config-rules-grid > .config-filter-section > .config-reset-btn {
+  margin-top: auto;
+}
+
+/* Der Knopf ist in der Flex-Spalte ein Flex-Item und würde über die volle
+   Kartenbreite gestreckt — align-self hält ihn auf Inhaltsbreite. */
+.config-rules-grid > .config-filter-section > .config-reset-btn {
+  align-self: flex-start;
+}
+
+/* Karte über die volle Rasterbreite. Der Copilot-Export enthält nur zwei
+   Pfadfelder; in einer 340-px-Spalte blieben davon nach dem 160-px-Label und
+   dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60
+   Zeichen lang sind. Über die volle Breite wachsen sie per flex: 1 mit. */
+.config-rules-grid > .config-filter-section.config-card-wide {
+  grid-column: 1 / -1;
 }
 
 /* Textfelder in den Karten fließend statt fest: .config-column .config-field

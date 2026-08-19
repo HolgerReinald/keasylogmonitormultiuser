@@ -491,6 +491,29 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-19 — 📐 Monitor-Einstellungen: gleich hohe Karten, Copilot-Pfade über die volle Breite
+
+Zwei Layoutmängel im Tab „Monitor-Einstellungen", beide aus derselben Ursache: das Raster `repeat(auto-fit, minmax(340px, 1fr))` behandelt alle fünf Abschnitte als gleich breite Karten auf Inhaltshöhe. Für die Musterlisten passt das, für zwei Pfadfelder nicht.
+
+**Die Copilot-Pfade waren unlesbar kurz.** In einer 340-px-Karte blieben nach dem 160-px-Label und dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60 Zeichen lang sind (`C:\vfm\keasyrepository\Keasy_Release26.2hotfix`). Sichtbar war damit nie der Teil, auf den es ankommt — das Ende, das Develop von Release unterscheidet. Die Karte bekommt über die neue Klasse `.config-card-wide` mit `grid-column: 1 / -1` die volle Rasterbreite; die Felder haben dort schon `flex: 1` und wachsen von selbst mit, bei ~1400 px Fenster von rund 15 auf rund 150 Zeichen.
+
+**Kein fester Pixelwert.** Vor dem Umzug in dieses Raster hatten die Felder über `.config-column .config-field input[type="text"]` feste 350 px — genau der Wert, der eine 340-px-Karte gesprengt hätte und deshalb damals auf `flex: 1` wich. Eine Zahl wäre hier auch grundsätzlich falsch: die Schriftgröße ist über den Tab „CSS-Style" änderbar, eine in Pixeln gesetzte Feldbreite trägt dann eine andere Zeichenzahl.
+
+**Die drei oberen Karten waren unterschiedlich hoch.** `align-items: start` hielt jede Karte auf Inhaltshöhe. Die Fehlererkennung ist mit dem längsten Hinweistext *und* zehn Patterns die höchste, Ausschluss und Schwellwerte endeten daneben sichtbar früher. `stretch` wirkt **zeilenweise** — deshalb gilt es unverändert bei einer, zwei oder drei Spalten. Genau darum sitzt die Lösung am Raster und nicht als `min-height` an den Karten: eine Mindesthöhe müsste je Fensterbreite anders lauten und bräuchte Media Queries, die dieses Raster bisher nirgends braucht.
+
+**Die Bedienzeilen liegen jetzt auf einer Linie.** Bei gleicher Kartenhöhe endete die Eingabezeile der kürzeren Karten mitten im Feld, mit einem Loch darunter. `margin-top: auto` schiebt Eingabezeile bzw. „+"-Knopf an den Kartenfuß. Der Knopf braucht dazu `align-self: flex-start` — als Flex-Item der neuen Spalte wäre er sonst über die volle Kartenbreite gestreckt worden.
+
+**Vorab am Mockup entschieden, nicht im Code:** ein bedienbares Mockup mit der echten `style.css` und den echten Werten aus `config.js`, vier einzeln schaltbare Varianten. Zwei wurden dort abgelehnt:
+
+- **Label über dem Feld** (wie im Backup-Tab) brächte weitere ~20 Zeichen, ist aber überflüssig, sobald die Karte die volle Breite hat — und die Labels bleiben so auf einer Höhe mit allen anderen Einstellungsfeldern.
+- **Prioritätsregeln über die volle Breite** würden die Lücke füllen, die neben ihnen in der zweiten Rasterzeile entsteht. Dafür würden die Regelzeilen („Zeile enthält", Dringlichkeit) unnötig weit auseinanderlaufen. Die Lücke ist der geringere Preis.
+
+Reiner CSS-Umbau plus eine Klasse im Markup: keine ID, kein `onclick`, kein `data-admin-only` und keine Zeile JavaScript angefasst. `test/priority-wiring.js`, `test/error-index-wiring.js` und `test/eviction-priority.js` laufen unverändert durch.
+
+**Bekannter Nebeneffekt:** Ausschluss und Schwellwerte haben durch die angeglichene Höhe Leerraum im Bauch. Die Alternative wäre, die Pattern-Liste den freien Platz füllen zu lassen statt fester `max-height: 200px` — dann scrollt die Fehlererkennungs-Liste weniger. Zurückgestellt, bis sich zeigt, ob der Leerraum in der täglichen Nutzung überhaupt stört.
+
+**Dateien:** public/index.html, public/style.css, README.md
+
 ### 2026-08-18 — 🧭 Fehler-Index: Sprungliste statt Scrollen
 
 Der Weg **zum nächsten Fehler** kostete unverhältnismäßig viel Zeit. Ursache war die Struktur der Anzeige: Quelle → Datei → Einträge, wobei die Eintragslisten zugeklappt starten (`.error-list` wird mit `display:none` gerendert). Man klappte also eine Datei auf, scrollte durch mehrzeilige Stack-Traces, und der nächste Fehler lag weit darunter. Bei ~90 Einträgen über vier Quellen war das der Hauptzeitfresser.
