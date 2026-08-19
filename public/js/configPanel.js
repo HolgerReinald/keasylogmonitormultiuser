@@ -38,7 +38,11 @@ function switchConfigTab(tab) {
   document.querySelectorAll('#configPanel .config-section').forEach(s => s.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById('config-' + tab).classList.add('active');
-  if (tab === 'docs' && !state.docsLoaded) {
+  // Doku und Historie haengen an demselben Abruf: die Historie wird beim
+  // Aufbereiten aus der gerenderten README in ihren Tab umgehaengt
+  // (moveHistoryToTab). Ohne diesen Zweig bliebe der Historie-Tab leer, wenn
+  // man ihn oeffnet, ohne vorher in der Doku gewesen zu sein.
+  if ((tab === 'docs' || tab === 'history') && !state.docsLoaded) {
     Keasy.docs.loadDocs();
   }
   if (tab === 'emaillog') {
@@ -59,7 +63,7 @@ function switchConfigTab(tab) {
   // Config-Buttons bei Tabs ohne Config-Formular ausblenden
   const configActions = document.querySelector('.config-actions');
   if (configActions) {
-    configActions.style.display = (tab === 'docs' || tab === 'emaillog' || tab === 'csseditor' || tab === 'systemcheck' || tab === 'users' || tab === 'export') ? 'none' : '';
+    configActions.style.display = (tab === 'docs' || tab === 'history' || tab === 'emaillog' || tab === 'csseditor' || tab === 'systemcheck' || tab === 'users' || tab === 'export') ? 'none' : '';
   }
 }
 
@@ -403,7 +407,7 @@ function hidePreloadBanner(data) {
   }, 5000);
 }
 
-// === Hinweistexte in den Regel-Karten (Tab „Monitor-Einstellungen") ===
+// === Hinweistexte in den Regel-Karten (Tab „Regeln") ===
 //
 // Der Hinweistext ist der laengste Block jeder Karte und waechst mit jedem
 // weiteren Pattern weiter. Er startet deshalb eingeklappt hinter einer

@@ -2549,6 +2549,16 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 }
 .docs-search input:focus { outline: none; border-color: var(--accent); }
 
+/* Trefferzahl im Historie-Tab: „96 Einträge", beim Suchen „3 von 96". Ohne sie
+   ist eine leergefilterte Liste nicht von einem Fehler zu unterscheiden.
+   white-space: nowrap, damit die Zahl in der Leiste nicht umbricht, wenn das
+   Suchfeld auf schmalen Fenstern wächst. */
+.docs-hits {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .docs-layout {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);

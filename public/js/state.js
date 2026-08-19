@@ -58,7 +58,7 @@ window.Keasy.state = {
   configFilterPatterns: [],
   configThresholdRules: [],
   configPriorityRules: [],
-  // Auf-/Zu-Zustand der Hinweistexte im Tab „Monitor-Einstellungen".
+  // Auf-/Zu-Zustand der Hinweistexte im Tab „Regeln".
   // Gespeichert werden nur die offenen — die Vorgabe „eingeklappt" gilt damit
   // ohne Sonderfall, auch für später hinzukommende Karten.
   hintsOpen: JSON.parse(localStorage.getItem('keasy-hints-open') || '{}'),

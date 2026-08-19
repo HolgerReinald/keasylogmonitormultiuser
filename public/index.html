@@ -116,10 +116,11 @@
     <div class="config-tabs">
       <button class="config-tab active" onclick="switchConfigTab('general')">⚙️ Allgemein</button>
       <button class="config-tab" onclick="switchConfigTab('watchpaths')" title="Pfadüberwachung">🕵️ Monitor</button>
-      <button class="config-tab" onclick="switchConfigTab('monitorsettings')" title="Fehlererkennung, Ausschluss, Schwellwerte, Priorität, Copilot-Export">⚙️ Monitor-Einstellungen</button>
+      <button class="config-tab" onclick="switchConfigTab('monitorsettings')" title="Fehlererkennung, Ausschluss, Schwellwerte, Priorität, Copilot-Export">📋 Regeln</button>
       <button class="config-tab" onclick="switchConfigTab('email')" data-admin-only>✉️ E-Mail</button>
       <button class="config-tab" onclick="switchConfigTab('emaillog')">📧 E-Mail Log</button>
       <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
+      <button class="config-tab" onclick="switchConfigTab('history')" title="Änderungshistorie — dieselben Einträge wie im Abschnitt Historie der Dokumentation">🕘 Historie</button>
       <button class="config-tab" onclick="switchConfigTab('backup')" data-admin-only>🗄️ Backup</button>
       <button class="config-tab" onclick="switchConfigTab('export')" data-admin-only>📤 Weitergabe</button>
       <button class="config-tab" onclick="switchConfigTab('systemcheck')" data-admin-only>🧪 System-Check</button>
@@ -356,6 +357,18 @@
         <div class="docs-content" id="docsContent">
           <p style="color:var(--text-muted)">Lade Dokumentation...</p>
         </div>
+      </div>
+    </div>
+
+    <div class="config-section" id="config-history">
+      <div class="docs-toolbar">
+        <div class="docs-search"><input type="text" id="historySearch" placeholder="🔍 Historie durchsuchen…" oninput="filterHistory(this.value)"></div>
+        <button class="config-reset-btn" onclick="toggleAllHistory(true)">▼ Alle auf</button>
+        <button class="config-reset-btn" onclick="toggleAllHistory(false)">▲ Alle zu</button>
+        <span id="historyCount" class="docs-hits"></span>
+      </div>
+      <div class="docs-content" id="historyContent">
+        <p style="color:var(--text-muted)">Lade Historie...</p>
       </div>
     </div>
 

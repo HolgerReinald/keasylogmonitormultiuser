@@ -22,9 +22,19 @@ async function loadDocs() {
   }
 }
 
-function toggleAllDocs(open) {
-  document.querySelectorAll('#docsContent .docs-section, #docsContent .docs-collapsible')
+// Auf-/Zuklappen wirkt je Behaelter: Doku und Historie liegen in getrennten
+// Tabs, ein gemeinsames "Alle zu" wuerde jeweils den anderen mitschalten.
+function toggleAllIn(rootId, open) {
+  document.querySelectorAll(`#${rootId} .docs-section, #${rootId} .docs-collapsible`)
     .forEach(d => d.open = open);
+}
+
+function toggleAllDocs(open) {
+  toggleAllIn('docsContent', open);
+}
+
+function toggleAllHistory(open) {
+  toggleAllIn('historyContent', open);
 }
 
 // ─── Aufbereitung: h2-Abschnitte einklappbar + Inhaltsverzeichnis ───
@@ -37,10 +47,46 @@ function enhanceDocs() {
   const content = document.getElementById('docsContent');
   if (!content) return;
   wrapH2Sections(content);
+  // Vor dem Inhaltsverzeichnis: die Historie ist dann schon umgehaengt und
+  // fehlt dort automatisch, ohne Sonderfall im TOC-Aufbau.
+  moveHistoryToTab(content);
   buildDocsToc(content);
   setupDocsScrollSpy(content);
   const search = document.getElementById('docsSearch');
   if (search) search.value = '';
+}
+
+// Die Historie wandert in ihren eigenen Tab. Uebernommen wird nur der *Inhalt*
+// des Abschnitts, nicht die <details>-Huelle: der Tab-Name sagt schon
+// "Historie", eine zweite Klapp-Ebene waere ein Klick fuer nichts.
+//
+// Beide Tabs haengen an demselben Abruf (/api/docs) — deshalb loest auch der
+// Historie-Tab loadDocs() aus, siehe switchConfigTab in configPanel.js.
+function moveHistoryToTab(content) {
+  const target = document.getElementById('historyContent');
+  if (!target) return;
+  const sec = Array.from(content.querySelectorAll('.docs-section'))
+    .find(s => /Historie/i.test(s.dataset.title || ''));
+  if (!sec) return;
+
+  const body = sec.querySelector('.docs-section-body');
+  target.innerHTML = '';
+  if (body) {
+    while (body.firstChild) target.appendChild(body.firstChild);
+  }
+  sec.remove();
+
+  const total = target.querySelectorAll('.docs-collapsible').length;
+  target.dataset.total = total;
+  setHistoryCount(total, total);
+  const search = document.getElementById('historySearch');
+  if (search) search.value = '';
+}
+
+function setHistoryCount(shown, total) {
+  const el = document.getElementById('historyCount');
+  if (!el) return;
+  el.textContent = shown === total ? `${total} Einträge` : `${shown} von ${total}`;
 }
 
 // Jede h2-Überschrift + Folgeinhalt (bis zur nächsten h2) in ein <details> packen
@@ -142,6 +188,28 @@ function setupDocsScrollSpy(content) {
 }
 
 // Volltext-Filter: nicht passende Abschnitte ausblenden, passende aufklappen
+// Historie: gefiltert wird ueber die Eintraege selbst (.docs-collapsible), nicht
+// ueber h2-Abschnitte — im Tab liegt genau eine Ebene, und die Frage lautet
+// „in welchem Eintrag steht das?". Die Trefferzahl steht daneben: ohne sie ist
+// eine leere Liste nicht von einem Fehler zu unterscheiden.
+function filterHistory(q) {
+  const query = (q || '').trim().toLowerCase();
+  const content = document.getElementById('historyContent');
+  if (!content) return;
+  const entries = content.querySelectorAll('.docs-collapsible');
+  let shown = 0;
+  entries.forEach(entry => {
+    const match = !query || entry.textContent.toLowerCase().includes(query);
+    entry.style.display = match ? '' : 'none';
+    if (match) shown++;
+    // Treffer aufklappen, damit die Fundstelle sichtbar ist. Beim Leeren des
+    // Feldes bleiben sie offen — zuklappen waere ein Eingriff in etwas, das der
+    // Suchende gerade lesen wollte.
+    if (query && match) entry.open = true;
+  });
+  setHistoryCount(shown, entries.length);
+}
+
 function filterDocs(q) {
   const query = (q || '').trim().toLowerCase();
   const content = document.getElementById('docsContent');
@@ -237,7 +305,7 @@ function closeDocsEditor() {
   document.getElementById('docsEditBtn').style.display = '';
 }
 
-Keasy.docs = { loadDocs, toggleAllDocs, startDocsEdit, saveDocs, cancelDocsEdit, filterDocs };
-Object.assign(window, { loadDocs, toggleAllDocs, startDocsEdit, onDocsEditorInput, saveDocs, cancelDocsEdit, filterDocs });
+Keasy.docs = { loadDocs, toggleAllDocs, toggleAllHistory, startDocsEdit, saveDocs, cancelDocsEdit, filterDocs, filterHistory };
+Object.assign(window, { loadDocs, toggleAllDocs, toggleAllHistory, startDocsEdit, onDocsEditorInput, saveDocs, cancelDocsEdit, filterDocs, filterHistory });
 
 })();

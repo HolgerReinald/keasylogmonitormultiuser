@@ -463,7 +463,7 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 | Verbindung getrennt | Dashboard reconnected automatisch nach 3 Sekunden |
 | E-Mail wird nicht versendet | SMTP-Einstellungen prüfen, `emailTo` muss gesetzt sein. Siehe `email.log` für Details |
 | E-Mail-Duplikate | Gleicher Fehler wird erst nach `deduplicateMinutes` (Standard: 60 Min.) erneut gemeldet — bei `kritisch` eingestuften Fehlern nach `criticalDeduplicateMinutes` (Standard: 15 Min.) |
-| Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Monitor-Einstellungen → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
+| Wichtiger Fehler kommt zu spät per Mail | Prioritätsregel mit Stufe `kritisch` anlegen (Einstellungen → Regeln → Prioritätsregeln). Kritische Fehler umgehen das Sende-Intervall. Beim Start eingelesene *historische* Fehler lösen bewusst keine Sofort-Mail aus |
 | Wichtiger Fehler verschwindet aus der Liste | `maxErrorsPerFile` verdrängt die ältesten Einträge. Als `kritisch` eingestufte Fehler werden zuletzt verdrängt — für Dauerbeobachtung zusätzlich das Limit erhöhen |
 | "In Zeile springen" geht nicht | Versucht VS Code → Notepad++ → Notepad. VS Code oder Notepad++ sollte installiert sein für Zeilensprung |
 | Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → WatchPaths → Polling ✓ |
@@ -490,6 +490,46 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-19 — 🕘 Eigener Tab „Historie", Tab „Monitor-Einstellungen" heißt jetzt „Regeln"
+
+Die Änderungshistorie lag als letzter großer Abschnitt der Dokumentation weit unten — 1336 von 1907 Zeilen, erreichbar erst nach den Abschnitten davor, die aufgeklappt starten und lang sind. Wer sehen wollte, was sich zuletzt geändert hat, scrollte.
+
+**Drei Wege standen zur Wahl, zwei wurden verworfen:**
+
+1. **Historie im README nach oben** — probiert und zurückgenommen. Im Tab hilft es, aber in der *flachen* Ansicht (GitHub, Editor, und die README im Tool-Paket für Empfänger) stehen dann 1336 Zeilen Änderungsprotokoll vor „Voraussetzungen" und „Installation". Wer das Tool zum ersten Mal in die Hand nimmt, scrollt an 96 Einträgen vorbei, bevor er liest, wie er es startet.
+2. **Historie aufgeklappt starten** (`REF_SECTIONS` in `docsPanel.js`) — hätte die Titel sofort sichtbar gemacht, weil jeder Eintrag ein eigener Klapp-Block ist. Schiebt aber alles andere um 96 Zeilen nach unten und löst das Problem von Punkt 1 nicht.
+3. **Eigener Tab** — gewählt. Löst die Anzeige im Programm und lässt die Datei in Ruhe. Ein Ziel statt eines Kompromisses an zwei Fronten.
+
+**Neu: „🕘 Historie"** zwischen „📖 Dokumentation" und „🗄️ Backup", mit Suchfeld, „▼ Alle auf / ▲ Alle zu" und Trefferanzeige.
+
+**Kein Server-Eingriff, kein zweites Dokument.** Der Doku-Tab baut die `##`-Abschnitte ohnehin zu Klapp-Blöcken um; der Historie-Block wird anschließend in den neuen Tab umgehängt (`moveHistoryToTab`). Drei Entscheidungen tragen das:
+
+- **Umgehängt wird vor dem Aufbau des Inhaltsverzeichnisses.** Dadurch fehlt die Historie dort automatisch — kein Sonderfall im Verzeichnis, keiner im Scroll-Spy. Nach dem Verzeichnis umgehängt stünde sie doppelt drin.
+- **Nur der Inhalt wandert, nicht die `<details>`-Hülle.** Der Tab-Name sagt „Historie"; eine zweite Klapp-Ebene wäre ein Klick für nichts.
+- **Beide Tabs hängen an einem Abruf** (`/api/docs`, faul geladen). Der Historie-Tab löst ihn selbst aus — ohne diesen Zweig wäre er leer, solange man die Doku nicht vorher geöffnet hat. Das ist die Art Fehler, die im Browser nicht als Fehler aussieht, sondern als leerer Tab.
+
+`toggleAllDocs` und `filterDocs` waren fest auf `#docsContent` verdrahtet. Das Auf-/Zuklappen nimmt jetzt einen Behälter entgegen (`toggleAllIn`), sonst hätte ein „Alle zu" den jeweils anderen Tab mitgeschaltet.
+
+**Die Suche** filtert die Einträge selbst (`.docs-collapsible`), nicht `##`-Abschnitte — im Tab liegt genau eine Ebene, und die Frage lautet „in welchem Eintrag steht das?". Treffer werden aufgeklappt, sonst wäre die Fundstelle unsichtbar. Daneben steht die Zahl: „97 Einträge", beim Suchen „3 von 97" — die Gesamtzahl wächst mit jedem Eintrag, sie wird zur Laufzeit gezählt und steht nicht im Code. Ohne sie ist eine leergefilterte Liste nicht von einem Fehler zu unterscheiden. Beim Leeren des Feldes bleiben geöffnete Einträge offen — zuklappen wäre ein Eingriff in etwas, das der Suchende gerade lesen wollte.
+
+**Der Doku-Editor bleibt im Doku-Tab** und bearbeitet weiterhin die ganze README samt Historie. Zwei Editoren auf einer Datei wären eine Einladung zum Datenverlust.
+
+**Fällt das Umhängen aus** (kein `#historyContent`, etwa nach einem Teil-Rollback), bleibt die Historie im Doku-Tab und startet dort wie bisher zugeklappt — `REF_SECTIONS` führt sie weiter. Das ist kein toter Code, sondern der Rückfall.
+
+---
+
+**Der Tab „⚙️ Monitor-Einstellungen" heißt jetzt „📋 Regeln".** Gewünscht war eine Abkürzung auf „Einstellungen" — das wurde verworfen: der Knopf, der das ganze Panel öffnet, heißt bereits **„⚙️ Einstellungen"**, und der erste Tab darin heißt „⚙️ Allgemein". Ein Tab „Einstellungen" innerhalb der Einstellungen sagt nichts und konkurriert mit zwei Nachbarn.
+
+„Regeln" benennt, was drin ist — vier Regellisten (Fehlererkennung, Ausschluss, Schwellwerte, Priorität) —, ist mit 6 statt 21 Zeichen deutlich kürzer als vorher, und räumt nebenbei das doppelte ⚙️ weg, das der Tab sich mit „Allgemein" geteilt hat.
+
+Die **interne Kennung `monitorsettings` bleibt** unverändert: sie steht in CSS, in der Tab-Logik und in `test/hint-collapse-wiring.js`, und niemand sieht sie. Umbenennen wäre Aufwand ohne Nutzen.
+
+**Verweise nachgezogen, mit einer Unterscheidung:** die Wegbeschreibung im Abschnitt Fehlerbehebung heißt jetzt „Einstellungen → Regeln → Prioritätsregeln", ebenso zwei Code-Kommentare, die den heutigen Zustand beschreiben. Die sechs Nennungen **in der Historie bleiben stehen** — dort hieß der Tab damals so, die Einträge waren korrekt, als sie geschrieben wurden. Sie umzuschreiben würde die Aufzeichnung verfälschen.
+
+`test/history-tab-wiring.js` (neu) prüft 26 Punkte statisch, gezielt auf die drei Fehler, die im Browser nicht wie Fehler aussehen: dass der Tab den Abruf selbst auslöst (sonst leer), dass das Umhängen *vor* dem Inhaltsverzeichnis passiert (sonst doppelt), und dass beide „Alle zu" auf je einen Behälter begrenzt sind (sonst schaltet eines das andere mit).
+
+**Dateien:** public/index.html, public/js/docsPanel.js, public/js/configPanel.js, public/js/state.js, public/style.css, test/history-tab-wiring.js (neu), README.md
 
 ### 2026-08-19 — 📂 Hinweistexte einklappbar, und was dabei auffiel
 
