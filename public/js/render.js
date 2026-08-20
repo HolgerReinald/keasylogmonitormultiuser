@@ -75,7 +75,9 @@ function filterEntriesForFile(entries, fileName, dateCheck) {
 
 function buildOpenButtonsHtml(filePath) {
   return `<button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
-              <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>`;
+              <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
+              <button class="action-btn copilot-btn" title="Komplette Datei ins Copilot-Verzeichnis Develop kopieren" onclick="exportFileToCopilot('${escapeJs(filePath)}', 'develop', event)">🤖</button>
+              <button class="action-btn copilot-release-btn" title="Komplette Datei ins Copilot-Verzeichnis Release kopieren" onclick="exportFileToCopilot('${escapeJs(filePath)}', 'release', event)">🚀</button>`;
 }
 
 // Alarmknopf für kritische Fehler (Datei- und Quellen-Ebene).

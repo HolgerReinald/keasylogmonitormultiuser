@@ -289,6 +289,36 @@ async function copyErrorToClipboard(filePath, errIndex, isAnalyze, event) {
   }
 }
 
+// Komplette Log-Datei ins Copilot-Verzeichnis kopieren (Knoepfe in der
+// Datei-Kopfzeile). Anders als exportToCopilot wird KEIN Inhalt geschickt:
+// parseJsonBody deckelt bei 1 MB, Logs sind groesser. Der Server liest die
+// Datei selbst — deshalb prueft er auch, ob der Pfad einer ist, den er
+// ohnehin anzeigt.
+async function exportFileToCopilot(filePath, target, event) {
+  if (event) event.stopPropagation();
+  const btn = event && event.currentTarget;
+  if (btn) btn.disabled = true;
+  const targetLabel = target === 'release' ? 'Release' : 'Develop';
+  try {
+    const resp = await fetch('/api/export-copilot-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath, target })
+    });
+    const result = await resp.json();
+    if (result.ok) {
+      const kb = result.size ? ` (${(result.size / 1024).toFixed(0)} KB)` : '';
+      showTrashStatus(`${target === 'release' ? '🚀' : '🤖'} ${targetLabel}: ` + result.outputPath + kb);
+    } else {
+      showTrashStatus('❌ ' + targetLabel + ': ' + result.message);
+    }
+  } catch (e) {
+    showTrashStatus('❌ ' + targetLabel + ': ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function exportToCopilot(filePath, errIndex, isAnalyze, target, event) {
   if (event) event.stopPropagation();
   const btn = event && event.currentTarget;
@@ -371,7 +401,7 @@ window.Keasy.actions = {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
+  copyErrorToClipboard, exportToCopilot, exportFileToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
   jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
 };
 
@@ -379,7 +409,7 @@ Object.assign(window, {
   openFolder, openFile, openFileAtError, toggleGroup, toggleSource,
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
-  copyErrorToClipboard, exportToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
+  copyErrorToClipboard, exportToCopilot, exportFileToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
   jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
 });
 })();

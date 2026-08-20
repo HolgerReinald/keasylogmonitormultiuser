@@ -98,7 +98,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **🗑️ Papierkorb:** Gelöschte Fehler-Einträge werden in einen Papierkorb verschoben statt endgültig gelöscht. Wiederherstellen pro Quelle oder alle. Auto-Cleanup nach konfigurierbarer Zeit (Standard: 48h). Batch-basiert mit Lösch-Zeitpunkt, Bestätigungsdialog beim Leeren
 - **⏱️ Performance-Gap-Erkennung:** Pro WatchPath konfigurierbar — meldet, wenn zwischen zwei aufeinanderfolgenden Log-Einträgen derselben Datei mehr als N Sekunden liegen (Richtwert: 20 s, der Schmerzpunkt für Anwender). Kein Fehler, sondern eigene Kategorie: eigene orange Sektion im Dashboard, getrennt vom Fehler-Logging, keine E-Mail, kein Papierkorb. Leerlauf-Obergrenze (Standard: 30 Min) filtert Nacht-/Start-Gaps heraus. Greift im Live-Monitoring, beim Start-Einlesen und (mit eigenen Feldern) in der Log-Analyse. Standard: aus
 - **📋 Fehler kopieren:** Fehlertext einzelner Einträge per Klick in die Zwischenablage kopieren
-- **🤖 Copilot-Export:** Fehler als `copilot-error-context.md` in ein konfiguriertes Verzeichnis exportieren — für direkte Übergabe an GitHub Copilot CLI. Zwei Ziele: 🤖 Develop + 🚀 Release (grün)
+- **🤖 Copilot-Export:** Fehler als `copilot-error-context.md` in ein konfiguriertes Verzeichnis exportieren — für direkte Übergabe an GitHub Copilot CLI. Zwei Ziele: 🤖 Develop + 🚀 Release (grün). Dieselben zwei Knöpfe sitzen auch in der **Datei-Kopfzeile** und legen dort die **komplette Log-Datei** unter ihrem eigenen Namen im Zielverzeichnis ab — für den Fall, dass Copilot das Umfeld eines Fehlers braucht
 - **📤 Weitergabe (Tool-Export):** Erzeugt per Klick ein schlankes, weitergebbares ZIP der App (Tab „Weitergabe", admin-only) — **ohne** Zugangsdaten (SMTP/FTP), Benutzerkonten, Logs, `node_modules` und maschinenspezifische Pfade. Eine Sektions-Checkliste (Positivauswahl) steuert, welche Einstellungen in die mitgelieferte `config.default.js` eingebacken werden (Allgemein, Filter-/Ausschluss-Muster, Schwellwerte vorbelegt; Watch-Pfade, E-Mail, Backup optional). Passwörter werden nie exportiert. Empfänger: entpacken → `start.bat` (installiert Dependencies, erzeugt beim ersten Start `config.js` aus `config.default.js`)
 - **🔌 Auto-Port-Recovery:** Bei belegtem Port wird der alte Prozess automatisch beendet
 - **⚡ Intelligentes Debouncing:** Mehrfache Datei-Events werden zusammengefasst (100ms) für effiziente Verarbeitung
@@ -405,6 +405,13 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | 🤖 Develop | Fehler als `copilot-error-context.md` ins Develop-Verzeichnis exportieren |
 | 🚀 Release | Fehler als `copilot-error-context.md` ins Release-Verzeichnis exportieren (grün) |
 
+In der **Datei-Kopfzeile** neben 📂/📝:
+
+| Icon | Funktion |
+|---|---|
+| 🤖 Develop | **Komplette** Log-Datei unter ihrem eigenen Namen ins Develop-Verzeichnis kopieren |
+| 🚀 Release | **Komplette** Log-Datei unter ihrem eigenen Namen ins Release-Verzeichnis kopieren (grün) |
+
 ### 🧭 Fehler-Index (Seitenleiste)
 
 Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Menge** wie die Anzeige — Suche und Zeitraumfilter wirken automatisch mit.
@@ -497,6 +504,32 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-20 — 🤖 Komplette Log-Datei ins Copilot-Verzeichnis
+
+Ein einzelner Fehler ließ sich schon per 🤖/🚀 als `copilot-error-context.md` in ein Arbeitsverzeichnis exportieren. Beim Arbeiten fehlte oft das Umfeld: was lief vor dem Fehler, wie lang waren die Abstände, was kam danach. Die beiden Icons sitzen jetzt **zusätzlich in der Datei-Kopfzeile** neben 📂/📝 und legen dort die **komplette Log-Datei im Rohzustand** unter **ihrem eigenen Namen** im jeweiligen Zielverzeichnis ab.
+
+Sie stecken in `buildOpenButtonsHtml()` und erscheinen damit in allen drei Bereichen, die diesen Baustein nutzen — Live, ⏱️ Performance und Analyse. Hinter jedem Dateikopf steht ein echter Pfad, also ist es überall sinnvoll; eine Sonderbehandlung je Bereich wäre mehr Code für weniger Funktion.
+
+**Der Dateiinhalt darf nicht durch den JSON-Body.** `parseJsonBody` deckelt bei **1 MB** und antwortet bei Überschreitung irreführend „errorText fehlt" — für Logs von 100 KB bis mehreren MB also untragbar. Der Client schickt deshalb nur `{ filePath, target }`, der Server kopiert die Datei mit `fs.copyFileSync`. Das hält den Rohzustand exakt und braucht keinen Streaming-Aufbau.
+
+**Eigener Dateiname, nicht der feste.** `copilot-error-context.md` ist beim Einzel-Export fest verdrahtet; hätte der Datei-Export ihn mitbenutzt, würde er den Einzelfehler-Export bei jedem Klick überschreiben. Zielname ist `path.basename()`. Der Test hält beide Namen gegeneinander fest, damit das nicht zusammenwächst.
+
+**Die Pfadprüfung ist neu — und war der eigentliche Aufwand.** Die bestehende Route validiert `filePath` **gar nicht**: unkritisch, solange der Pfad nur als Text ins Markdown wandert. Sobald der Server die Datei *liest*, wäre jede Datei des Rechners abholbar. `isKnownLogFile()` lässt deshalb nur zu, was der Server ohnehin anzeigt:
+
+- Schlüssel im `errorStore` (Live) und im `performanceStore` (⏱️)
+- Dateien im Analyse-Store **des jeweiligen Benutzers**
+- Dateien in dessen Drag-&-Drop-Ablage (`temp-analyze/<benutzer>/`)
+
+Dazu `canAccessLabel` wie bei `pause-source`, damit niemand eine Quelle exportiert, die er nicht sehen darf, und die Obergrenze `maxLogFileSizeMB` — eine 200-MB-Datei gehört nicht versehentlich in ein Repository-Verzeichnis. Gegengeprüft am laufenden Server: `C:/Windows/win.ini` wird mit „Unbekannte Datei" abgewiesen, und im Zielverzeichnis landet nichts.
+
+**Geteilt statt kopiert:** die Zielverzeichnis-Auflösung samt ihren drei Fehlerfällen (nicht konfiguriert / kein Verzeichnis / existiert nicht) steckt jetzt in `resolveCopilotDir()` und wird von **beiden** Routen genutzt. Der größere Teil des Diffs in `configRoutes.js` ist deshalb verschobener, nicht neuer Code.
+
+**Unverändert gelassen, obwohl auffällig:** die Route steht wie ihre Schwester in `ADMIN_ONLY_ROUTES`, während die Copilot-Pfade **pro Benutzer** konfiguriert werden und die Knöpfe für alle gerendert werden. Bei abgeschaltetem Rechtesystem ist jeder impliziter Admin, es wirkt sich also nicht aus. Ebenso weiterhin offen: `public/index.html` verspricht „Leer = Button deaktiviert", umgesetzt ist das nirgends — die Meldung kommt erst nach dem Klick. Betrifft die bestehenden Knöpfe genauso und wäre eine eigene Änderung.
+
+`test/copilot-file-export-wiring.js` (neu) prüft 30 Punkte statisch, gezielt auf das, was im Browser nicht wie ein Fehler aussieht, sondern wie „der Knopf tut nichts": Inline-Handler gegen die window-Globals (beide Listen), Route in der Route-Map und in `ADMIN_ONLY_ROUTES`, `event.stopPropagation()` gegen das Zuklappen der Kopfzeile — dazu die vier inhaltlichen Zusagen: kein Inhalt im Body, Zielname ≠ fester Name, alle vier Quellen in der Pfadprüfung, `resolveCopilotDir` von beiden Routen genutzt.
+
+**Dateien:** public/js/render.js, public/js/actions.js, server/routes/configRoutes.js, server/httpRouter.js, test/copilot-file-export-wiring.js (neu), README.md, AGENTS.md
 
 ### 2026-08-20 — 🔘 Knöpfe im Analyse-Panel sagen wieder, ob es etwas zu tun gibt
 

@@ -13,7 +13,59 @@ const { emailLogPath } = require('../emailService');
 const { markdownToHtml } = require('../markdownHelper');
 const healthCheck = require('../healthCheck');
 const userConfigStore = require('../userConfigStore');
+const { errorStore, performanceStore } = require('../runtimeStore');
+const { getAnalyzeErrors } = require('../analysisService');
+const { getLabelForFile } = require('../watchService');
+const dropStore = require('../analyzeDropStore');
 const toolExport = require('../toolExport');
+
+// Copilot-Zielverzeichnis fuer 'develop' | 'release' ermitteln. Die Pfade sind
+// PRO BENUTZER konfiguriert (users/<name>/config.json); der Rueckfall auf die
+// globale Config ist historisch und praktisch leer, weil
+// stripUserFieldsFromGlobal die Felder dort entfernt.
+// Rueckgabe: { ok: true, dir, label } oder { ok: false, status, message }.
+function resolveCopilotDir(req, target) {
+  const targetLabel = target === 'release' ? 'Release' : 'Develop';
+  const username = req.session ? req.session.username : null;
+  let copilotPath;
+  if (username) {
+    const userCfg = userConfigStore.getUserConfig(username);
+    if (userCfg) {
+      copilotPath = target === 'release' ? userCfg.copilotWorkingPathRelease : userCfg.copilotWorkingPathDevelop;
+    }
+  }
+  if (!copilotPath) {
+    copilotPath = target === 'release' ? config.copilotWorkingPathRelease : config.copilotWorkingPathDevelop;
+  }
+  if (!copilotPath) {
+    return { ok: false, status: 400, message: `Copilot Working-Pfad ${targetLabel} ist nicht konfiguriert`, label: targetLabel };
+  }
+  const dir = path.resolve(copilotPath);
+  try {
+    if (!fs.statSync(dir).isDirectory()) {
+      return { ok: false, status: 400, message: `Pfad ${targetLabel} ist kein Verzeichnis`, label: targetLabel };
+    }
+  } catch {
+    return { ok: false, status: 400, message: `Pfad ${targetLabel} existiert nicht: ${dir}`, label: targetLabel };
+  }
+  return { ok: true, dir, label: targetLabel };
+}
+
+// Darf diese Datei gelesen werden? Der Einzelfehler-Export schreibt den Pfad
+// nur als Text ins Markdown und braucht das nicht — beim Kopieren der Datei
+// waere ein ungeprueter Pfad dagegen ein Leseloch (beliebige Datei abholbar).
+// Erlaubt ist deshalb nur, was der Server ohnehin kennt und anzeigt.
+function isKnownLogFile(filePath, username) {
+  const norm = path.resolve(filePath).toLowerCase();
+  const hit = (key) => path.resolve(key).toLowerCase() === norm;
+  if ([...errorStore.keys()].some(hit)) return true;
+  if ([...performanceStore.keys()].some(hit)) return true;
+  if (Object.keys(getAnalyzeErrors(username) || {}).some(hit)) return true;
+  // Eigene Ablage (Drag & Drop): dort liegen nur selbst abgelegte Dateien.
+  const dropDir = path.resolve(dropStore.userDir(username)).toLowerCase();
+  if (norm.startsWith(dropDir + path.sep)) return true;
+  return false;
+}
 
 module.exports = function configRoutes(deps) {
   const { applyConfigChanges, stylePath, styleDefaultPath } = deps;
@@ -290,46 +342,88 @@ module.exports = function configRoutes(deps) {
       }
     },
 
+    // Ganze Log-Datei ins Copilot-Verzeichnis kopieren.
+    //
+    // Der Inhalt wird NICHT im Body geschickt: parseJsonBody deckelt bei 1 MB
+    // (server/parseJsonBody.js), Logs sind deutlich groesser. Der Client sendet
+    // nur den Pfad, der Server kopiert die Datei — copyFileSync haelt den
+    // Rohzustand exakt und braucht keinen Streaming-Aufbau.
+    //
+    // Zielname ist der eigene Dateiname, nicht copilot-error-context.md: sonst
+    // ueberschriebe der Datei-Export den Einzelfehler-Export.
+    'POST /api/export-copilot-file': (req, res) => {
+      parseJsonBody(req, (body) => {
+        const { filePath, target } = body || {};
+        const send = (status, obj) => {
+          res.writeHead(status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(obj));
+        };
+        if (!filePath || typeof filePath !== 'string') {
+          send(400, { ok: false, message: 'filePath fehlt' });
+          return;
+        }
+
+        const username = req.session ? req.session.username : '';
+        if (!isKnownLogFile(filePath, username)) {
+          send(400, { ok: false, message: 'Unbekannte Datei — nur angezeigte Log-Dateien koennen exportiert werden' });
+          return;
+        }
+        // Sichtbarkeit der Quelle beachten, wie bei pause-source/clear-source.
+        const srcLabel = getLabelForFile(filePath);
+        if (srcLabel && !userConfigStore.canAccessLabel(req.session, srcLabel)) {
+          send(403, { ok: false, message: 'Kein Zugriff auf diesen Pfad' });
+          return;
+        }
+
+        const dirInfo = resolveCopilotDir(req, target);
+        if (!dirInfo.ok) {
+          send(dirInfo.status, { ok: false, message: dirInfo.message });
+          return;
+        }
+
+        const source = path.resolve(filePath);
+        let size = 0;
+        try {
+          const st = fs.statSync(source);
+          if (!st.isFile()) { send(400, { ok: false, message: 'Kein Dateipfad' }); return; }
+          size = st.size;
+        } catch {
+          send(400, { ok: false, message: 'Datei existiert nicht: ' + source });
+          return;
+        }
+        // Obergrenze wie beim Einlesen: eine 200-MB-Datei gehoert nicht
+        // versehentlich in ein Repository-Verzeichnis.
+        const maxMB = Math.max(1, Number(config.maxLogFileSizeMB) || 6);
+        if (size > maxMB * 1024 * 1024) {
+          send(400, { ok: false, message: `Datei ist groesser als ${maxMB} MB (${(size / 1024 / 1024).toFixed(1)} MB)` });
+          return;
+        }
+
+        const outputPath = path.join(dirInfo.dir, path.basename(source));
+        try {
+          fs.copyFileSync(source, outputPath);
+          send(200, { ok: true, outputPath, target: dirInfo.label, size });
+        } catch (err) {
+          send(500, { ok: false, message: 'Schreibfehler: ' + err.message });
+        }
+      });
+    },
+
     'POST /api/export-copilot-context': (req, res) => {
       parseJsonBody(req, (body) => {
         const { errorText, filePath, timestamp, label, target } = body || {};
         if (!errorText) { res.writeHead(400); res.end(JSON.stringify({ ok: false, message: 'errorText fehlt' })); return; }
 
-        // Copilot-Pfade aus User-Config lesen
-        const username = req.session ? req.session.username : null;
-        let copilotPath;
-        if (username) {
-          const userCfg = userConfigStore.getUserConfig(username);
-          if (userCfg) {
-            copilotPath = target === 'release' ? userCfg.copilotWorkingPathRelease : userCfg.copilotWorkingPathDevelop;
-          }
-        }
-        if (!copilotPath) {
-          copilotPath = target === 'release' ? config.copilotWorkingPathRelease : config.copilotWorkingPathDevelop;
-        }
-
-        const targetLabel = target === 'release' ? 'Release' : 'Develop';
-        if (!copilotPath) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: `Copilot Working-Pfad ${targetLabel} ist nicht konfiguriert` }));
+        // Zielverzeichnis und die drei Fehlerfaelle teilt sich diese Route mit
+        // dem Datei-Export (resolveCopilotDir).
+        const dirInfo = resolveCopilotDir(req, target);
+        if (!dirInfo.ok) {
+          res.writeHead(dirInfo.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: dirInfo.message }));
           return;
         }
-
-        const resolvedDir = path.resolve(copilotPath);
-        try {
-          const stat = fs.statSync(resolvedDir);
-          if (!stat.isDirectory()) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: false, message: `Pfad ${targetLabel} ist kein Verzeichnis` }));
-            return;
-          }
-        } catch {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, message: `Pfad ${targetLabel} existiert nicht: ${resolvedDir}` }));
-          return;
-        }
-
-        const outputPath = path.join(resolvedDir, 'copilot-error-context.md');
+        const targetLabel = dirInfo.label;
+        const outputPath = path.join(dirInfo.dir, 'copilot-error-context.md');
         const time = timestamp ? new Date(timestamp).toLocaleString('de-DE') : 'unbekannt';
         const fence = errorText.includes('```') ? '````' : '```';
         const md = `# Fehler-Kontext für Copilot (${targetLabel})\n\n- **Quelle:** ${label || 'unbekannt'}\n- **Datei:** ${filePath || 'unbekannt'}\n- **Zeit:** ${time}\n- **Exportiert:** ${new Date().toLocaleString('de-DE')}\n- **Ziel:** ${targetLabel}\n\n## Fehlertext\n\n${fence}\n${errorText}\n${fence}\n`;
