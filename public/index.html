@@ -327,11 +327,13 @@
                 <label>Working-Pfad Develop:</label>
                 <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Pfad zum Develop-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
                 <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
+                <button type="button" class="folder-picker-btn" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathDevelop', event)">↗️</button>
               </div>
               <div class="config-field">
                 <label>Working-Pfad Release:</label>
                 <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Pfad zum Release-Verzeichnis für copilot-error-context.md. Leer = deaktiviert.">
                 <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
+                <button type="button" class="folder-picker-btn" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathRelease', event)">↗️</button>
               </div>
             </div>
           </div>

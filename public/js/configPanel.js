@@ -444,6 +444,21 @@ function toggleHint(key) {
   applyHint(key);
 }
 
+// Pfad aus einem Eingabefeld im Explorer öffnen (↗️ neben den Copilot-Pfaden).
+// Delegiert an openFolder() aus actions.js statt den fetch ein viertes Mal zu
+// schreiben — dieselbe Route bedienen schon die Fehlereinträge, die Backup-Ziele
+// und die Analyse-Pfade. openFolder unterscheidet Datei und Verzeichnis selbst.
+function openConfigPath(inputId, event) {
+  if (event) event.stopPropagation();
+  const el = document.getElementById(inputId);
+  const value = el ? el.value.trim() : '';
+  if (!value) {
+    showToast('Kein Pfad eingetragen', 'error');
+    return;
+  }
+  openFolder(value, event);
+}
+
 window.Keasy.config = {
   markConfigDirty, toggleConfigPanel, switchConfigTab,
   resetConfig, loadEmailLog, clearEmailLog, loadConfig, populateConfigForm,
@@ -451,7 +466,7 @@ window.Keasy.config = {
   renderExcludeList, addExcludePattern, removeExcludePattern,
   buildConfigFromForm, saveConfig, showConfigMessage,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
-  toggleHint, applyAllHints
+  toggleHint, applyAllHints, openConfigPath
 };
 
 Object.assign(window, {
@@ -461,7 +476,7 @@ Object.assign(window, {
   loadEmailLog, clearEmailLog, markConfigDirty,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
   showConfigMessage, loadConfig, populateConfigForm,
-  toggleHint
+  toggleHint, openConfigPath
 });
 
 })();

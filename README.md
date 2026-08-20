@@ -505,6 +505,20 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-20 — ↗️ Copilot-Pfade im Explorer öffnen
+
+Die beiden Copilot-Pfadfelder im Tab „Regeln" haben neben dem 📂 (Ordner auswählen) jetzt ein **↗️** bekommen: öffnet den eingetragenen Pfad im Explorer. Zum Nachsehen, was dort liegt, musste man den Pfad vorher von Hand herauskopieren.
+
+**Kein vierter Aufruf derselben Route.** `/api/open-folder` bedienen inzwischen die Fehlereinträge (`actions.js`), die Backup-Ziele (`backupTargetsPanel.js`) und die Analyse-Pfade (`analyzePanel.js`). Der neue Knopf liest nur das Eingabefeld und gibt den Wert an das vorhandene `openFolder()` weiter — der `fetch` steht damit weiterhin an genau einer Stelle. Nebeneffekt: er erbt die Verbesserung vom Eintrag darunter, dass ein Verzeichnis **direkt** geöffnet wird statt der Elternordner mit markiertem Ordner.
+
+Der Test hält das fest (`kein eigener fetch`), damit hier nicht doch noch eine vierte Kopie entsteht — bei vier gleichartigen Aufrufern ist das der wahrscheinlichste Weg, wie so etwas auseinanderläuft.
+
+**Bei leerem Feld kommt eine Rückmeldung** („Kein Pfad eingetragen") statt eines Klicks ins Nichts — dasselbe Verhalten wie beim ↗️ der Backup-Ziele.
+
+**Bewusst nicht mitgemacht:** der Knopf wird bei leerem Feld nicht ausgegraut. Das wäre konsequent, hängt aber am selben ungelösten Punkt wie die 🤖/🚀-Knöpfe — die Karte behauptet „Leer = Button deaktiviert", umgesetzt ist das nirgends. Das gehört in einem Zug für alle drei gemacht, nicht halb. Ebenso offen: dieselbe Möglichkeit an den Monitor-Pfaden.
+
+**Dateien:** public/index.html, public/js/configPanel.js, test/copilot-file-export-wiring.js, README.md
+
 ### 2026-08-20 — 🤖 Komplette Log-Datei ins Copilot-Verzeichnis
 
 Ein einzelner Fehler ließ sich schon per 🤖/🚀 als `copilot-error-context.md` in ein Arbeitsverzeichnis exportieren. Beim Arbeiten fehlte oft das Umfeld: was lief vor dem Fehler, wie lang waren die Abstände, was kam danach. Die beiden Icons sitzen jetzt **zusätzlich in der Datei-Kopfzeile** neben 📂/📝 und legen dort die **komplette Log-Datei im Rohzustand** unter **ihrem eigenen Namen** im jeweiligen Zielverzeichnis ab.

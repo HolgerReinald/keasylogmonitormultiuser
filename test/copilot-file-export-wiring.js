@@ -106,5 +106,28 @@ console.log('\n7) Zielverzeichnis-Logik wird geteilt, nicht kopiert');
     'Die Copilot-Pfade sind Benutzer-Einstellungen, keine globalen');
 }
 
+console.log('\n8) ↗️ an den Copilot-Pfaden (Einstellungen)');
+{
+  const html = read('public/index.html');
+  const cfg = read('public/js/configPanel.js');
+  for (const t of ['Develop', 'Release']) {
+    check(`Knopf am Feld ${t}`,
+      html.includes(`openConfigPath('cfg-copilotWorkingPath${t}', event)`),
+      'Ohne den Knopf muss man den Pfad zum Nachsehen von Hand kopieren');
+  }
+  check('openConfigPath definiert', /function openConfigPath\(inputId, event\)/.test(cfg));
+  const fn = (cfg.match(/function openConfigPath\([\s\S]*?\n}/) || [''])[0];
+  check('delegiert an openFolder', /openFolder\(value, event\)/.test(fn),
+    'Kein vierter fetch auf /api/open-folder — die Route bedienen schon Fehlereintraege, ' +
+    'Backup-Ziele und Analyse-Pfade');
+  check('kein eigener fetch', !/fetch\(/.test(fn));
+  check('leeres Feld gibt Rueckmeldung', /showToast\('Kein Pfad eingetragen'/.test(fn),
+    'Sonst passiert bei leerem Feld sichtbar nichts');
+  const globals = (cfg.match(/Object\.assign\(window, \{([\s\S]*?)\n\}\)/) || [, ''])[1];
+  const ns = (cfg.match(/window\.Keasy\.config = \{([\s\S]*?)\n\};/) || [, ''])[1];
+  check('im window-Global', /\bopenConfigPath\b/.test(globals));
+  check('im Namespace Keasy.config', /\bopenConfigPath\b/.test(ns));
+}
+
 console.log(failed === 0 ? '\n✅ Verdrahtung vollstaendig\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);
