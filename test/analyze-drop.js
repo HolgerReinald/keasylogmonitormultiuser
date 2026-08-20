@@ -1,8 +1,9 @@
 // Laufzeit-Pruefung der Log-Ablage (Drag & Drop) — ohne Server.
 //
-// Prueft die drei Stellen, an denen dieses Feature realistisch falsch laeuft:
-//   1. .json wird ueberall statt nur in der Ablage akzeptiert → in einem
-//      konfigurierten Ordner wuerde jede package.json als Log ausgewertet
+// Prueft die Stellen, an denen dieses Feature realistisch falsch laeuft:
+//   1. .json zaehlt nicht als Log → ein Ordner mit reinen JSON-Logs einer
+//      Schnittstelle wird als "keine Log-Dateien" gemeldet (so passiert am
+//      2026-08-20). Umgekehrt darf node_modules nicht mitgelesen werden.
 //   2. JSON-Logs laufen durch den Textfilter statt strukturell → in Prompt-
 //      texten schlaegt jedes "fehler" an, echte Error-Objekte fehlen
 //   3. ZIP-Eintraege brechen aus der Ablage aus (zip-slip) oder Nicht-Logs
@@ -44,22 +45,33 @@ async function main() {
   // Arbeitsverzeichnis ausserhalb des Projekts, damit nichts Echtes angefasst wird
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'keasy-drop-test-'));
   try {
-    console.log('\n1) .json zaehlt nur dort, wo es erlaubt ist');
+    console.log('\n1) .log und .json gelten überall als Log, node_modules nicht');
     {
       const dir = path.join(tmp, 'mixed');
       write(dir, 'app.log', LOG);
       write(dir, 'ki.json', JSONLOG);
       write(dir, 'package.json', '{ "name": "kein-log" }');
+      // Der Grund fuer die Sprungliste: hier liegen in echten Projekten
+      // tausende JSON-Dateien, die niemand lesen will.
+      write(path.join(dir, 'node_modules', 'irgendwas'), 'package.json', '{ "name": "x" }');
+      write(path.join(dir, '.git'), 'config.json', '{}');
 
-      const plain = (await collectLogFiles([dir])).logFiles;
-      check('konfigurierter Ordner: nur .log',
-        plain.length === 1 && plain[0].endsWith('app.log'),
-        'gefunden: ' + plain.map(p => path.basename(p)).join(', ') +
-        ' — sonst waere in einem Projektordner jede package.json ein Log');
+      const found = (await collectLogFiles([dir])).logFiles;
+      const names = found.map(p => path.basename(p)).sort();
 
-      const withJson = (await collectLogFiles([{ path: dir, includeJson: true }])).logFiles;
-      const names = withJson.map(p => path.basename(p)).sort();
-      check('Ablage: .log und .json', names.length === 3, 'gefunden: ' + names.join(', '));
+      check('.log wird gefunden', names.includes('app.log'), 'gefunden: ' + names.join(', '));
+      check('.json wird gefunden', names.includes('ki.json'),
+        'Ein Ordner mit reinen JSON-Logs (Schnittstelle) waere sonst wertlos — genau der Fall, ' +
+        'der am 2026-08-20 als "keine Log-Dateien" gemeldet wurde');
+      check('node_modules wird uebersprungen', names.filter(n => n === 'package.json').length === 1,
+        'gefunden: ' + names.join(', ') + ' — die package.json des Ordners selbst zaehlt, ' +
+        'die aus node_modules nicht');
+      check('.git wird uebersprungen', !found.some(p => p.includes('.git')));
+      check('insgesamt drei Dateien', found.length === 3, 'gefunden: ' + names.join(', '));
+
+      // Die Ablage nutzt dieselbe Logik — kein Sonderfall mehr
+      const asObject = (await collectLogFiles([{ path: dir }])).logFiles;
+      check('Objekt-Form { path } verhaelt sich gleich', asObject.length === found.length);
     }
 
     console.log('\n2) JSON-Logs werden strukturell ausgewertet');
@@ -67,7 +79,7 @@ async function main() {
       const dir = path.join(tmp, 'jsononly');
       write(dir, 'ki.json', JSONLOG);
       const user = 'testuser-drop';
-      await runAnalysis([{ path: dir, includeJson: true }], 100, user, { gapWarnSeconds: 0, gapIdleMinutes: 30 });
+      await runAnalysis([dir], 100, user, { gapWarnSeconds: 0, gapIdleMinutes: 30 });
       const res = getAnalyzeErrors(user);
       const files = Object.keys(res);
       check('JSON-Datei wurde ausgewertet', files.length === 1, 'Dateien: ' + files.join(', '));

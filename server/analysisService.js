@@ -159,34 +159,43 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
   });
 }
 
-// Welche Dateien gelten als Log? .json nur dort, wo es ausdrücklich erlaubt ist —
-// bei einem konfigurierten Ordner würde sonst jede package.json, tsconfig.json
-// oder Einstellungsdatei im Baum als Log ausgewertet. Erlaubt ist es deshalb nur
-// für abgelegte Dateien: die hat der Anwender einzeln ausgewählt.
-function isLogFile(name, allowJson) {
+// Was gilt als Log? `.log` und `.json` — Letzteres, weil Schnittstellen reine
+// JSON-Logs schreiben und ein Ordner voll davon sonst als „keine Log-Dateien"
+// gemeldet würde.
+//
+// Die frühere Einschränkung („.json nur für abgelegte Dateien") sollte
+// verhindern, dass in einem Projektordner jede package.json als Log gilt. Das
+// Argument war schwächer als gedacht: JSON wird **strukturell** bewertet
+// (evaluateJsonEntry), eine package.json hat kein Error-Objekt, kein
+// `success: false` und keinen `code >= 400` — sie erzeugt also gar keine
+// Meldung. Der einzige echte Preis war Lesezeit, und die wird nur in
+// node_modules teuer. Genau das wird jetzt gezielt übersprungen.
+function isLogFile(name) {
   const n = name.toLowerCase();
-  return n.endsWith('.log') || (allowJson && n.endsWith('.json'));
+  return n.endsWith('.log') || n.endsWith('.json');
 }
 
-// inputPaths: Strings (wie bisher) oder { path, includeJson } — gemischt erlaubt.
+// Verzeichnisse, die nie Logs enthalten, aber tausende JSON-Dateien.
+const SKIP_DIRS = new Set(['node_modules', '.git']);
+
+// inputPaths: Strings oder { path } — gemischt erlaubt.
 async function collectLogFiles(inputPaths) {
   const seen = new Set();
   const logFiles = [];
   const skippedPaths = [];
   for (const item of inputPaths) {
     const p = typeof item === 'string' ? item : (item && item.path);
-    const allowJson = typeof item === 'string' ? false : !!(item && item.includeJson);
     if (!p) continue;
     try {
       const resolved = path.resolve(p);
       const stat = fs.statSync(resolved);
-      if (stat.isFile() && isLogFile(resolved, allowJson)) {
+      if (stat.isFile() && isLogFile(resolved)) {
         const norm = resolved.toLowerCase();
         if (!seen.has(norm)) { seen.add(norm); logFiles.push(resolved); }
       } else if (stat.isDirectory()) {
-        collectLogsRecursive(resolved, logFiles, seen, allowJson);
+        collectLogsRecursive(resolved, logFiles, seen);
       } else {
-        skippedPaths.push({ path: p, reason: allowJson ? 'Keine .log/.json-Datei' : 'Keine .log-Datei' });
+        skippedPaths.push({ path: p, reason: 'Keine .log/.json-Datei' });
       }
     } catch (err) {
       skippedPaths.push({ path: p, reason: err.code === 'ENOENT' ? 'Pfad nicht gefunden' : err.message });
@@ -195,14 +204,15 @@ async function collectLogFiles(inputPaths) {
   return { logFiles, skippedPaths };
 }
 
-function collectLogsRecursive(dir, result, seen, allowJson) {
+function collectLogsRecursive(dir, result, seen) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        collectLogsRecursive(fullPath, result, seen, allowJson);
-      } else if (entry.isFile() && isLogFile(entry.name, allowJson)) {
+        if (SKIP_DIRS.has(entry.name.toLowerCase())) continue;
+        collectLogsRecursive(fullPath, result, seen);
+      } else if (entry.isFile() && isLogFile(entry.name)) {
         const norm = fullPath.toLowerCase();
         if (!seen.has(norm)) { seen.add(norm); result.push(fullPath); }
       }

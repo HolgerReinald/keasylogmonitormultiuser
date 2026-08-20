@@ -55,9 +55,11 @@ scripts/          → Build/Dev-Hilfsskripte (update-docs.js etc.)
   nicht über `filterPatterns`. Wer ein Fehler-Pattern für JSON anlegt, wundert sich sonst,
   warum es nichts tut. Erkannt werden `Error`/`error`, `Success`/`success: false` und
   `code >= 400`; bei kaputtem JSON greift der Textfilter als Rückfall.
-- `.json` gilt in der Analyse **nur für abgelegte Dateien** (`collectLogFiles` mit
-  `{ path, includeJson: true }`). Bei konfigurierten Ordnern wäre sonst jede `package.json`
-  im Baum ein Log.
+- `.json` gilt in der Analyse **überall** als Log, nicht nur für abgelegte Dateien —
+  Schnittstellen schreiben reine JSON-Logs, ein Ordner voll davon wäre sonst wertlos.
+  Fehlmeldungen entstehen dadurch nicht, weil JSON strukturell bewertet wird (eine
+  `package.json` hat kein Error-Objekt). Gegen die Lesezeit werden `node_modules`
+  und `.git` in der Rekursion übersprungen (`SKIP_DIRS`).
 
 ## ⚠️ Regeln & Anti-Patterns
 

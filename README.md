@@ -498,6 +498,41 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-20 — 🔧 `.json` gilt jetzt überall als Log, und Abbrechen wirkt auch ohne laufende Analyse
+
+Direkt nach der Erprobung des Drag & Drop fiel auf: eine Analyse über `S:\temp\HR` meldete **„Keine .log-Dateien gefunden"**, obwohl der Ordner existiert und Log-Dateien enthält — nämlich die **reinen JSON-Logs einer Schnittstelle**.
+
+**Ursache war die Entscheidung aus dem Eintrag darunter.** Dort steht: „`.json` gilt nur für abgelegte Dateien. Bei einem konfigurierten Ordner würde sonst jede `package.json` im Baum als Log ausgewertet." Diese Regel schließt genau den Fall aus, für den das Feature gebaut wurde — sie entstand, *nachdem* der Hinweis „reine json-dateien haben wir auch für eine schnittstelle" gefallen war.
+
+**Und das Gegenargument war schwächer als gedacht:** JSON wird **strukturell** bewertet (`evaluateJsonEntry`). Eine `package.json` hat kein Error-Objekt, kein `success: false` und keinen `code >= 400` — sie erzeugt also überhaupt keine Meldung. Der einzige echte Preis war **Lesezeit**, und die wird nur an einer Stelle teuer: `node_modules`.
+
+Deshalb jetzt:
+
+- **`.json` gilt überall als Log**, die Einschränkung samt `includeJson`-Verkabelung ist entfallen. Das `includeJson` der **Watch-Paths** bleibt unberührt — das ist eine eigene Einstellung für den Live-Watcher.
+- **`node_modules` und `.git` werden in der Rekursion übersprungen** (`SKIP_DIRS`). Gezielt gegen die tatsächliche Gefahr, statt eine ganze Dateiendung zu opfern. Gegenprobe am Projektordner selbst: 17 Dateien statt der tausenden aus den Abhängigkeitsbäumen.
+- **Die Meldung nennt die Endungen:** „Keine `.log`/`.json`-Dateien gefunden in den angegebenen Pfaden". Vorher stand dort nur `.log`, während `.json` schweigend ignoriert wurde — dieser Widerspruch war der eigentliche Grund, warum die Sache wie ein Defekt wirkte und nicht wie eine Regel.
+
+---
+
+**Zweiter, unabhängiger Fund: ⏹ Abbrechen tat unter Umständen gar nichts.** Die Route setzte nur `au.aborted = true`:
+
+```js
+const au = getOrCreateAnalyzeUser(username);
+au.aborted = true;
+```
+
+Lief serverseitig gerade **kein** Lauf, sendete niemand etwas — der Client blieb im „läuft"-Zustand, der Start-Knopf blieb versteckt, und nur ein Reload half. Genau so ist eine Anzeige klebengeblieben, in der die Statuszeile von einem abgeschlossenen Lauf stammte und der Knopfzustand von einem späteren. `analyze-cancel` schickt jetzt in diesem Fall selbst ein `analyze-done` mit `aborted: true`. Damit ist Abbrechen immer ein Ausweg, unabhängig davon, wie der Zustand entstanden ist.
+
+---
+
+**Der Test hätte die Korrektur blockiert.** `test/analyze-drop.js` prüfte ausdrücklich das alte Verhalten („konfigurierter Ordner: nur `.log`") — mit Begründung, die inzwischen widerlegt war. Er prüft jetzt das Gegenteil plus die neuen Sprungverzeichnisse: `.log` gefunden, `.json` gefunden, `node_modules` und `.git` übersprungen, genau drei Dateien. Auch `AGENTS.md` stand auf der alten Regel und ist nachgezogen.
+
+Lehre für den Umgang mit solchen Tests: ein Test, der eine *Entscheidung* festschreibt, muss mitgeändert werden, wenn die Entscheidung fällt — sonst verteidigt er den Fehler. Er ist deshalb nicht wertlos, im Gegenteil: er hat beim Ändern sofort angezeigt, welche Annahme gerade umgeworfen wird.
+
+**Nebenbei ein Diagnose-Irrweg, der Zeit gekostet hat:** ein `fs.statSync` auf `S:\temp\HR` aus der Werkzeug-Shell liefert **ENOENT**, obwohl der Pfad existiert — gemappte Netzlaufwerke hängen am Benutzer-Token der Sitzung. Daraus wurde fälschlich „Pfad nicht erreichbar" geschlossen. Wer die Umgebung des Servers wissen will, muss den **Server** fragen: `POST /api/analyze-validate-path` mit `{"path":"S:/temp/HR"}` beantwortet das aus dessen Sicht (Schrägstriche verwenden — Backslashes überleben die Verschachtelung in Shell-Aufrufen nicht).
+
+**Dateien:** server/analysisService.js, server/routes/analysisRoutes.js, public/js/analyzePanel.js, test/analyze-drop.js, AGENTS.md, README.md
+
 ### 2026-08-20 — ↗️ Pfad im Explorer öffnen, und Verzeichnisse landen nicht mehr im Eltern-Ordner
 
 Die Analyse-Pfade haben vor dem ❌ ein **↗️** bekommen: öffnet den Pfad im Explorer. Kein neuer Weg — dieselbe Route `POST /api/open-folder`, die die Fehlereinträge in der Hauptansicht und die Backup-Ziele schon nutzen, und dasselbe Zeichen wie dort. Bewusst nicht `📂`: das steht in diesem Panel bereits für die *Ordnerauswahl*.

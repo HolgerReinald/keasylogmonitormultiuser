@@ -384,7 +384,8 @@ function updateAnalyzeProgress(current, total, errorCount, running, aborted, ski
     if (aborted) {
       status.textContent = `⏹ Abgebrochen: ${current}/${total} Dateien, ${errorCount} Fehler${gapInfo}`;
     } else if (total === 0) {
-      status.textContent = '⚠️ Keine .log-Dateien gefunden in den angegebenen Pfaden';
+      // Endungen nennen: sonst raetselt man, wonach ueberhaupt gesucht wurde.
+      status.textContent = '⚠️ Keine .log/.json-Dateien gefunden in den angegebenen Pfaden';
     } else {
       status.textContent = `✅ Abgeschlossen: ${errorCount} Fehler${gapInfo} in ${total} Dateien`;
     }

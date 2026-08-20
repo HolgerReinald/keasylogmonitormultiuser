@@ -20,14 +20,10 @@ module.exports = function analysisRoutes(deps) {
       parseJsonBody(req, (body) => {
         const paths = body && body.paths;
         // Abgelegte Dateien haengt der Server selbst an: der Client kennt den
-        // Ablage-Pfad nicht und soll ihn auch nicht schicken. includeJson gilt
-        // nur hier — bei konfigurierten Ordnern wuerde sonst jede package.json
-        // im Baum als Log ausgewertet.
+        // Ablage-Pfad nicht und soll ihn auch nicht schicken.
         const username0 = req.session ? req.session.username : 'unbekannt';
         const droppedFiles = dropStore.list(username0);
-        const dropInput = droppedFiles.length
-          ? [{ path: dropStore.userDir(username0), includeJson: true }]
-          : [];
+        const dropInput = droppedFiles.length ? [dropStore.userDir(username0)] : [];
         const maxErrors = (body && body.maxErrorsPerFile) || 100;
         const gapOpts = {
           gapWarnSeconds: (body && Number(body.gapWarnSeconds)) || 0,
@@ -60,6 +56,17 @@ module.exports = function analysisRoutes(deps) {
       if (username) {
         const au = getOrCreateAnalyzeUser(username);
         au.aborted = true;
+        // Laeuft gerade nichts, sendet runAnalysis auch nichts — der Client
+        // bliebe im "laeuft"-Zustand haengen und Abbrechen waere ohne jede
+        // Wirkung. Genau so ist am 2026-08-20 eine Anzeige klebengeblieben,
+        // die nur ein Reload wieder loesen konnte. Deshalb hier selbst ein
+        // Ende schicken.
+        if (!au.running) {
+          broadcastToUser(username, {
+            type: 'analyze-done',
+            data: { total: 0, processed: 0, errors: 0, gaps: 0, aborted: true, username }
+          });
+        }
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
