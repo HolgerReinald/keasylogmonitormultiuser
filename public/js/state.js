@@ -28,6 +28,10 @@ window.Keasy.state = {
   analyzeUser: '',
   analyzePaths: [],
   analyzeIsRunning: false,
+  // Vergleichsstand für „Pfade speichern": null = noch nicht geladen, dann gibt
+  // es auch nichts zu speichern. Sonst der Stand der zuletzt gespeicherten
+  // Werte — weicht die Anzeige davon ab, ist der Knopf aktiv.
+  analyzeSavedSnapshot: null,
   // Per Drag & Drop übergebene Log-Dateien. Liegen serverseitig in einer
   // temporären Ablage je Benutzer, nicht in der Config — deshalb nur hier.
   analyzeDropped: [],

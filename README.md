@@ -498,6 +498,22 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-20 — 🔘 Knöpfe im Analyse-Panel sagen wieder, ob es etwas zu tun gibt
+
+Zwei Knöpfe im Log-Analyse-Panel behaupteten eine offene Aufgabe, wo keine war.
+
+**„💾 Pfade speichern" war immer grün und aktiv** — auch direkt nach dem Öffnen, ohne jede Änderung. Ein Knopf, der dauerhaft wie eine offene Aufgabe aussieht, verliert seine Aussage: man kann ihm nicht mehr ansehen, ob ungespeicherte Änderungen vorliegen. Der Speichern-Knopf der Config macht es seit langem richtig (aus, bis wirklich etwas geändert wurde), und `.config-save-btn:disabled` mit `opacity: 0.4` gab es auch schon — das Muster war hier nur nicht angewandt.
+
+Jetzt trägt `state.analyzeSavedSnapshot` den Stand der zuletzt gespeicherten Werte: Pfadliste, Max. Fehler, Gap-Warnung, Idle. Gesetzt wird er beim Laden und nach dem Speichern; weicht die Anzeige ab, wird der Knopf aktiv. **Ohne Vergleichsstand gilt „nichts zu speichern"**, nicht „geändert" — sonst leuchtete der Knopf ausgerechnet in dem Moment zwischen Seitenaufbau und geladener Config, wo es garantiert nichts zu tun gibt.
+
+Die **Zahlenfelder brauchten eigene Listener**: das Analyse-Panel liegt außerhalb von `#configPanel`, dessen Änderungserkennung greift dort nicht. Pfad-Hinzufügen und -Entfernen riefen `updateAnalyzeButtons()` schon auf.
+
+**„⏹ Abbrechen" war klickbar, obwohl nichts lief.** Es wurde bisher nur über `display` ein- und ausgeblendet — das reichte nicht: bei einem klebenden Anzeigezustand blieb es sichtbar *und* klickbar, während serverseitig keine Analyse lief. Es ist jetzt zusätzlich `disabled`, solange `analyzeIsRunning` falsch ist. Damit greifen drei Dinge zusammen: ausgeblendet wenn nichts läuft, gesperrt falls es doch sichtbar ist, und die Route schickt selbst ein Ende, wenn es nichts abzubrechen gibt (Eintrag darüber).
+
+Gegengeprüft an einer DOM-Attrappe über alle sechs Zustände — vor dem Laden, geladen, Zahl geändert, gespeichert, Pfad hinzugefügt, Analyse läuft.
+
+**Dateien:** public/js/analyzePanel.js, public/js/state.js, README.md
+
 ### 2026-08-20 — 🔧 `.json` gilt jetzt überall als Log, und Abbrechen wirkt auch ohne laufende Analyse
 
 Direkt nach der Erprobung des Drag & Drop fiel auf: eine Analyse über `S:\temp\HR` meldete **„Keine .log-Dateien gefunden"**, obwohl der Ordner existiert und Log-Dateien enthält — nämlich die **reinen JSON-Logs einer Schnittstelle**.

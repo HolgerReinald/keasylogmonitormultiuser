@@ -33,7 +33,7 @@ async function loadAnalyzeConfig() {
     _analyzeLoaded = true;
     loadDroppedFiles();
     renderAnalyzePaths();
-    updateAnalyzeButtons();
+    markAnalyzeSaved();
   } catch (err) {
     console.error('[Analyze] Config laden fehlgeschlagen:', err.message);
   }
@@ -258,14 +258,43 @@ function dismissDroppedReject(i) {
   renderAnalyzePaths();
 }
 
+// Vergleichsstand der speicherbaren Werte. Wird beim Laden gesetzt und nach
+// dem Speichern erneuert; daraus ergibt sich, ob "Pfade speichern" etwas zu
+// tun hat. Ein Knopf, der immer wie eine offene Aufgabe aussieht, verliert
+// seine Aussage — dasselbe Muster wie beim Speichern-Knopf der Config.
+function analyzeSnapshot() {
+  const num = (id) => (document.getElementById(id) || {}).value || '';
+  return JSON.stringify({
+    paths: state.analyzePaths,
+    maxErrors: num('analyzeMaxErrors'),
+    gapWarn: num('analyzeGapWarnSeconds'),
+    gapIdle: num('analyzeGapIdleMinutes')
+  });
+}
+
+function markAnalyzeSaved() {
+  state.analyzeSavedSnapshot = analyzeSnapshot();
+  updateAnalyzeButtons();
+}
+
 function updateAnalyzeButtons() {
   const startBtn = document.getElementById('analyzeStartBtn');
   const clearBtn = document.getElementById('analyzeClearBtn');
+  const cancelBtn = document.getElementById('analyzeCancelBtn');
+  const saveBtn = document.getElementById('analyzeSaveBtn');
   // Nur abgelegte Dateien ohne konfigurierten Pfad ist ein gueltiger Lauf.
   const hasPaths = state.analyzePaths.length > 0 || (state.analyzeDropped || []).length > 0;
   const hasResults = Object.keys(state.analyzeErrors).length > 0;
   startBtn.disabled = !hasPaths || state.analyzeIsRunning;
   clearBtn.disabled = state.analyzeIsRunning || (!hasResults && !state.analyzeIsRunning);
+  // Abbrechen ist zusaetzlich zum Ausblenden gesperrt: bleibt es durch einen
+  // ungewoehnlichen Zustand doch sichtbar, ist es wenigstens nicht klickbar.
+  if (cancelBtn) cancelBtn.disabled = !state.analyzeIsRunning;
+  if (saveBtn) {
+    // Ohne Vergleichsstand (noch nicht geladen) gibt es nichts zu speichern.
+    const dirty = state.analyzeSavedSnapshot !== null && analyzeSnapshot() !== state.analyzeSavedSnapshot;
+    saveBtn.disabled = state.analyzeIsRunning || !dirty;
+  }
 }
 
 async function startAnalysis() {
@@ -340,6 +369,7 @@ async function saveAnalyzePaths() {
       msg.textContent = '✅ Pfade gespeichert';
       msg.style.color = '#10b981';
       state.currentConfig = cfg;
+      markAnalyzeSaved();
     } else {
       msg.textContent = '❌ ' + (result.message || 'Fehler');
       msg.style.color = '#ef4444';
@@ -511,6 +541,14 @@ document.addEventListener('DOMContentLoaded', () => {
       uploadDroppedFiles(e.dataTransfer.files);
     }
   });
+  // Aenderungen an den Zahlenfeldern muessen den Speichern-Knopf aufwecken.
+  // Das Analyse-Panel liegt ausserhalb von #configPanel, die dortige
+  // Change-Erkennung greift hier also nicht.
+  ['analyzeMaxErrors', 'analyzeGapWarnSeconds', 'analyzeGapIdleMinutes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateAnalyzeButtons);
+  });
+
   // Auch per Klick auswaehlbar — Drag & Drop ist bequem, aber nicht fuer alle
   // und nicht mit der Tastatur bedienbar.
   const picker = document.getElementById('analyzeLogPicker');
@@ -527,6 +565,7 @@ window.Keasy.analyze = {
   toggleAnalyzePanel, loadAnalyzeConfig, addAnalyzePath, removeAnalyzePath, renderAnalyzePaths, updateAnalyzeButtons,
   startAnalysis, cancelAnalysis, clearAnalysis, saveAnalyzePaths,
   showAnalyzeStatus, updateAnalyzeProgress, toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder,
+  markAnalyzeSaved,
   loadDroppedFiles, uploadDroppedFiles, removeDroppedFile, clearDroppedFiles, openAnalyzePath
 };
 
