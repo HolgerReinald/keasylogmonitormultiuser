@@ -100,6 +100,11 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
 - `package.json` Version: `YYYY.MM.DD-HH:MM` Format
 - `README.md` enthält Historie aller Änderungen
 - Tool `update_docs` nutzen zum Aktualisieren (bumpt Version + README-Eintrag)
+- **In Historie-Einträgen keine `##`-Überschriften** — ein Eintrag ist ein `###`,
+  darin nur fette Absätze. Ein `##` beendet den Abschnitt „Historie": der Doku-Tab
+  gruppiert nach `h2` (`wrapH2Sections`) und zerlegt die Historie dann in Stücke,
+  und `test/docs-tabs-sync.js` hält danach alte Einträge für aktuelle Doku. Am
+  2026-08-20 genau so passiert.
 
 ## Tests
 - Keine automatisierten Unit-Tests vorhanden
