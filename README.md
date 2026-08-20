@@ -511,7 +511,7 @@ Zwei Dinge in einem Zug, weil sie dieselbe Karte betreffen.
 
 ---
 
-## „Leer = Button deaktiviert" war ein Versprechen ohne Umsetzung
+**„Leer = Button deaktiviert" war ein Versprechen ohne Umsetzung.**
 
 Die Einstellungskarte behauptete das seit langem, tatsächlich kam die Absage **erst nach dem Klick** — als Statuszeile „❌ Develop: Pfad ist nicht konfiguriert". Betroffen waren drei Knöpfe: 🤖 und 🚀 (am Fehlereintrag **und**, seit heute, in der Datei-Kopfzeile) sowie das neue ↗️ an den Pfadfeldern.
 
@@ -526,7 +526,7 @@ Der Client kann die Pfade nicht selbst kennen: sie stehen **pro Benutzer** in `u
 
 **Nebenbei aufgeräumt:** die beiden Knöpfe standen zweimal ausgeschrieben im Markup — am Fehlereintrag und in der Kopfzeile. Beide kommen jetzt aus **einem** Bauer `buildCopilotBtnHtml()`. Ohne das hätte die Sperre an zwei Stellen eingebaut werden müssen, und die zweite wäre beim nächsten Mal vergessen worden. Der gesperrte Knopf nennt im Titel den Grund („KI-Pfad Develop ist nicht konfiguriert (Einstellungen → Regeln)") — ein gesperrter Knopf ohne Begründung ist schlimmer als einer, der erst nach dem Klick meckert.
 
-## Der eigentliche Fehler saß aber im CSS
+**Der eigentliche Fehler saß aber im CSS.**
 
 Die Sperre wirkte trotzdem nicht — gemeldet als „geht nicht, die Vorbelegung funkt dazwischen". Ursache: **`.folder-picker-btn` und `.action-btn` hatten keinen `:disabled`-Stil.** Das ↗️ *war* gesperrt und nicht klickbar, sah aber vollkommen unverändert aus. `.copilot-btn` hatte den Stil (`opacity: 0.3`), `.config-save-btn` und `.config-reset-btn` auch — diese zwei Klassen nicht.
 
@@ -536,7 +536,7 @@ Ein gesperrter Knopf, der aussieht wie ein bedienbarer, ist schlimmer als keine 
 
 ---
 
-## Copilot-Export → KI-Export
+**Copilot-Export → KI-Export.**
 
 Wir arbeiten nicht mehr mit Copilot, sondern mit Claude. Umbenannt wurde alles **Sichtbare**: Kartentitel, Tab-Tooltip, beide Feld-Tooltips, die Knopf-Beschriftungen („Einzelnen Fehler an die KI (Develop) exportieren", „Komplette Datei ins KI-Verzeichnis Develop kopieren"), die Sperr-Begründung, die Servermeldung und die Doku. Die exportierte Datei heißt jetzt **`ki-error-context.md`** statt `copilot-error-context.md`.
 
