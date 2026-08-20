@@ -80,6 +80,8 @@ function connect() {
       state.oversizedFiles = msg.oversizedFiles || {};
       state.maxLogFileSizeMB = msg.maxLogFileSizeMB ?? state.maxLogFileSizeMB;
       state.maxErrorsPerFile = msg.maxErrorsPerFile ?? state.maxErrorsPerFile;
+      state.copilotDevelopSet = !!msg.copilotDevelopSet;
+      state.copilotReleaseSet = !!msg.copilotReleaseSet;
       state.authEnabled = msg.authEnabled !== false;
       if (msg.version) {
         document.getElementById('appVersion').textContent = 'v' + msg.version;

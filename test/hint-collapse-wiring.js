@@ -45,9 +45,10 @@ console.log('\n2) Kein Hinweistext der Regel-Karten haengt ausserhalb des Contai
     const title = (card.match(/config-column-title">([^<]*)</) || [, '?'])[1].trim();
     const hints = (card.match(/<p class="config-hint-text">/g) || []).length;
     const inside = /<div class="config-hint" data-hint="[^"]+">[\s\S]*?<p class="config-hint-text">/.test(card);
-    // Copilot-Export ist die bewusste Ausnahme: ein einzelner kurzer Satz in
+    // Der KI-Export ist die bewusste Ausnahme: ein einzelner kurzer Satz in
     // einer Karte ueber die volle Breite — er kostet eine Zeile, kein Absatz.
-    if (/Copilot/.test(title)) {
+    // (Hiess bis 2026-08-20 "Copilot-Export".)
+    if (/KI-Export/.test(title)) {
       check(`"${title}" bewusst ohne Einklapper`, hints === 1 && !inside,
         'Ein Satz rechtfertigt kein Bedienelement');
     } else {

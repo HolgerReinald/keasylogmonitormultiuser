@@ -19,7 +19,7 @@ const { getLabelForFile } = require('../watchService');
 const dropStore = require('../analyzeDropStore');
 const toolExport = require('../toolExport');
 
-// Copilot-Zielverzeichnis fuer 'develop' | 'release' ermitteln. Die Pfade sind
+// KI-Zielverzeichnis fuer 'develop' | 'release' ermitteln. Die Pfade sind
 // PRO BENUTZER konfiguriert (users/<name>/config.json); der Rueckfall auf die
 // globale Config ist historisch und praktisch leer, weil
 // stripUserFieldsFromGlobal die Felder dort entfernt.
@@ -38,7 +38,7 @@ function resolveCopilotDir(req, target) {
     copilotPath = target === 'release' ? config.copilotWorkingPathRelease : config.copilotWorkingPathDevelop;
   }
   if (!copilotPath) {
-    return { ok: false, status: 400, message: `Copilot Working-Pfad ${targetLabel} ist nicht konfiguriert`, label: targetLabel };
+    return { ok: false, status: 400, message: `KI-Pfad ${targetLabel} ist nicht konfiguriert`, label: targetLabel };
   }
   const dir = path.resolve(copilotPath);
   try {
@@ -342,14 +342,14 @@ module.exports = function configRoutes(deps) {
       }
     },
 
-    // Ganze Log-Datei ins Copilot-Verzeichnis kopieren.
+    // Ganze Log-Datei ins KI-Verzeichnis kopieren.
     //
     // Der Inhalt wird NICHT im Body geschickt: parseJsonBody deckelt bei 1 MB
     // (server/parseJsonBody.js), Logs sind deutlich groesser. Der Client sendet
     // nur den Pfad, der Server kopiert die Datei — copyFileSync haelt den
     // Rohzustand exakt und braucht keinen Streaming-Aufbau.
     //
-    // Zielname ist der eigene Dateiname, nicht copilot-error-context.md: sonst
+    // Zielname ist der eigene Dateiname, nicht ki-error-context.md: sonst
     // ueberschriebe der Datei-Export den Einzelfehler-Export.
     'POST /api/export-copilot-file': (req, res) => {
       parseJsonBody(req, (body) => {
@@ -423,7 +423,7 @@ module.exports = function configRoutes(deps) {
           return;
         }
         const targetLabel = dirInfo.label;
-        const outputPath = path.join(dirInfo.dir, 'copilot-error-context.md');
+        const outputPath = path.join(dirInfo.dir, 'ki-error-context.md');
         const time = timestamp ? new Date(timestamp).toLocaleString('de-DE') : 'unbekannt';
         const fence = errorText.includes('```') ? '````' : '```';
         const md = `# Fehler-Kontext für Copilot (${targetLabel})\n\n- **Quelle:** ${label || 'unbekannt'}\n- **Datei:** ${filePath || 'unbekannt'}\n- **Zeit:** ${time}\n- **Exportiert:** ${new Date().toLocaleString('de-DE')}\n- **Ziel:** ${targetLabel}\n\n## Fehlertext\n\n${fence}\n${errorText}\n${fence}\n`;

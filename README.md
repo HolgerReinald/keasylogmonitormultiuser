@@ -98,7 +98,7 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 - **🗑️ Papierkorb:** Gelöschte Fehler-Einträge werden in einen Papierkorb verschoben statt endgültig gelöscht. Wiederherstellen pro Quelle oder alle. Auto-Cleanup nach konfigurierbarer Zeit (Standard: 48h). Batch-basiert mit Lösch-Zeitpunkt, Bestätigungsdialog beim Leeren
 - **⏱️ Performance-Gap-Erkennung:** Pro WatchPath konfigurierbar — meldet, wenn zwischen zwei aufeinanderfolgenden Log-Einträgen derselben Datei mehr als N Sekunden liegen (Richtwert: 20 s, der Schmerzpunkt für Anwender). Kein Fehler, sondern eigene Kategorie: eigene orange Sektion im Dashboard, getrennt vom Fehler-Logging, keine E-Mail, kein Papierkorb. Leerlauf-Obergrenze (Standard: 30 Min) filtert Nacht-/Start-Gaps heraus. Greift im Live-Monitoring, beim Start-Einlesen und (mit eigenen Feldern) in der Log-Analyse. Standard: aus
 - **📋 Fehler kopieren:** Fehlertext einzelner Einträge per Klick in die Zwischenablage kopieren
-- **🤖 Copilot-Export:** Fehler als `copilot-error-context.md` in ein konfiguriertes Verzeichnis exportieren — für direkte Übergabe an GitHub Copilot CLI. Zwei Ziele: 🤖 Develop + 🚀 Release (grün). Dieselben zwei Knöpfe sitzen auch in der **Datei-Kopfzeile** und legen dort die **komplette Log-Datei** unter ihrem eigenen Namen im Zielverzeichnis ab — für den Fall, dass Copilot das Umfeld eines Fehlers braucht
+- **🤖 KI-Export:** Einzelnen Fehler als `ki-error-context.md` in ein konfiguriertes Verzeichnis exportieren — zur direkten Übergabe an eine KI (Claude, Copilot &amp; Co.). Zwei Ziele: 🤖 Develop + 🚀 Release (grün). Dieselben zwei Knöpfe sitzen auch in der **Datei-Kopfzeile** und legen dort die **komplette Log-Datei** unter ihrem eigenen Namen im Zielverzeichnis ab — für den Fall, dass Copilot das Umfeld eines Fehlers braucht
 - **📤 Weitergabe (Tool-Export):** Erzeugt per Klick ein schlankes, weitergebbares ZIP der App (Tab „Weitergabe", admin-only) — **ohne** Zugangsdaten (SMTP/FTP), Benutzerkonten, Logs, `node_modules` und maschinenspezifische Pfade. Eine Sektions-Checkliste (Positivauswahl) steuert, welche Einstellungen in die mitgelieferte `config.default.js` eingebacken werden (Allgemein, Filter-/Ausschluss-Muster, Schwellwerte vorbelegt; Watch-Pfade, E-Mail, Backup optional). Passwörter werden nie exportiert. Empfänger: entpacken → `start.bat` (installiert Dependencies, erzeugt beim ersten Start `config.js` aus `config.default.js`)
 - **🔌 Auto-Port-Recovery:** Bei belegtem Port wird der alte Prozess automatisch beendet
 - **⚡ Intelligentes Debouncing:** Mehrfache Datei-Events werden zusammengefasst (100ms) für effiziente Verarbeitung
@@ -137,7 +137,7 @@ Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel. Di
 |---|---|
 | **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler pro Datei, Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) |
 | **🕵️ Monitor** | 📂 Überwachte Pfade als Tabelle: Pfad, Label, E-Mail an, Polling, JSON, ⏱️ Gap (s), Idle (min). Pfade hinzufügen/entfernen, Ordnerauswahl, Import per 📥 (auch Drag & Drop) |
-| **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln · 🤖 Copilot-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
+| **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln · 🤖 KI-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
 | **✉️ E-Mail** 🔒 | SMTP-Konfiguration, Intervall, Duplikatschutz (normal und kritisch), Absender, Betreff |
 | **📧 E-Mail Log** | E-Mail-Versandprotokoll einsehen, aktualisieren und löschen |
 | **📖 Dokumentation** | README als formatiertes HTML: Inhaltsverzeichnis, Suche, einklappbare Abschnitte, ✏️ Bearbeiten mit Live-Vorschau |
@@ -239,8 +239,8 @@ module.exports = {
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
 | `trashAutoCleanupHours` | Papierkorb Auto-Cleanup nach X Stunden (Standard: `48`). `0` = nie automatisch leeren |
-| `copilotWorkingPathDevelop` | Pfad zum Develop-Verzeichnis für Copilot-Export. Leer = 🤖-Button deaktiviert |
-| `copilotWorkingPathRelease` | Pfad zum Release-Verzeichnis für Copilot-Export. Leer = 🚀-Button deaktiviert |
+| `copilotWorkingPathDevelop` | Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt. Schlüsselname historisch — die Funktion hieß früher Copilot-Export |
+| `copilotWorkingPathRelease` | Release-Verzeichnis für den KI-Export. Leer = 🚀-Knopf gesperrt |
 | `autoOpen` | Browser automatisch öffnen (true/false) |
 | `debugLogging` | Ausführliche Server-Protokollierung in der Konsole (true/false). Standard: `false` |
 | `email.enabled` | E-Mail-Versand global ein/aus |
@@ -402,8 +402,8 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | 📂 Ordner öffnen | Öffnet den Ordner der Log-Datei im Windows Explorer |
 | 📝 Datei öffnen | Öffnet die Log-Datei im Editor |
 | 📋 Kopieren | Fehlertext in die Zwischenablage kopieren |
-| 🤖 Develop | Fehler als `copilot-error-context.md` ins Develop-Verzeichnis exportieren |
-| 🚀 Release | Fehler als `copilot-error-context.md` ins Release-Verzeichnis exportieren (grün) |
+| 🤖 Develop | Einzelnen Fehler als `ki-error-context.md` ins Develop-Verzeichnis exportieren |
+| 🚀 Release | Einzelnen Fehler als `ki-error-context.md` ins Release-Verzeichnis exportieren (grün) |
 
 In der **Datei-Kopfzeile** neben 📂/📝:
 
@@ -504,6 +504,51 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-20 — 🔒 „Leer = Knopf gesperrt" gilt jetzt wirklich, und der Copilot-Export heißt KI-Export
+
+Zwei Dinge in einem Zug, weil sie dieselbe Karte betreffen.
+
+---
+
+## „Leer = Button deaktiviert" war ein Versprechen ohne Umsetzung
+
+Die Einstellungskarte behauptete das seit langem, tatsächlich kam die Absage **erst nach dem Klick** — als Statuszeile „❌ Develop: Pfad ist nicht konfiguriert". Betroffen waren drei Knöpfe: 🤖 und 🚀 (am Fehlereintrag **und**, seit heute, in der Datei-Kopfzeile) sowie das neue ↗️ an den Pfadfeldern.
+
+**Die drei hängen bewusst an verschiedenen Dingen:**
+
+| Knopf | folgt | Grund |
+|---|---|---|
+| 🤖 / 🚀 | dem **gespeicherten** Pfad | dorthin exportiert der Server |
+| ↗️ am Eingabefeld | dem **aktuellen Feldinhalt** | wer einen Pfad eintippt, darf ihn vor dem Speichern nachsehen |
+
+Der Client kann die Pfade nicht selbst kennen: sie stehen **pro Benutzer** in `users/<name>/config.json` und werden erst beim Öffnen der Einstellungen geholt — die Hauptansicht rendert aber vorher. Deshalb schickt die `init`-Nachricht zwei **Merker** mit, `copilotDevelopSet` und `copilotReleaseSet`. Bewusst nur Merker: die Pfade selbst haben in jeder init-Nachricht nichts zu suchen. Nach dem Speichern greift es ohne Neuladen, weil `saveConfig` ohnehin `loadConfig` nachruft und die Anzeige nur bei echter Änderung neu gebaut wird.
+
+**Nebenbei aufgeräumt:** die beiden Knöpfe standen zweimal ausgeschrieben im Markup — am Fehlereintrag und in der Kopfzeile. Beide kommen jetzt aus **einem** Bauer `buildCopilotBtnHtml()`. Ohne das hätte die Sperre an zwei Stellen eingebaut werden müssen, und die zweite wäre beim nächsten Mal vergessen worden. Der gesperrte Knopf nennt im Titel den Grund („KI-Pfad Develop ist nicht konfiguriert (Einstellungen → Regeln)") — ein gesperrter Knopf ohne Begründung ist schlimmer als einer, der erst nach dem Klick meckert.
+
+## Der eigentliche Fehler saß aber im CSS
+
+Die Sperre wirkte trotzdem nicht — gemeldet als „geht nicht, die Vorbelegung funkt dazwischen". Ursache: **`.folder-picker-btn` und `.action-btn` hatten keinen `:disabled`-Stil.** Das ↗️ *war* gesperrt und nicht klickbar, sah aber vollkommen unverändert aus. `.copilot-btn` hatte den Stil (`opacity: 0.3`), `.config-save-btn` und `.config-reset-btn` auch — diese zwei Klassen nicht.
+
+Ein gesperrter Knopf, der aussieht wie ein bedienbarer, ist schlimmer als keine Sperre: der Klick tut nichts, und man sucht den Fehler bei sich. Beide Klassen haben jetzt `opacity: 0.35`.
+
+**Die Vorbelegung war nicht schuld, hat die Verwirrung aber erzeugt:** leert man das Feld, erscheint der graue Beispielpfad als Platzhalter. Das sieht nach Inhalt aus, ist keiner — der Code liest `.value.trim()`. Die Feld-Tooltips sagen jetzt klar „Leer = 🤖-Knopf gesperrt".
+
+---
+
+## Copilot-Export → KI-Export
+
+Wir arbeiten nicht mehr mit Copilot, sondern mit Claude. Umbenannt wurde alles **Sichtbare**: Kartentitel, Tab-Tooltip, beide Feld-Tooltips, die Knopf-Beschriftungen („Einzelnen Fehler an die KI (Develop) exportieren", „Komplette Datei ins KI-Verzeichnis Develop kopieren"), die Sperr-Begründung, die Servermeldung und die Doku. Die exportierte Datei heißt jetzt **`ki-error-context.md`** statt `copilot-error-context.md`.
+
+**Intern unverändert:** die Config-Schlüssel `copilotWorkingPathDevelop`/`-Release` (sie stehen in `users/*/config.json`, ein Umbenennen bräuchte eine Migration ohne sichtbaren Nutzen), die Routen `export-copilot-*`, die CSS-Klassen `.copilot-btn` und die Funktionsnamen. `AGENTS.md` hält den Widerspruch ausdrücklich fest — „KI-Export (Routen und Config-Schlüssel heißen intern weiter `copilot*`)" —, damit niemand darüber stolpert und sie versehentlich mitzieht.
+
+**Die Historie behält die alten Namen.** Dort hieß die Funktion so, als die Einträge geschrieben wurden.
+
+**Altlast:** in den Zielverzeichnissen liegt die alte `copilot-error-context.md` weiter herum. Nichts räumt sie automatisch weg, und in einem Repository-Verzeichnis löscht das Tool nichts ungefragt.
+
+Ein Test hat die Umbenennung sofort gefangen: `hint-collapse-wiring.js` erkannte die Ausnahme-Karte (die einzige ohne einklappbaren Hinweis) am Wort „Copilot" im Titel. Angepasst — und das ist genau die Sorte Fund, für die diese Prüfungen da sind.
+
+**Dateien:** public/js/render.js, public/js/state.js, public/js/wsClient.js, public/js/configPanel.js, public/index.html, public/style.css, server.js, server/routes/configRoutes.js, test/copilot-file-export-wiring.js, test/hint-collapse-wiring.js, AGENTS.md, README.md
 
 ### 2026-08-20 — ↗️ Copilot-Pfade im Explorer öffnen
 

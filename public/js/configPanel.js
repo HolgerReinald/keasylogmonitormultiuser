@@ -138,6 +138,17 @@ function populateConfigForm(cfg) {
   document.getElementById('cfg-trashAutoCleanupHours').value = cfg.trashAutoCleanupHours != null ? cfg.trashAutoCleanupHours : 48;
   document.getElementById('cfg-copilotWorkingPathDevelop').value = cfg.copilotWorkingPathDevelop || cfg.copilotWorkingPath || '';
   document.getElementById('cfg-copilotWorkingPathRelease').value = cfg.copilotWorkingPathRelease || '';
+  updateCopilotPathButtons();
+  // Die Anzeige-Knoepfe folgen dem gespeicherten Stand. loadConfig laeuft auch
+  // nach dem Speichern (saveConfig ruft es nach), damit greift eine Aenderung
+  // ohne Neuladen der Seite.
+  const devSet = !!(cfg.copilotWorkingPathDevelop || cfg.copilotWorkingPath);
+  const relSet = !!cfg.copilotWorkingPathRelease;
+  if (devSet !== state.copilotDevelopSet || relSet !== state.copilotReleaseSet) {
+    state.copilotDevelopSet = devSet;
+    state.copilotReleaseSet = relSet;
+    if (typeof renderAll === 'function') renderAll();
+  }
   document.getElementById('cfg-filePattern').value = cfg.filePattern || '**/*.log';
 
   const email = cfg.email || {};
@@ -448,6 +459,26 @@ function toggleHint(key) {
 // Delegiert an openFolder() aus actions.js statt den fetch ein viertes Mal zu
 // schreiben — dieselbe Route bedienen schon die Fehlereinträge, die Backup-Ziele
 // und die Analyse-Pfade. openFolder unterscheidet Datei und Verzeichnis selbst.
+// Das ↗️ haengt am AKTUELLEN Feldinhalt, nicht am gespeicherten Stand: wer
+// einen Pfad eintippt, darf ihn vor dem Speichern nachsehen. Die 🤖/🚀-Knoepfe
+// in der Anzeige haengen dagegen am gespeicherten Stand — der Server exportiert
+// ja auch dorthin.
+function updateCopilotPathButtons() {
+  for (const t of ['Develop', 'Release']) {
+    const input = document.getElementById('cfg-copilotWorkingPath' + t);
+    const btn = document.getElementById('btn-openCopilot' + t);
+    if (input && btn) btn.disabled = !input.value.trim();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  for (const t of ['Develop', 'Release']) {
+    const input = document.getElementById('cfg-copilotWorkingPath' + t);
+    if (input) input.addEventListener('input', updateCopilotPathButtons);
+  }
+  updateCopilotPathButtons();
+});
+
 function openConfigPath(inputId, event) {
   if (event) event.stopPropagation();
   const el = document.getElementById(inputId);
@@ -466,7 +497,7 @@ window.Keasy.config = {
   renderExcludeList, addExcludePattern, removeExcludePattern,
   buildConfigFromForm, saveConfig, showConfigMessage,
   showPreloadBanner, updatePreloadBanner, hidePreloadBanner,
-  toggleHint, applyAllHints, openConfigPath
+  toggleHint, applyAllHints, openConfigPath, updateCopilotPathButtons
 };
 
 Object.assign(window, {

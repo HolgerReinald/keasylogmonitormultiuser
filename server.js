@@ -125,6 +125,7 @@ wss.on('connection', (ws, req) => {
   const trashData = getTrashSnapshot();
   const filteredTrash = filterTrashByLabels(trashData, ws.visibleLabels);
 
+  const copilotCfg = mergeConfigForUser(config, session.username) || {};
   ws.send(JSON.stringify({
     type: 'init',
     data: filteredErrors,
@@ -136,6 +137,11 @@ wss.on('connection', (ws, req) => {
     // statt im Frontend fest verdrahtet zu werden.
     maxErrorsPerFile: config.maxErrorsPerFile,
     authEnabled: configStore.isAuthEnabled(),
+    // Die Copilot-Pfade sind PRO BENUTZER konfiguriert. Der Client braucht nur
+    // zu wissen, OB sie gesetzt sind — daraus ergibt sich, ob die 🤖/🚀-Knoepfe
+    // bedienbar sind. Die Pfade selbst gehoeren nicht in jede init-Nachricht.
+    copilotDevelopSet: !!copilotCfg.copilotWorkingPathDevelop,
+    copilotReleaseSet: !!copilotCfg.copilotWorkingPathRelease,
     analyzeData: analyzeData,
     analyzeRunning: au.running,
     analyzeUser: session.username,

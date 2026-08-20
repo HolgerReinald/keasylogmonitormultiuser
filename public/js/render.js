@@ -73,11 +73,25 @@ function filterEntriesForFile(entries, fileName, dateCheck) {
   });
 }
 
+// Ein KI-Export-Knopf, zwei Verwendungen: am Fehlereintrag (einzelner Fehler)
+// und in der Datei-Kopfzeile (ganze Datei). Ist der Pfad nicht konfiguriert,
+// ist der Knopf gesperrt und sagt im Titel, warum — vorher kam die Absage
+// erst nach dem Klick, obwohl die Einstellungskarte „Leer = Button
+// deaktiviert" versprach.
+function buildCopilotBtnHtml(target, onclick, aria) {
+  const isSet = target === 'release' ? state.copilotReleaseSet : state.copilotDevelopSet;
+  const label = target === 'release' ? 'Release' : 'Develop';
+  const cls = target === 'release' ? 'copilot-release-btn' : 'copilot-btn';
+  const icon = target === 'release' ? '🚀' : '🤖';
+  const title = isSet ? aria : `KI-Pfad ${label} ist nicht konfiguriert (Einstellungen → Regeln)`;
+  return `<button class="action-btn ${cls}" aria-label="${aria}" title="${title}"${isSet ? '' : ' disabled'} onclick="${onclick}">${icon}</button>`;
+}
+
 function buildOpenButtonsHtml(filePath) {
   return `<button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
               <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
-              <button class="action-btn copilot-btn" title="Komplette Datei ins Copilot-Verzeichnis Develop kopieren" onclick="exportFileToCopilot('${escapeJs(filePath)}', 'develop', event)">🤖</button>
-              <button class="action-btn copilot-release-btn" title="Komplette Datei ins Copilot-Verzeichnis Release kopieren" onclick="exportFileToCopilot('${escapeJs(filePath)}', 'release', event)">🚀</button>`;
+              ${buildCopilotBtnHtml('develop', `exportFileToCopilot('${escapeJs(filePath)}', 'develop', event)`, 'Komplette Datei ins KI-Verzeichnis Develop kopieren')}
+              ${buildCopilotBtnHtml('release', `exportFileToCopilot('${escapeJs(filePath)}', 'release', event)`, 'Komplette Datei ins KI-Verzeichnis Release kopieren')}`;
 }
 
 // Alarmknopf für kritische Fehler (Datei- und Quellen-Ebene).
@@ -153,8 +167,8 @@ function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze, label) {
               ${sevBadge}${time}
               <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
               <button class="action-btn copy-btn" aria-label="Fehler kopieren" title="In Zwischenablage kopieren" onclick="copyErrorToClipboard('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, event)">📋</button>
-              <button class="action-btn copilot-btn" aria-label="Für Copilot Develop exportieren" title="Für Copilot Develop exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'develop', event)">🤖</button>
-              <button class="action-btn copilot-release-btn" aria-label="Für Copilot Release exportieren" title="Für Copilot Release exportieren" onclick="exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'release', event)">🚀</button>
+              ${buildCopilotBtnHtml('develop', `exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'develop', event)`, 'Einzelnen Fehler an die KI (Develop) exportieren')}
+              ${buildCopilotBtnHtml('release', `exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'release', event)`, 'Einzelnen Fehler an die KI (Release) exportieren')}
             </div>
             <div class="error-text">${highlightSearch(highlightPatterns(escapeHtml(err.line)))}</div>
           </div>`;

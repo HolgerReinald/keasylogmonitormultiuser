@@ -60,8 +60,8 @@ scripts/          → Build/Dev-Hilfsskripte (update-docs.js etc.)
   Fehlmeldungen entstehen dadurch nicht, weil JSON strukturell bewertet wird (eine
   `package.json` hat kein Error-Objekt). Gegen die Lesezeit werden `node_modules`
   und `.git` in der Rekursion übersprungen (`SKIP_DIRS`).
-- Copilot-Export: **zwei** Routen in `server/routes/configRoutes.js`. `export-copilot-context`
-  schreibt einen einzelnen Fehler als `copilot-error-context.md` (fester Name, überschreibt),
+- KI-Export (Routen und Config-Schlüssel heißen intern weiter `copilot*`): **zwei** Routen in `server/routes/configRoutes.js`. `export-copilot-context`
+  schreibt einen einzelnen Fehler als `ki-error-context.md` (fester Name, überschreibt),
   `export-copilot-file` **kopiert** eine ganze Log-Datei unter ihrem eigenen Namen. Beide teilen
   `resolveCopilotDir()`. Der Dateiinhalt darf **nie** durch den JSON-Body — `parseJsonBody`
   deckelt bei 1 MB. Und wer serverseitig eine Datei *liest*, muss den Pfad prüfen:

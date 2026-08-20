@@ -22,6 +22,12 @@ window.Keasy.state = {
   nextEmailSendTime: null,
   collapsedSources: JSON.parse(localStorage.getItem('keasy-collapsed-sources') || '{}'),
 
+  // Copilot-Export: ist der jeweilige Zielpfad konfiguriert? Kommt mit der
+  // init-Nachricht (pro Benutzer) und steuert, ob die 🤖/🚀-Knöpfe bedienbar
+  // sind — die Einstellungskarte verspricht „Leer = Button deaktiviert".
+  copilotDevelopSet: false,
+  copilotReleaseSet: false,
+
   // Analyse
   analyzeErrors: {},
   analyzeLabels: {},

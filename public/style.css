@@ -2245,6 +2245,16 @@ input.user-editable {
   border-color: var(--accent);
 }
 
+/* Ein gesperrter Knopf, der aussieht wie ein bedienbarer, ist schlimmer als
+   keine Sperre: der Klick tut nichts und man sucht den Fehler bei sich.
+   .config-save-btn und .config-reset-btn hatten das längst, diese beiden
+   Klassen nicht — deshalb wirkte die Sperre am ↗️ wie kaputt. */
+.folder-picker-btn:disabled,
+.action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 /* === Log-Dateien per Drag & Drop (Log-Analyse) ===
    Getrennt vom vorhandenen Drop-Bereich hinter „📥 Import": der frisst
    Pfadlisten (CSV/TXT/Excel), dieser hier Log-Inhalte. Ein gemeinsamer Bereich
