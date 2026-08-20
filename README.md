@@ -498,6 +498,68 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-20 — 📄 Log-Dateien per Drag & Drop, und JSON-Fehler werden endlich erkannt
+
+Bisher konnte die Log-Analyse nur Pfade auswerten, die der **Server** sieht. Wer Logs von einem Kollegen bekam, musste sie erst irgendwohin kopieren und den Pfad eintragen. Jetzt gibt es im Analyse-Panel einen Ablage-Bereich: Dateien hineinziehen (oder klicken), „🔍 Analyse starten" wertet sie zusammen mit den konfigurierten Pfaden aus.
+
+**Warum überhaupt hochgeladen wird.** Ein Browser gibt beim Ablegen Name, Größe und **Inhalt** heraus, aber **nicht den Pfad** — das ist Absicht und nicht abschaltbar. Die Analyse arbeitet umgekehrt pfadbasiert (`fs.statSync`, `createReadStream`). Der Inhalt wird deshalb hochgeladen, in `temp-analyze/<benutzer>/` abgelegt, und die Analyse zeigt auf dieses Verzeichnis — **die gesamte bestehende Auswertung bleibt unverändert**: Filter, Ausschluss, Schwellwerte, Prioritätsregeln, ⏱️-Lücken.
+
+Auf demselben Rechner klingt das nach Umweg. Im Mehrbenutzerbetrieb ist es der einzige Weg: wer das Dashboard von einem anderen PC öffnet, konnte bisher nur Pfade des Servers analysieren, jetzt seine eigenen Dateien.
+
+**Entscheidungen, die den Bau bestimmt haben:**
+
+- **Roher Body statt JSON, eine Datei pro Anfrage.** `parseJsonBody` deckelt bei 1 MB, Logs dürfen laut `maxLogFileSizeMB` 6 MB. Kein Base64, keine neue Abhängigkeit — und eine abgewiesene Datei reißt nicht den ganzen Stapel mit. Die Größe wird **während** des Empfangs geprüft, damit eine 500-MB-Datei nicht erst vollständig auf die Platte läuft.
+- **Der Client kennt den Ablage-Pfad nicht.** Er schickt weiterhin nur die konfigurierten Pfade; die Ablage hängt der Server selbst an. Kein Server-Pfad, der über den Browser wandert.
+- **ZIP wird entpackt und selbst verworfen** — flach und nur `.log`/`.json`. Die Verzeichnisstruktur ist für die Auswertung bedeutungslos und wäre der Weg, auf dem ein Eintrag wie `../../x.log` ausbrechen könnte. `adm-zip` war über das Backup ohnehin schon Abhängigkeit.
+- **`.json` gilt nur für abgelegte Dateien.** Bei einem konfigurierten Ordner würde sonst jede `package.json` oder `tsconfig.json` im Baum als Log ausgewertet. In der Ablage liegen nur Dateien, die jemand bewusst hineingezogen hat.
+- **Abgewiesene Dateien bleiben sichtbar, mit Grund** (falsche Endung, zu groß, leer). Sie stillschweigend zu verschlucken wäre schlimmer: man wundert sich sonst, warum vier Dateien hineingezogen und nur zwei ausgewertet wurden.
+- **Ein eigener Drop-Bereich**, getrennt vom vorhandenen hinter „📥 Import". Der frisst **Pfadlisten** (CSV/TXT/Excel), dieser Log-**Inhalte**. Ein gemeinsamer Bereich wäre an `.txt` gescheitert — eine Pfadliste ist typischerweise `.txt`, ein Log kann es auch sein, und Zweideutigkeit bei „was passiert mit meiner Datei" ist teuer.
+- **Aufräumen:** „🗑️ Ergebnisse löschen" nimmt die Ablage mit, plus Sweep beim Serverstart für alles über 24 Stunden. Nicht sofort nach der Analyse — sonst kann man nicht zweimal mit anderen Schwellwerten drüberlaufen.
+
+---
+
+**Beim Erproben fiel auf: JSON-Fehler wurden nicht erkannt.** Ein echter Fall aus der Schnittstelle:
+
+```json
+{ "error": { "code": 400, "message": "Ungültiges Format. Ein Komma fehlt im JSON-Body.", "status": "BAD_REQUEST" } }
+```
+
+Wurde **stillschweigend übergangen**. Und die naheliegende Abhilfe — ein Fehler-Pattern anlegen — wirkt nicht: bei `.json` entscheidet **nicht** der Textfilter, sondern `evaluateJsonEntry` strukturell. Diese Prüfung kannte genau `Error` mit `Type`/`Message` und `Success: false` — großgeschrieben. JavaScript unterscheidet bei Feldnamen, `"error"` mit `code`/`message`/`status` war für sie schlicht nicht vorhanden.
+
+Erkannt werden jetzt drei Formen, weil Schnittstellen sie unterschiedlich schreiben:
+
+| Form | Beispiel |
+|---|---|
+| Keasy-Stil | `{ "Error": { "Type", "Message" } }`, `"Success": false` |
+| REST-Stil | `{ "error": { "code", "message", "status" } }`, `"success": false` |
+| HTTP-Code | `code >= 400`, auch ohne Fehlerobjekt |
+
+Dazu `timestamp` und `requestId` in Kleinschreibung. Die Meldung liest sich jetzt als `BAD_REQUEST (400): Ungültiges Format. Ein Komma fehlt im JSON-Body.`
+
+**Bewusst nicht geändert:** kaputtes JSON gilt weiter *nicht* automatisch als Fehler. Am Ende eines mitgeschriebenen Streams ist ein halber Block der Normalfall — das würde bei jedem Lauf melden. Dort greift wie bisher der Textfilter als Rückfall, weshalb ein Muster wie `Unexpected token` in genau diesem Fall wirkt.
+
+**Die Performance war die Bedingung, also wurde gemessen** — alte Fassung neben die neue gelegt, dieselben 2500 Blöcke mit langen Prompt-Texten (13 MB), Median aus neun Runden:
+
+| | Zeit | erkannt |
+|---|---|---|
+| vorher | 13,9 ms | 1666 |
+| nachher | 14,2 ms | 1666 |
+
+**Aufpreis 1,9 %, 0,10 µs pro Block**, Durchsatz 574 MB/s. Eine erste Messung zeigte +18,6 % und war irreführend: dort wurden 500 Blöcke *zusätzlich* erkannt, und die Zeit ging in das Bauen dieser 500 Meldungen — nicht langsamer, sondern mehr gefunden. Der geringe Aufpreis kommt daher, dass die Erweiterung nur **Felder abfragt**: keine Regex über den Block, keine Schleife über alle Schlüssel, keine zweite `JSON.parse`. Der Aufwand bleibt unabhängig von der Blockgröße konstant — das zählt, weil `evaluateJsonEntry` auch der Live-Watcher benutzt.
+
+---
+
+**Zwei Fehler, die beim Bauen auffielen und behoben sind:**
+
+- **`escapeJs` war nicht im Scope** von `analyzePanel.js` (nur `escapeHtml` war destrukturiert). Der Render-Code hätte beim ersten Ablegen geworfen — im Browser sichtbar als „tut nichts".
+- **Die Namenskürzung schnitt die Endung ab.** 300 Zeichen + `.log` wurde stumpf auf 180 Zeichen gekappt, also ohne `.log`. Die Datei hätte in der Ablage gelegen und wäre nie analysiert worden, weil `list()` und die Analyse sie nicht als Log erkannt hätten. Jetzt wird der Namensteil gekürzt, die Endung bleibt.
+
+`test/analyze-drop.js` (neu) prüft ohne Server gegen die Module, gezielt auf die drei realistischen Fehlerquellen: dass `.json` nur in der Ablage zählt (im konfigurierten Ordner bleibt `package.json` außen vor), dass JSON strukturell ausgewertet wird (Error-Objekt gefunden, Typ und Meldung in der Zeile, Zeitstempel aus dem JSON-Feld), und dass ein ZIP-Eintrag `../ausbruch.log` flach im Ziel landet statt eine Ebene höher. Dazu die Namensprüfung: `.txt` abgelehnt, Pfadanteile verworfen, Endung überlebt die Kürzung.
+
+`temp-analyze/` steht jetzt in der `.gitignore` — neben `temp-backup/`, `temp-ftp/` und `temp-restore/`.
+
+**Dateien:** server/analyzeDropStore.js (neu), server/analysisService.js, server/logParser.js, server/routes/analysisRoutes.js, server.js, public/index.html, public/js/analyzePanel.js, public/js/state.js, public/style.css, test/analyze-drop.js (neu), .gitignore, AGENTS.md, README.md
+
 ### 2026-08-19 — 🧭 Abschnitt „Konfiguration" war verrottet, jetzt maschinell abgeglichen
 
 Die Tab-Tabelle unter „1. Im Dashboard" beschrieb einen Zustand, den es seit Monaten nicht mehr gab. Aufgefallen beim Lesen, nicht durch einen Fehler — beide Seiten sahen für sich plausibel aus.

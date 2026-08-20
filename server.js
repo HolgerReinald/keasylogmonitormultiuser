@@ -17,6 +17,7 @@ const { config } = configStore;
 const { getVisibleLabels, mergeConfigForUser } = require('./server/userConfigStore');
 const { rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, rebuildPriorityRules } = require('./server/logParser');
 const { getTrashSnapshot } = require('./server/trashService');
+const dropStore = require('./server/analyzeDropStore');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
 const { getOrCreateAnalyzeUser } = require('./server/runtimeStore');
@@ -288,6 +289,12 @@ function startServer() {
     console.log('');
 
     activeWatchersRef.current = startWatching();
+
+    // Alte Ablagen der Log-Analyse wegraeumen (Drag & Drop). Niemand erinnert
+    // sich morgen daran, was er gestern hineingezogen hat — dieselbe Idee wie
+    // beim Papierkorb, nur ohne Einstellung: 24 Stunden.
+    const sweptDrops = dropStore.sweep();
+    if (sweptDrops > 0) console.log('🧹 Log-Analyse: ' + sweptDrops + ' alte Ablage(n) entfernt');
 
     // WatchPath-Erreichbarkeit überwachen: Warnung im Dashboard + Auto-Recovery
     // (Netzlaufwerke können wegfallen — Watcher laufen dann still ins Leere)

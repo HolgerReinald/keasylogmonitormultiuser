@@ -10,6 +10,7 @@ backup-status.json
 temp-backup/
 temp-ftp/
 temp-restore/
+temp-analyze/
 users.json
 users/
 

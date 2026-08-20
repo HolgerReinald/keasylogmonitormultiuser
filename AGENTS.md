@@ -44,6 +44,20 @@ scripts/          → Build/Dev-Hilfsskripte (update-docs.js etc.)
 - `Keasy.watchPaths` — Watch-Paths Modul
 - `Keasy.threshold` — Schwellwert-Regeln Modul
 - `Keasy.errorIndex` — Fehler-Index (Seitenleiste) Modul
+- `Keasy.analyze` — Log-Analyse inkl. Ablage für per Drag & Drop übergebene Dateien
+- `Keasy.docs` — Dokumentation **und** Historie-Tab (beide aus einem Abruf, siehe `moveHistoryToTab`)
+
+### Server-Bausteine mit Fallstricken
+- `server/analyzeDropStore.js` — Ablage für abgelegte Log-Dateien (`temp-analyze/<benutzer>/`).
+  Ein Browser gibt beim Ablegen **keinen Pfad** heraus, deshalb wird der Inhalt hochgeladen
+  und die Analyse zeigt anschließend auf dieses Verzeichnis.
+- `evaluateJsonEntry()` in `logParser.js` — `.json`-Logs werden **strukturell** bewertet,
+  nicht über `filterPatterns`. Wer ein Fehler-Pattern für JSON anlegt, wundert sich sonst,
+  warum es nichts tut. Erkannt werden `Error`/`error`, `Success`/`success: false` und
+  `code >= 400`; bei kaputtem JSON greift der Textfilter als Rückfall.
+- `.json` gilt in der Analyse **nur für abgelegte Dateien** (`collectLogFiles` mit
+  `{ path, includeJson: true }`). Bei konfigurierten Ordnern wäre sonst jede `package.json`
+  im Baum ein Log.
 
 ## ⚠️ Regeln & Anti-Patterns
 

@@ -68,6 +68,11 @@
         <span id="analyzePathError" style="color:#ef4444; font-size:0.8em; display:none;"></span>
       </div>
       <div id="analyzePathList" style="margin:8px 0;"></div>
+      <div id="analyzeLogDrop" class="drop-logs" title="Log-Dateien ablegen oder klicken zum Auswählen">
+        <span class="drop-title">📄 Log-Dateien hier ablegen</span>
+        <span class="drop-hint">.log, .json, .zip — auch mehrere auf einmal. Klick öffnet die Dateiauswahl.</span>
+      </div>
+      <input type="file" id="analyzeLogPicker" accept=".log,.json,.zip" multiple style="display:none">
       <div style="display:flex; gap:8px; margin-bottom:8px;">
         <button class="config-reset-btn" onclick="toggleAnalyzeImport()">📥 Import</button>
       </div>

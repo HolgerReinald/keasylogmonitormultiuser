@@ -28,6 +28,11 @@ window.Keasy.state = {
   analyzeUser: '',
   analyzePaths: [],
   analyzeIsRunning: false,
+  // Per Drag & Drop übergebene Log-Dateien. Liegen serverseitig in einer
+  // temporären Ablage je Benutzer, nicht in der Config — deshalb nur hier.
+  analyzeDropped: [],
+  analyzeDroppedRejected: [],
+  analyzeDroppedBusy: false,
 
   // Performance-Lücken (⏱️)
   performanceEntries: {},

@@ -1166,6 +1166,20 @@ body.theme-blue .performance-header {
   margin-bottom: 8px;
 }
 
+/* In den Regel-Karten nimmt die Musterliste den freien Platz, statt in einem
+   200-px-Kasten zu scrollen, während darunter Leerraum steht — der entsteht,
+   seit die Karten einer Zeile auf gleiche Höhe gehen und die Eingabezeile am
+   Kartenfuß klebt.
+   min-height: 0 ist dabei Pflicht: ohne das schrumpft ein Flex-Item nicht unter
+   seine Inhaltshöhe, die Liste würde nie scrollen, sondern die Karte sprengen.
+   Die Kappe bleibt, nur höher — bei 60 Mustern soll die Karte nicht ins
+   Unendliche wachsen, sondern wieder scrollen. */
+.config-rules-grid > .config-filter-section > .config-filter-list-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 380px;
+}
+
 .config-filter-add {
   display: flex;
   gap: 8px;
@@ -2229,6 +2243,118 @@ input.user-editable {
 
 .folder-picker-btn:hover {
   border-color: var(--accent);
+}
+
+/* === Log-Dateien per Drag & Drop (Log-Analyse) ===
+   Getrennt vom vorhandenen Drop-Bereich hinter „📥 Import": der frisst
+   Pfadlisten (CSV/TXT/Excel), dieser hier Log-Inhalte. Ein gemeinsamer Bereich
+   wäre an .txt gescheitert — eine Pfadliste ist typischerweise .txt, ein Log
+   kann es auch sein, und Zweideutigkeit bei „was passiert mit meiner Datei"
+   ist teuer. */
+.drop-logs {
+  border: 2px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 14px;
+  margin: 8px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.drop-logs:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.drop-logs.is-over {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.drop-logs .drop-title {
+  display: block;
+  font-size: 1.1em;
+  margin-bottom: 3px;
+}
+
+.drop-logs .drop-hint {
+  font-size: 0.85em;
+}
+
+/* Gruppe der abgelegten Dateien in der Pfadliste: Rahmen in Akzentfarbe, weil
+   sie sich von den konfigurierten Pfaden unterscheiden — sie sind temporär und
+   stehen nicht in der Config. Das Abzeichen sagt es zusätzlich aus. */
+.dropped-group {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 6px 0;
+  background: var(--bg-secondary);
+}
+
+.dropped-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85em;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.dropped-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+.dropped-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 0.85em;
+}
+
+.dropped-row code {
+  flex: 1;
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.dropped-row .sz {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* Abgewiesene Datei bleibt sichtbar samt Grund — stillschweigend verschlucken
+   hieße, dass man sich über die fehlende Auswertung wundert. */
+.dropped-row.is-bad code {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.dropped-row .why {
+  color: var(--error-border);
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.dropped-group .x-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1em;
 }
 
 /* === Folder Picker Modal === */

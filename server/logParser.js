@@ -240,38 +240,67 @@ function parseJsonLogEntries(text, opts = {}) {
 
 // Einen JSON-Block strukturell auswerten. KI-Logs enthalten in Prompt-/Antwort-Text viele
 // Wörter, die die generischen filterPatterns fälschlich matchen würden ("fehler":null usw.).
-// Daher wird ein Fehler NICHT über den Textfilter erkannt, sondern strukturell:
-// Error-Objekt vorhanden ODER Success === false. excludePatterns bleiben wirksam (auf
-// Typ + Meldung angewandt), damit sich einzelne Fehlerarten unterdrücken lassen.
+// Daher wird ein Fehler NICHT über den Textfilter erkannt, sondern strukturell.
+//
+// Erkannt werden drei Formen, weil Schnittstellen sie unterschiedlich schreiben:
+//   1. Keasy-Stil:  { Error: { Type, Message } }        bzw. Success: false
+//   2. REST-Stil:   { error: { code, message, status } } bzw. success: false
+//   3. HTTP-Code:   code >= 400 (auch ohne Fehlerobjekt)
+// Groß-/Kleinschreibung: JavaScript unterscheidet bei Feldnamen, deshalb werden
+// beide Schreibweisen direkt abgefragt. Zwei Feldzugriffe sind billiger als ein
+// case-insensitiver Suchlauf über alle Schlüssel — und der Aufwand bleibt
+// unabhängig von der Blockgröße konstant, was für den Live-Watcher zählt.
+//
+// excludePatterns bleiben wirksam (auf Typ + Meldung angewandt), damit sich einzelne
+// Fehlerarten unterdrücken lassen.
 // Rückgabe: { report, line, timestamp } — bei Parse-Fehler Fallback auf den generischen Textfilter.
 function evaluateJsonEntry(block) {
   let obj;
   try {
     obj = JSON.parse(block.trim());
   } catch {
-    // Unvollständiger/kaputter Block: best effort über den Textfilter
+    // Unvollständiger/kaputter Block: best effort über den Textfilter.
+    // Bewusst KEIN "unlesbar = Fehler": am Ende eines Streams ist ein halber
+    // Block der Normalfall, das würde bei jedem Lauf melden.
     return { report: matchesFilter(block), line: block.trim(), timestamp: parseEntryTimestamp(block) };
+  }
+  if (!obj || typeof obj !== 'object') {
+    return { report: matchesFilter(block), line: block.trim(), timestamp: null };
   }
 
   let ts = null;
-  if (obj.Timestamp) {
-    const d = new Date(obj.Timestamp);
+  const rawTs = obj.Timestamp || obj.timestamp;
+  if (rawTs) {
+    const d = new Date(rawTs);
     if (!isNaN(d.getTime())) ts = d;
   }
 
-  const hasError = !!(obj.Error && (obj.Error.Type || obj.Error.Message));
-  const isError = hasError || obj.Success === false;
+  const err = obj.Error || obj.error;
+  const errObj = err && typeof err === 'object' ? err : null;
+  const msg = errObj ? (errObj.Message || errObj.message) : (typeof err === 'string' ? err : undefined);
+  const typ = errObj ? (errObj.Type || errObj.type || errObj.Status || errObj.status) : undefined;
+  const rawCode = errObj ? (errObj.Code !== undefined ? errObj.Code : errObj.code)
+                         : (obj.Code !== undefined ? obj.Code : obj.code);
+  const code = Number(rawCode);
+  const success = obj.Success !== undefined ? obj.Success : obj.success;
+
+  const hasError = !!(err && (typ || msg));
+  const isError = hasError || success === false || (Number.isFinite(code) && code >= 400);
 
   const parts = [];
   if (ts) parts.push(ts.toLocaleString('de-DE'));
-  if (obj.RequestId) parts.push(`[${obj.RequestId}]`);
+  const reqId = obj.RequestId || obj.requestId;
+  if (reqId) parts.push(`[${reqId}]`);
   let matchText = '';
   if (hasError) {
-    const type = obj.Error.Type ? `${obj.Error.Type}: ` : '';
-    matchText = `${obj.Error.Type || ''} ${obj.Error.Message || ''}`;
-    parts.push(`${type}${obj.Error.Message || ''}`.trim());
-  } else if (obj.Success === false) {
+    matchText = `${typ || ''} ${msg || ''}`;
+    const head = typ ? (Number.isFinite(code) ? `${typ} (${code})` : String(typ)) : '';
+    parts.push(head ? `${head}: ${msg || ''}`.trim() : String(msg || '').trim());
+  } else if (success === false) {
     parts.push('Fehlgeschlagen (Success: false)');
+  } else if (Number.isFinite(code) && code >= 400) {
+    matchText = String(msg || '');
+    parts.push(`HTTP ${code}${msg ? ': ' + msg : ''}`);
   }
 
   // excludePatterns auf die Fehlermeldung anwenden (nicht auf den ganzen Block —

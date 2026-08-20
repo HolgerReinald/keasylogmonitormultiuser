@@ -9,7 +9,7 @@ const path = require('path');
 const readline = require('readline');
 const { getOrCreateAnalyzeUser } = require('./runtimeStore');
 const { broadcastToUser } = require('./wsBroadcast');
-const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
 
 function getAnalyzeErrors(username) {
   if (!username) return {};
@@ -37,8 +37,7 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
       return au.aborted || au.runId !== runId;
     }
 
-    function trackGap(entry) {
-      const ts = parseEntryTimestamp(entry);
+    function trackGapAt(ts, firstLine) {
       if (!ts) return;
       const prev = lastTs;
       lastTs = ts;
@@ -49,7 +48,7 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
         timestamp: ts.toISOString(),
         prevTimestamp: prev.toISOString(),
         gapSeconds,
-        line: entry.trim().split('\n')[0],
+        line: firstLine,
         file: path.basename(filePath)
       };
       if (!au.store.has(filePath)) au.store.set(filePath, []);
@@ -57,6 +56,10 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
       au.labelMap.set(filePath, label);
       gapCount++;
       broadcastToUser(username, { type: 'analyze-error', data: { filePath, error: gapEntry, label } });
+    }
+
+    function trackGap(entry) {
+      trackGapAt(parseEntryTimestamp(entry), entry.trim().split('\n')[0]);
     }
 
     function emitAnalyzeErrors(entries) {
@@ -78,6 +81,40 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
       return isStale() || errorCount >= maxErrorsPerFile;
     }
 
+    // JSON-Logs (KI-Schnittstelle) werden strukturell ausgewertet, nicht über den
+    // Textfilter — genauso wie im Watcher. Der generische Filter würde in
+    // Prompt-/Antworttexten dauernd anschlagen ("fehler":null usw.), deshalb
+    // entscheidet evaluateJsonEntry anhand von Error-Objekt bzw. Success:false.
+    function emitJsonErrors(entries) {
+      for (const block of entries) {
+        if (isStale() || errorCount >= maxErrorsPerFile) return true;
+        if (!block.trim()) continue;
+        const { report, line, timestamp } = evaluateJsonEntry(block);
+        // Für die Lückenerkennung ist der Timestamp aus dem JSON-Feld die
+        // genauere Quelle als eine Textsuche über den Block.
+        trackGapAt(timestamp, (line || '').split('\n')[0]);
+        if (!report) continue;
+        const limited = limitStackTrace((line || block).trim());
+        const error = {
+          timestamp: (timestamp || new Date()).toISOString(),
+          line: limited,
+          file: path.basename(filePath),
+          level: classifySeverity(limited)
+        };
+        if (!au.store.has(filePath)) au.store.set(filePath, []);
+        au.store.get(filePath).push(error);
+        au.labelMap.set(filePath, label);
+        errorCount++;
+        broadcastToUser(username, { type: 'analyze-error', data: { filePath, error, label } });
+      }
+      return isStale() || errorCount >= maxErrorsPerFile;
+    }
+
+    // Ein Umschalter statt zweier Codepfade durch die Stream-Behandlung
+    const isJson = path.extname(filePath).toLowerCase() === '.json';
+    const parseChunk = (text, opts) => isJson ? parseJsonLogEntries(text, opts) : parseLogEntries(text, opts);
+    const emitEntries = (entries) => isJson ? emitJsonErrors(entries) : emitAnalyzeErrors(entries);
+
     try {
       if (!fs.existsSync(filePath)) { resolve({ errors: 0, gaps: 0 }); return; }
       const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
@@ -97,16 +134,16 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
         }
         chunks += (chunks ? '\n' : '') + line;
         if (chunks.split('\n').length >= 200) {
-          const { entries, pending } = parseLogEntries(chunks, { flushFinal: false });
+          const { entries, pending } = parseChunk(chunks, { flushFinal: false });
           chunks = pending || '';
-          if (emitAnalyzeErrors(entries)) { rl.close(); stream.destroy(); }
+          if (emitEntries(entries)) { rl.close(); stream.destroy(); }
         }
       });
 
       rl.on('close', () => {
         if (chunks && !isStale()) {
-          const { entries } = parseLogEntries(chunks, { flushFinal: true });
-          emitAnalyzeErrors(entries);
+          const { entries } = parseChunk(chunks, { flushFinal: true });
+          emitEntries(entries);
         }
         resolve({ errors: errorCount, gaps: gapCount });
       });
@@ -122,21 +159,34 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
   });
 }
 
+// Welche Dateien gelten als Log? .json nur dort, wo es ausdrücklich erlaubt ist —
+// bei einem konfigurierten Ordner würde sonst jede package.json, tsconfig.json
+// oder Einstellungsdatei im Baum als Log ausgewertet. Erlaubt ist es deshalb nur
+// für abgelegte Dateien: die hat der Anwender einzeln ausgewählt.
+function isLogFile(name, allowJson) {
+  const n = name.toLowerCase();
+  return n.endsWith('.log') || (allowJson && n.endsWith('.json'));
+}
+
+// inputPaths: Strings (wie bisher) oder { path, includeJson } — gemischt erlaubt.
 async function collectLogFiles(inputPaths) {
   const seen = new Set();
   const logFiles = [];
   const skippedPaths = [];
-  for (const p of inputPaths) {
+  for (const item of inputPaths) {
+    const p = typeof item === 'string' ? item : (item && item.path);
+    const allowJson = typeof item === 'string' ? false : !!(item && item.includeJson);
+    if (!p) continue;
     try {
       const resolved = path.resolve(p);
       const stat = fs.statSync(resolved);
-      if (stat.isFile() && resolved.toLowerCase().endsWith('.log')) {
+      if (stat.isFile() && isLogFile(resolved, allowJson)) {
         const norm = resolved.toLowerCase();
         if (!seen.has(norm)) { seen.add(norm); logFiles.push(resolved); }
       } else if (stat.isDirectory()) {
-        collectLogsRecursive(resolved, logFiles, seen);
+        collectLogsRecursive(resolved, logFiles, seen, allowJson);
       } else {
-        skippedPaths.push({ path: p, reason: 'Keine .log-Datei' });
+        skippedPaths.push({ path: p, reason: allowJson ? 'Keine .log/.json-Datei' : 'Keine .log-Datei' });
       }
     } catch (err) {
       skippedPaths.push({ path: p, reason: err.code === 'ENOENT' ? 'Pfad nicht gefunden' : err.message });
@@ -145,14 +195,14 @@ async function collectLogFiles(inputPaths) {
   return { logFiles, skippedPaths };
 }
 
-function collectLogsRecursive(dir, result, seen) {
+function collectLogsRecursive(dir, result, seen, allowJson) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        collectLogsRecursive(fullPath, result, seen);
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.log')) {
+        collectLogsRecursive(fullPath, result, seen, allowJson);
+      } else if (entry.isFile() && isLogFile(entry.name, allowJson)) {
         const norm = fullPath.toLowerCase();
         if (!seen.has(norm)) { seen.add(norm); result.push(fullPath); }
       }
