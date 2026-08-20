@@ -498,6 +498,20 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-20 — ↗️ Pfad im Explorer öffnen, und Verzeichnisse landen nicht mehr im Eltern-Ordner
+
+Die Analyse-Pfade haben vor dem ❌ ein **↗️** bekommen: öffnet den Pfad im Explorer. Kein neuer Weg — dieselbe Route `POST /api/open-folder`, die die Fehlereinträge in der Hauptansicht und die Backup-Ziele schon nutzen, und dasselbe Zeichen wie dort. Bewusst nicht `📂`: das steht in diesem Panel bereits für die *Ordnerauswahl*.
+
+**Dabei fiel ein Fehler in der gemeinsamen Route auf.** Sie lief für alles über `explorer.exe /select,` — für **Dateien** richtig (Ordner öffnet, Datei ist markiert), für **Verzeichnisse** falsch: geöffnet wurde der *Eltern*-Ordner mit dem Verzeichnis markiert, statt hineinzugehen. Bei `S:\temp\HR` landete man in `S:\temp`. Jetzt entscheidet ein `statSync`, ob direkt geöffnet oder markiert wird.
+
+**Das wirkt auch auf die Backup-Ziele**, die ebenfalls Verzeichnisse schicken (`E:\keasylogmonitor`, `D:\vfm`) und bisher genauso im Eltern-Ordner landeten — ein Nebeneffekt, aber der erwünschte. Nicht existierende Pfade verhalten sich wie bisher: `statSync` wirft, es bleibt bei `/select,`, und der Explorer meldet selbst, dass da nichts ist.
+
+**Der Explorer geht auf dem Rechner des Servers auf** — bei Einzelnutzung dasselbe Gerät und daher unauffällig, im Mehrbenutzerbetrieb sieht ein Anwender an einem anderen PC nichts passieren. Das gilt für die vorhandenen Knöpfe genauso und steht jetzt als Kommentar an der Funktion, damit es nicht irgendwann als Fehler gesucht wird.
+
+Die **abgelegten Dateien** haben absichtlich kein ↗️: der Client kennt den Ablage-Pfad nicht, damit kein Server-Pfad über den Browser wandert.
+
+**Dateien:** server/routes/processRoutes.js, public/js/analyzePanel.js, README.md
+
 ### 2026-08-20 — 📄 Log-Dateien per Drag & Drop, und JSON-Fehler werden endlich erkannt
 
 Bisher konnte die Log-Analyse nur Pfade auswerten, die der **Server** sieht. Wer Logs von einem Kollegen bekam, musste sie erst irgendwohin kopieren und den Pfad eintragen. Jetzt gibt es im Analyse-Panel einen Ablage-Bereich: Dateien hineinziehen (oder klicken), „🔍 Analyse starten" wertet sie zusammen mit den konfigurierten Pfaden aus.

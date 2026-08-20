@@ -29,7 +29,13 @@ module.exports = function processRoutes(deps) {
           res.end('filePath fehlt');
           return;
         }
-        execFile('explorer.exe', ['/select,' + filePath], () => {});
+        // Verzeichnis direkt oeffnen, Datei im Ordner markieren. Vorher lief
+        // beides ueber /select, — bei einem Verzeichnis oeffnete das den
+        // ELTERN-Ordner mit dem Verzeichnis markiert, statt hineinzugehen.
+        // Betrifft auch die Backup-Ziele, die Verzeichnisse schicken.
+        let isDir = false;
+        try { isDir = fs.statSync(filePath).isDirectory(); } catch { /* nicht vorhanden: wie bisher versuchen */ }
+        execFile('explorer.exe', isDir ? [filePath] : ['/select,' + filePath], () => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       });

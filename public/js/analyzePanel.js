@@ -72,6 +72,20 @@ async function addAnalyzePath() {
   updateAnalyzeButtons();
 }
 
+// Oeffnet den Pfad im Explorer. Dieselbe Route wie bei den Fehlereintraegen
+// und den Backup-Zielen (/api/open-folder) — kein zweiter Weg fuer dasselbe.
+// Hinweis fuer den Mehrbenutzerbetrieb: der Explorer geht auf dem RECHNER DES
+// SERVERS auf. Wer das Dashboard von einem anderen PC oeffnet, sieht nichts.
+function openAnalyzePath(index) {
+  const p = state.analyzePaths[index];
+  if (!p) return;
+  fetch('/api/open-folder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filePath: p })
+  }).catch(err => showToast('Öffnen fehlgeschlagen: ' + err.message, 'error'));
+}
+
 function removeAnalyzePath(index) {
   state.analyzePaths.splice(index, 1);
   renderAnalyzePaths();
@@ -98,6 +112,7 @@ function renderAnalyzePaths() {
   list.innerHTML = state.analyzePaths.map((p, i) =>
     `<div style="display:flex; align-items:center; gap:6px; padding:3px 0;">
       <code style="flex:1; font-size:0.85em; background:var(--bg-tertiary); padding:2px 6px; border-radius:3px; word-break:break-all;">${escapeHtml(p)}</code>
+      <button onclick="openAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Pfad im Explorer öffnen" aria-label="Pfad im Explorer öffnen">↗️</button>
       <button onclick="removeAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Entfernen" aria-label="Pfad entfernen">❌</button>
     </div>`
   ).join('') + renderDroppedGroup();
@@ -511,7 +526,7 @@ window.Keasy.analyze = {
   toggleAnalyzePanel, loadAnalyzeConfig, addAnalyzePath, removeAnalyzePath, renderAnalyzePaths, updateAnalyzeButtons,
   startAnalysis, cancelAnalysis, clearAnalysis, saveAnalyzePaths,
   showAnalyzeStatus, updateAnalyzeProgress, toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder,
-  loadDroppedFiles, uploadDroppedFiles, removeDroppedFile, clearDroppedFiles
+  loadDroppedFiles, uploadDroppedFiles, removeDroppedFile, clearDroppedFiles, openAnalyzePath
 };
 
 Object.assign(window, {
@@ -519,6 +534,6 @@ Object.assign(window, {
   clearAnalysis, saveAnalyzePaths, updateAnalyzeButtons,
   renderAnalyzePaths, updateAnalyzeProgress, showAnalyzeStatus,
   toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder,
-  removeDroppedFile, clearDroppedFiles, dismissDroppedReject
+  removeDroppedFile, clearDroppedFiles, dismissDroppedReject, openAnalyzePath
 });
 })();
