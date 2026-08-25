@@ -135,9 +135,9 @@ Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel. Di
 
 | Tab | Einstellungen |
 |---|---|
-| **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler pro Datei, Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) |
+| **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler pro Datei, Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) · 🤖 KI-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
 | **🕵️ Monitor** | 📂 Überwachte Pfade als Tabelle: Pfad, Label, E-Mail an, Polling, JSON, ⏱️ Gap (s), Idle (min). Pfade hinzufügen/entfernen, Ordnerauswahl, Import per 📥 (auch Drag & Drop) |
-| **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln · 🤖 KI-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
+| **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln |
 | **✉️ E-Mail** 🔒 | SMTP-Konfiguration, Intervall, Duplikatschutz (normal und kritisch), Absender, Betreff |
 | **📧 E-Mail Log** | E-Mail-Versandprotokoll einsehen, aktualisieren und löschen |
 | **📖 Dokumentation** | README als formatiertes HTML: Inhaltsverzeichnis, Suche, einklappbare Abschnitte, ✏️ Bearbeiten mit Live-Vorschau |
@@ -504,6 +504,27 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-25 — 🤖 KI-Export zieht von „Regeln" nach „Allgemein"
+
+Die Karte **🤖 KI-Export** stand im Tab **📋 Regeln** und war dort der einzige Fremdkörper. Die vier Nachbarkarten beantworten durchgehend eine einzige Frage — *was ist ein Fehler, und wie wichtig ist er?* Fehlererkennung, Ausschluss, Schwellwerte, Priorität. Der KI-Export beantwortet stattdessen *wohin geht die Ausgabe?*. Sichtbar war das auch am Layout: Er ist die einzige Karte, die über `config-card-wide` die volle Rasterbreite braucht, weil zwei Windows-Pfade in eine 340-px-Regelspalte nicht passen.
+
+**Warum Allgemein und nicht Monitor.** Der Tab Monitor führt die **Eingangs**pfade — was wird überwacht. Der KI-Export sind **Ausgangs**pfade. Zwei Pfadlisten mit gegensätzlicher Bedeutung im selben Tab laden zur Verwechslung ein („warum wird mein Working-Pfad nicht überwacht?"). Allgemein sammelt dagegen schon heute, was Betrieb und Ablage betrifft — Port, Dateigrenzen, Papierkorb; ein Zielverzeichnis gehört in diese Familie.
+
+**„(pro Benutzer)" steht jetzt in der Überschrift**, nicht nur im Fließtext darunter. Der KI-Export ist der einzige Block ohne `data-admin-only` — in Allgemein ist sonst alles Admin-Sache, genau wie vorher in Regeln. Ein normaler Benutzer sieht dort also lauter gesperrte Felder und genau einen offenen Block; ohne Beschriftung wirkt das wie ein Fehler statt wie Absicht.
+
+**Am JavaScript war nichts zu ändern.** Alle Zugriffe laufen über `getElementById` (`configPanel.js` beim Laden, Speichern und Entsperren der ↗️-Knöpfe, `loginPanel.js` beim Freischalten für Nicht-Admins) — kein Selektor hing am Tab.
+
+**Zwei CSS-Regeln waren nötig**, weil Kartenoptik *und* Vollbreite am Regel-Raster hingen:
+
+- `.config-columns > .config-card-wide` gibt der Karte im Zwei-Spalten-Raster von Allgemein wieder Rahmen, Hintergrund und `grid-column: 1 / -1`. Ohne sie stünde der KI-Export als schmucklose halbe Spalte neben dem Papierkorb.
+- `flex: 1; min-width: 0` bei den Pfadfeldern kam vorher von `.config-rules-grid .config-field input` und steht jetzt bei `.config-card-wide` selbst. Die bereits vorhandene `max-width: none` allein reicht nicht: In einem Flex-Container bleibt ein Feld mit `width: auto` auf seiner Standardbreite von rund 20 Zeichen stehen — die volle Kartenbreite hätte den Feldern also nichts gebracht.
+
+**Und eine Falle, die beim Umzug fast zugeschnappt wäre:** Die rechte Spalte in Allgemein holte ihren Hintergrund über `.config-columns > .config-column:last-child`. Die neue Karte ist das letzte Kind des Rasters — die Regel hätte ins Leere gezielt und *Dateien & Fehler* hätte seinen Hintergrund verloren. Der Selektor heißt jetzt `:nth-child(2)` und benennt damit, was gemeint war: die rechte Spalte.
+
+**Der Test wandert mit.** `test/hint-collapse-wiring.js` zählte die Karten im Regeln-Tab und bestand auf fünf — er schlug beim Umzug sofort an, was genau seine Aufgabe ist. Er erwartet jetzt vier Regel-Karten, und die Ausnahme „KI-Export bewusst ohne Einklapper" prüft er weiterhin, nur eben im Tab Allgemein. Zwei Zusicherungen sind dazugekommen: dass die Karte über `grid-column: 1 / -1` die volle Rasterbreite bekommt, und dass die rechte Spalte nicht mehr an `:last-child` hängt — sonst fällt genau diese Falle beim nächsten Umbau wieder zu.
+
+**Verweise nachgezogen:** der Tooltip des Regeln-Tabs nennt den KI-Export nicht mehr, die Tab-Tabelle in dieser Doku hängt ihn unter Allgemein, und der gesperrte 🤖-Knopf schickt im Titel jetzt nach „Einstellungen → Allgemein" statt nach „Regeln". Die Nennungen weiter unten in der Historie bleiben stehen — dort lag die Karte damals wirklich in Regeln.
 
 ### 2026-08-20 — 🔒 „Leer = Knopf gesperrt" gilt jetzt wirklich, und der Copilot-Export heißt KI-Export
 

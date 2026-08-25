@@ -38,24 +38,38 @@ console.log('\n2) Kein Hinweistext der Regel-Karten haengt ausserhalb des Contai
   check('Tab-Abschnitt gefunden', tab.length > 0, 'id="config-monitorsettings" nicht gefunden');
 
   const cards = tab.split('<div class="config-filter-section').slice(1);
-  check(`${cards.length} Karten im Tab`, cards.length === 5,
-    'Erwartet: vier Regel-Karten plus Copilot-Export');
+  check(`${cards.length} Karten im Tab`, cards.length === 4,
+    'Erwartet: vier Regel-Karten. Der KI-Export zog am 2026-08-25 nach "Allgemein"');
 
   for (const card of cards) {
     const title = (card.match(/config-column-title">([^<]*)</) || [, '?'])[1].trim();
     const hints = (card.match(/<p class="config-hint-text">/g) || []).length;
     const inside = /<div class="config-hint" data-hint="[^"]+">[\s\S]*?<p class="config-hint-text">/.test(card);
-    // Der KI-Export ist die bewusste Ausnahme: ein einzelner kurzer Satz in
-    // einer Karte ueber die volle Breite — er kostet eine Zeile, kein Absatz.
-    // (Hiess bis 2026-08-20 "Copilot-Export".)
-    if (/KI-Export/.test(title)) {
-      check(`"${title}" bewusst ohne Einklapper`, hints === 1 && !inside,
-        'Ein Satz rechtfertigt kein Bedienelement');
-    } else {
-      check(`"${title}" Hinweis liegt im .config-hint`, hints === 1 && inside,
-        'Ohne umschliessendes .config-hint bleibt der Text immer sichtbar');
-    }
+    check(`"${title}" Hinweis liegt im .config-hint`, hints === 1 && inside,
+      'Ohne umschliessendes .config-hint bleibt der Text immer sichtbar');
   }
+
+  // Der KI-Export ist die bewusste Ausnahme und wird deshalb weiter geprueft —
+  // seit dem Umzug am 2026-08-25 aber im Tab "Allgemein". Ein einzelner kurzer
+  // Satz in einer Karte ueber die volle Breite kostet eine Zeile, keinen Absatz;
+  // ein Einklapper waere hier mehr Bedienelement als Inhalt.
+  const allg = (html.match(/<div class="config-section active" id="config-general">[\s\S]*?\n    <\/div>/) || [''])[0];
+  check('Tab "Allgemein" gefunden', allg.length > 0, 'id="config-general" nicht gefunden');
+  const kiCard = (allg.split('<div class="config-filter-section').slice(1))[0] || '';
+  check('KI-Export sitzt in "Allgemein"', /KI-Export/.test(kiCard),
+    'Die Karte wurde am 2026-08-25 von "Regeln" hierher verschoben');
+  check('KI-Export bewusst ohne Einklapper',
+    (kiCard.match(/<p class="config-hint-text">/g) || []).length === 1
+      && !/<div class="config-hint" data-hint="[^"]+">[\s\S]*?<p class="config-hint-text">/.test(kiCard),
+    'Ein Satz rechtfertigt kein Bedienelement');
+  check('KI-Export laeuft ueber die volle Rasterbreite',
+    /config-filter-section config-card-wide/.test(allg)
+      && /\.config-columns > \.config-card-wide[\s\S]*?grid-column: 1 \/ -1/.test(css),
+    'Ohne .config-columns > .config-card-wide steht die Karte als halbe Spalte da');
+  check('rechte Spalte haengt nicht mehr an :last-child',
+    !/\.config-columns>\.config-column:last-child/.test(css)
+      && /\.config-columns>\.config-column:nth-child\(2\)/.test(css),
+    'Die KI-Export-Karte ist das letzte Kind — :last-child wuerde die rechte Spalte entfaerben');
 }
 
 console.log('\n3) Inline-onclick ist als window-Global registriert');

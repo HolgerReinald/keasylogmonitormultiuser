@@ -1405,8 +1405,11 @@ body.theme-blue .performance-header {
   width: 350px;
 }
 
-/* Rechte Spalte: gleicher Gruppen-Hintergrund wie links */
-.config-columns>.config-column:last-child {
+/* Rechte Spalte: gleicher Gruppen-Hintergrund wie links. Bewusst nth-child(2)
+   statt :last-child — im Tab Allgemein sitzt seit dem Umzug des KI-Exports eine
+   dritte Karte im Raster, die sonst diese Regel an sich zoege und die rechte
+   Spalte ohne Hintergrund zuruecklassen wuerde. */
+.config-columns>.config-column:nth-child(2) {
   background: var(--bg-tertiary, var(--bg-secondary));
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -1451,6 +1454,25 @@ body.theme-blue .performance-header {
    Kartenbreite gestreckt — align-self hält ihn auf Inhaltsbreite. */
 .config-rules-grid > .config-filter-section > .config-reset-btn {
   align-self: flex-start;
+}
+
+/* Dieselbe Karte, aber im Zwei-Spalten-Raster von "Allgemein": Kartenoptik und
+   Vollbreite haengen oben am .config-rules-grid und greifen hier nicht. Ohne diese
+   Regel stuende der KI-Export als schmucklose halbe Spalte neben dem Papierkorb. */
+.config-columns > .config-card-wide {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+/* "(pro Benutzer)" in der Ueberschrift: Zusatz, keine zweite Ueberschrift. */
+.config-column-title-note {
+  font-weight: normal;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 /* Karte über die volle Rasterbreite. Der Copilot-Export enthält nur zwei
@@ -1514,8 +1536,12 @@ body.theme-blue .performance-header {
    Felder liefen aber weiter gegen die max-width: 350px der Basisregel — rund
    54 Zeichen, waehrend die Pfade 40–60 lang sind und das Unterscheidende
    (…Keasy_n8Dev gegen …Keasy_Release26.2hotfix) am Ende steht. Ohne diese
-   Zeile bringt die breite Karte den Feldern nichts. */
+   Zeile bringt die breite Karte den Feldern nichts. flex: 1 steht hier mit,
+   seit die Karte im Tab "Allgemein" sitzt: im Regel-Raster kam es von
+   .config-rules-grid .config-field input, das dort nicht mehr greift. */
 .config-card-wide .config-field input[type="text"] {
+  flex: 1;
+  min-width: 0;
   width: auto;
   max-width: none;
 }

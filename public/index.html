@@ -121,7 +121,7 @@
     <div class="config-tabs">
       <button class="config-tab active" onclick="switchConfigTab('general')">⚙️ Allgemein</button>
       <button class="config-tab" onclick="switchConfigTab('watchpaths')" title="Pfadüberwachung">🕵️ Monitor</button>
-      <button class="config-tab" onclick="switchConfigTab('monitorsettings')" title="Fehlererkennung, Ausschluss, Schwellwerte, Priorität, KI-Export">📋 Regeln</button>
+      <button class="config-tab" onclick="switchConfigTab('monitorsettings')" title="Fehlererkennung, Ausschluss, Schwellwerte, Priorität">📋 Regeln</button>
       <button class="config-tab" onclick="switchConfigTab('email')" data-admin-only>✉️ E-Mail</button>
       <button class="config-tab" onclick="switchConfigTab('emaillog')">📧 E-Mail Log</button>
       <button class="config-tab" onclick="switchConfigTab('docs')">📖 Dokumentation</button>
@@ -180,6 +180,24 @@
               <label>Auto-Cleanup (Std.):</label>
               <input type="text" id="cfg-trashAutoCleanupHours" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:45px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="0 = nie automatisch leeren. Gelöschte Einträge werden nach dieser Zeit endgültig entfernt." data-admin-only>
               <span class="config-hint" title="Gelöschte Fehler-Einträge werden in den Papierkorb verschoben und nach dieser Zeit automatisch entfernt.">ℹ️</span>
+            </div>
+          </div>
+        </div>
+        <div class="config-filter-section config-card-wide">
+          <h4 class="config-column-title">🤖 KI-Export <span class="config-column-title-note">(pro Benutzer)</span></h4>
+          <p class="config-hint-text">Zielverzeichnisse für den Export an die KI (Claude, Copilot &amp; Co.) — einzelne Fehler als Markdown, ganze Log-Dateien im Original (🤖- und 🚀-Button am Eintrag). Leer = Button deaktiviert. Diese Pfade gelten <strong>pro Benutzer</strong>.</p>
+          <div class="config-group">
+            <div class="config-field">
+              <label>Working-Pfad Develop:</label>
+              <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt.">
+              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
+              <button type="button" class="folder-picker-btn" id="btn-openCopilotDevelop" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathDevelop', event)">↗️</button>
+            </div>
+            <div class="config-field">
+              <label>Working-Pfad Release:</label>
+              <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Release-Verzeichnis für den KI-Export. Leer = 🚀-Knopf gesperrt.">
+              <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
+              <button type="button" class="folder-picker-btn" id="btn-openCopilotRelease" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathRelease', event)">↗️</button>
             </div>
           </div>
         </div>
@@ -318,24 +336,6 @@
             </div>
             <div id="cfg-priority-list"></div>
             <button class="config-reset-btn" onclick="addPriorityRule()" data-admin-only>+ Prioritätsregel</button>
-          </div>
-          <div class="config-filter-section config-card-wide">
-            <h4 class="config-column-title">🤖 KI-Export</h4>
-            <p class="config-hint-text">Zielverzeichnisse für den Export an die KI (Claude, Copilot &amp; Co.) — einzelne Fehler als Markdown, ganze Log-Dateien im Original (🤖- und 🚀-Button am Eintrag). Leer = Button deaktiviert. Diese Pfade gelten <strong>pro Benutzer</strong>.</p>
-            <div class="config-group">
-              <div class="config-field">
-                <label>Working-Pfad Develop:</label>
-                <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt.">
-                <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
-                <button type="button" class="folder-picker-btn" id="btn-openCopilotDevelop" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathDevelop', event)">↗️</button>
-              </div>
-              <div class="config-field">
-                <label>Working-Pfad Release:</label>
-                <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Release-Verzeichnis für den KI-Export. Leer = 🚀-Knopf gesperrt.">
-                <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
-                <button type="button" class="folder-picker-btn" id="btn-openCopilotRelease" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathRelease', event)">↗️</button>
-              </div>
-            </div>
           </div>
       </div>
     </div>

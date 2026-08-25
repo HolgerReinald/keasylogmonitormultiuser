@@ -83,7 +83,7 @@ function buildCopilotBtnHtml(target, onclick, aria) {
   const label = target === 'release' ? 'Release' : 'Develop';
   const cls = target === 'release' ? 'copilot-release-btn' : 'copilot-btn';
   const icon = target === 'release' ? '🚀' : '🤖';
-  const title = isSet ? aria : `KI-Pfad ${label} ist nicht konfiguriert (Einstellungen → Regeln)`;
+  const title = isSet ? aria : `KI-Pfad ${label} ist nicht konfiguriert (Einstellungen → Allgemein)`;
   return `<button class="action-btn ${cls}" aria-label="${aria}" title="${title}"${isSet ? '' : ' disabled'} onclick="${onclick}">${icon}</button>`;
 }
 
