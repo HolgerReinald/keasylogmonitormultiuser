@@ -43,6 +43,11 @@ window.Keasy.state = {
   analyzeDropped: [],
   analyzeDroppedRejected: [],
   analyzeDroppedBusy: false,
+  // Ordner-Durchlauf: still uebersprungene Dateien werden gesammelt und
+  // einmal zusammengefasst statt einzeln aufgelistet.
+  analyzeDroppedSkipped: [],
+  analyzeDroppedSkippedOpen: false,
+  analyzeDroppedProgress: null,
 
   // Performance-Lücken (⏱️)
   performanceEntries: {},

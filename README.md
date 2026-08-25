@@ -444,14 +444,21 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 2. **Pfade hinzufügen** — Datei- oder Ordnerpfade eingeben und mit „+" bestätigen
    - Ordner werden rekursiv nach `.log`-Dateien durchsucht
    - Doppelte Pfade und ungültige Einträge werden automatisch übersprungen
-3. **Fehler-Limit** anpassen (Standard: 100 pro Datei)
-4. **🔍 Analyse starten** — Fortschrittsbalken zeigt `X/Y Dateien (Z Fehler gefunden)`
-5. **⏹ Abbrechen** — stoppt die laufende Analyse sofort
-6. **Ergebnisse** erscheinen unterhalb der Live-Fehler im Dashboard mit grauem Header (📂-Prefix)
-7. **🗑️ Pro Quelle löschen** — jede Analyse-Quellgruppe hat einen eigenen Lösch-Button im Header
-8. **🗑️ Alle Ergebnisse löschen** — im Config-Panel: entfernt alle Analyse-Ergebnisse auf einmal
-9. **Zeitfilter** — die Buttons 1h/2h/4h/6h/12h filtern auch Analyse-Ergebnisse (Von/Bis-Datum nicht)
-10. **Kein Papierkorb** — Analyse-Ergebnisse werden direkt gelöscht (Wiederherstellung durch erneute Analyse)
+   - **📂 wählt serverseitig** — der Ordner-Browser listet die Laufwerke des *Servers*. Alles, was er sieht (auch gemappte Laufwerke wie `Y:\`), gehört hierher und wird ohne Upload direkt von der Platte gelesen
+3. **Dateien ablegen oder 📁 Ordner** — nur für Dateien, die der Server **nicht** sieht: ein Log aus einer Mail, ein Notebook ohne Laufwerks-Mapping
+   - Ablegen oder Klick auf die Fläche: einzelne `.log`, `.json`, `.zip`
+   - **📁 Ordner** übergibt einen ganzen Ordner samt Unterordnern (max. 200 Dateien)
+   - Der direkte Ordnername wandert in den Dateinamen: aus `2026-08/app.log` wird `2026-08~app.log`, damit zwei gleichnamige Logs im Ergebnis unterscheidbar bleiben
+   - Nicht passende Dateien werden beim Ordner-Durchlauf still übersprungen und einmal zusammengefasst; einzeln abgelegte bekommen ihren Grund einzeln genannt
+   - Die Ablage ist **temporär** und steht nicht in der Config; sie bleibt bis „Ergebnisse löschen"
+4. **Fehler-Limit** anpassen (Standard: 100 pro Datei)
+5. **🔍 Analyse starten** — Fortschrittsbalken zeigt `X/Y Dateien (Z Fehler gefunden)`
+6. **⏹ Abbrechen** — stoppt die laufende Analyse sofort
+7. **Ergebnisse** erscheinen unterhalb der Live-Fehler im Dashboard mit grauem Header (📂-Prefix)
+8. **🗑️ Pro Quelle löschen** — jede Analyse-Quellgruppe hat einen eigenen Lösch-Button im Header
+9. **🗑️ Alle Ergebnisse löschen** — im Config-Panel: entfernt alle Analyse-Ergebnisse auf einmal
+10. **Zeitfilter** — die Buttons 1h/2h/4h/6h/12h filtern auch Analyse-Ergebnisse (Von/Bis-Datum nicht)
+11. **Kein Papierkorb** — Analyse-Ergebnisse werden direkt gelöscht (Wiederherstellung durch erneute Analyse)
 
 | Button | Verfügbar wenn |
 |---|---|
@@ -504,6 +511,28 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-25 — 📁 Ganzen Ordner an die Log-Analyse übergeben
+
+Neben „📥 Import" steht jetzt **📁 Ordner**. Der Browser läuft den gewählten Ordner selbst rekursiv ab und liefert jede Datei samt Relativpfad — ein zweites verstecktes `<input type="file" webkitdirectory multiple>`, sonst nichts. **Am Server ist keine Zeile geändert:** es geht weiterhin eine Datei pro Anfrage an `/api/analyze-upload`, die Ablage bleibt `temp-analyze/<benutzer>/`, die Auswertung bleibt pfadbasiert.
+
+**Nicht der Weg für gemappte Laufwerke.** Was der Server ohnehin sieht — alles, was als WatchPath läuft, etwa `Y:\` —, gehört nicht durch den Browser. Solche Pfade werden über das **📂** neben dem Analyse-Pfad-Feld ausgewählt; `collectLogsRecursive()` liest sie direkt von der Platte, ohne einen einzigen Upload. Die Ordner-Übergabe ist für den anderen Fall: Dateien, die der Server **nicht** sieht — ein Log aus einer Mail, ein Notebook ohne Laufwerks-Mapping. Der Tooltip des Knopfes sagt das auch.
+
+**Eigener Knopf statt zweiter Zeile in der Ablagefläche.** Beide Varianten standen im Mockup zur Wahl. Die Ablagefläche reagiert bereits auf Klick und öffnet die Dateiauswahl; ein zweites Klickziel darin wäre ohne Verlust des vorhandenen nicht sauber zu treffen.
+
+**Der Relativpfad wird in den Dateinamen gefaltet.** Die Ablage ist flach — aus zwei `app.log` aus verschiedenen Unterordnern würden sonst `app.log` und `app.log (2)`, und im Ergebnis wäre nicht mehr zu erkennen, welcher Fehler aus welchem Ordner kam. Nur der **direkte** Ordner wandert mit: bei datierten Unterordnern trägt genau der die Information, der volle Pfad wäre nur Länge. Trenner ist die **Tilde** — in Windows-Dateinamen erlaubt und in Logdateinamen praktisch nie vorhanden, anders als `_` oder `.`. Aus `2026-08/app.log` wird `2026-08~app.log`. Einzeln abgelegte Dateien behalten ihren Namen unverändert; `safeName()` am Server verwirft weiterhin alles, was nach Pfad aussieht, und die Tilde überlebt das.
+
+**Die Abweisung wird leiser — aber nur im Ordner.** Bisher wurde jede nicht passende Datei einzeln mit Grund aufgelistet. Das ist bei vier gezogenen Dateien genau richtig und bei 200 aus einem Ordner unbrauchbar: die Liste schiebt die übernommenen Dateien aus dem Bild. Jetzt gilt: **einzeln abgelegt → Grund zeigen, im Ordner gefunden → still überspringen und einmal zusammenfassen** („↳ 41 Dateien im Ordner übersprungen — ansehen"). Beurteilt wird in beiden Fällen an derselben Stelle, `dropSkipReason()`; nur die Lautstärke unterscheidet sich. **Ein fehlgeschlagener Upload bleibt in beiden Fällen laut** — „ist kein Log" ist eine Auskunft, „ging schief" ist ein Problem.
+
+**Obergrenze 200 Dateien**, und zwar nur auf dem Ordner-Weg. Ein versehentlich gewählter Downloads-Ordner soll keine hunderte Uploads auslösen. Überzählige werden nicht stillschweigend abgeschnitten, sondern landen mit dem Grund „über der Obergrenze" in derselben Zusammenfassung. Wer vier Dateien zieht, spürt die Grenze nicht.
+
+**Fortschritt beim Ordner-Upload.** Statt „⏳ übertrage …" steht dort jetzt „⏳ übertrage 34 von 80 …". Achtzig aufeinanderfolgende Anfragen ohne Zähler sehen aus wie ein Hänger.
+
+**Beim ersten Versuch passierte scheinbar gar nichts** — und der Grund lag nicht im Neuen. `renderAnalyzePaths()` stieg bei **leerer Pfadliste** aus, bevor die abgelegten Dateien angehängt wurden. Wer also keinen Analyse-Pfad konfiguriert hatte, übergab einen Ordner, der Upload lief sauber durch, die Dateien lagen korrekt gefaltet in `temp-analyze/<benutzer>/` — und im Panel war nichts zu sehen. Der Fehler ist so alt wie der Datei-Drop selbst und traf ihn genauso; er fiel nur nie auf, weil dort meist schon ein Pfad eingetragen war. Die Ablage wird jetzt in **beiden** Zweigen gezeichnet, und `test/analyze-folder-wiring.js` hält das fest. `updateAnalyzeButtons()` kannte den Fall übrigens längst: „nur Abgelegtes, kein Pfad" schaltet den Start-Knopf frei — nur das Zeichnen zog nicht mit.
+
+**`test/analyze-folder-wiring.js`** prüft das alles statisch: den Knopf und sein Ziel, `webkitdirectory` am versteckten Feld (fehlt es, öffnet der Browser stumm eine gewöhnliche Dateiauswahl), die drei Inline-Handler als `window`-Globals — `analyzePanel.js` liegt in einer IIFE, ohne `Object.assign(window, …)` läuft ein `onclick` dort ins Leere —, dass die Obergrenze im Ordner-Block steht und nicht auf dem Einzelweg, und dass die Faltung nur beim Ordner greift. Das Verhalten selbst ist in Node nicht prüfbar: `webkitdirectory` gibt es nur im Browser.
+
+**Offen bleibt Variante B — den Ordner *ziehen*** statt ihn auszuwählen. Das braucht `webkitGetAsEntry()` synchron im Drop-Handler und ist bewusst zurückgestellt. Die beiden Entscheidungen von heute, Faltung und leise Abweisung, gelten dann mit; B wäre nur ein zweiter Einstiegsweg.
 
 ### 2026-08-25 — 🤖 KI-Export zieht von „Regeln" nach „Allgemein"
 

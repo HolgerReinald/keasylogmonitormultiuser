@@ -105,8 +105,16 @@ async function pickAnalyzeFolder() {
 
 function renderAnalyzePaths() {
   const list = document.getElementById('analyzePathList');
+  // Die abgelegten Dateien haengen an derselben Liste, sind aber unabhaengig
+  // von den konfigurierten Pfaden: "nur Abgelegtes, kein Pfad" ist ein
+  // gueltiger Lauf, updateAnalyzeButtons() schaltet den Start-Knopf dafuer
+  // ausdruecklich frei. Hier stand frueher ein Ausstieg bei leerer Pfadliste
+  // -- der hat die Ablage in genau diesem Fall verschluckt: man legte Dateien
+  // ab oder uebergab einen Ordner, der Upload lief durch, und zu sehen war
+  // nichts. Deshalb wird die Gruppe in beiden Zweigen angehaengt.
+  const dropped = renderDroppedGroup();
   if (state.analyzePaths.length === 0) {
-    list.innerHTML = '<em style="color:var(--text-secondary);">Keine Pfade hinzugefügt</em>';
+    list.innerHTML = '<em style="color:var(--text-secondary);">Keine Pfade hinzugefügt</em>' + dropped;
     return;
   }
   list.innerHTML = state.analyzePaths.map((p, i) =>
@@ -115,7 +123,7 @@ function renderAnalyzePaths() {
       <button onclick="openAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Pfad im Explorer öffnen" aria-label="Pfad im Explorer öffnen">↗️</button>
       <button onclick="removeAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Entfernen" aria-label="Pfad entfernen">❌</button>
     </div>`
-  ).join('') + renderDroppedGroup();
+  ).join('') + dropped;
 }
 
 // === Abgelegte Log-Dateien (Drag & Drop) ===
@@ -129,34 +137,196 @@ function renderAnalyzePaths() {
 
 const DROP_EXT = ['.log', '.json', '.zip'];
 
+// Obergrenze fuer einen Ordner-Durchlauf. Ein versehentlich gewaehlter
+// Downloads-Ordner soll keine hunderte Uploads ausloesen. Fuer den Zweck des
+// Ordner-Uploads -- Dateien, die der Server NICHT sieht, etwa aus einer Mail
+// oder von einem Notebook ohne Laufwerks-Mapping -- sind 200 reichlich. Was
+// auf einem gemappten Laufwerk liegt, gehoert als Analyse-Pfad hinzugefuegt
+// und wird dort ohne einen einzigen Upload gelesen.
+const DROP_FOLDER_MAX = 200;
+
 function fmtDropSize(b) {
   if (b < 1024) return b + ' B';
   if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
   return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
 
-// Abgewiesene Dateien bleiben sichtbar mit Grund. Sie stillschweigend zu
-// verschlucken waere die schlechtere Variante: man wundert sich sonst, warum
-// vier Dateien hineingezogen und nur zwei ausgewertet wurden.
+// Warum eine Datei nicht taugt — oder null, wenn sie taugt. Eine Stelle fuer
+// beide Wege, damit einzeln abgelegte und im Ordner gefundene Dateien nach
+// denselben Regeln beurteilt werden; nur die Lautstaerke unterscheidet sich.
+function dropSkipReason(f) {
+  const lower = f.name.toLowerCase();
+  if (!DROP_EXT.some(e => lower.endsWith(e))) return 'nur ' + DROP_EXT.join(' / ');
+  if (f.size === 0) return 'leer';
+  return null;
+}
+
+// Relativpfad in den Dateinamen falten. Die Ablage ist flach: aus zwei
+// "app.log" aus verschiedenen Unterordnern wuerden sonst "app.log" und
+// "app.log (2)" -- im Ergebnis nicht mehr unterscheidbar, und genau die
+// Zuordnung braucht man beim Nachsehen. Nur der direkte Ordner wandert mit;
+// bei datierten Unterordnern traegt er die Information, der volle Pfad waere
+// nur Laenge. Tilde als Trenner: in Windows-Dateinamen erlaubt und in
+// Logdateinamen praktisch nie vorhanden, anders als "_" oder ".". Der Server
+// verwirft ueber safeName() ohnehin alles, was nach Pfad aussieht -- die
+// Tilde ueberlebt das, ein "/" nicht.
+function foldDroppedName(f) {
+  const rel = f.webkitRelativePath || '';
+  if (!rel) return f.name;
+  const parts = rel.split('/');
+  parts.pop();
+  const parent = parts[parts.length - 1];
+  return parent ? parent + '~' + f.name : f.name;
+}
+
+// Eine Datei pro Anfrage, der Reihe nach: so gibt es Fortschritt je Datei, und
+// eine abgewiesene Datei reisst nicht den ganzen Stapel mit.
+//
+// opts.fromFolder unterscheidet die beiden Wege. Einzeln abgelegt heisst: der
+// Benutzer hat genau diese Datei gemeint, eine Abweisung gehoert ihm mit Grund
+// gesagt. Im Ordner gefunden heisst: er hat einen Ordner gemeint, nicht die
+// 200 .txt darin -- die werden still uebersprungen und einmal zusammengefasst.
+// Fehlgeschlagene Uploads bleiben in BEIDEN Faellen laut: "ist kein Log" ist
+// eine Auskunft, "ging schief" ist ein Problem.
+async function uploadDroppedFiles(fileList, opts) {
+  const fromFolder = !!(opts && opts.fromFolder);
+  let files = Array.from(fileList || []);
+  if (!files.length) return;
+
+  state.analyzeDroppedRejected = state.analyzeDroppedRejected || [];
+
+  if (fromFolder) {
+    state.analyzeDroppedSkipped = [];
+    state.analyzeDroppedSkippedOpen = false;
+    const usable = [];
+    for (const f of files) {
+      const reason = dropSkipReason(f)
+        || (usable.length >= DROP_FOLDER_MAX ? 'über der Obergrenze von ' + DROP_FOLDER_MAX : null);
+      if (reason) {
+        state.analyzeDroppedSkipped.push({ name: f.webkitRelativePath || f.name, reason });
+      } else {
+        usable.push(f);
+      }
+    }
+    files = usable;
+    if (!files.length) {
+      renderAnalyzePaths();
+      return;
+    }
+  }
+
+  state.analyzeDroppedBusy = true;
+  state.analyzeDroppedProgress = fromFolder ? { done: 0, total: files.length } : null;
+  renderAnalyzePaths();
+
+  for (const f of files) {
+    if (!fromFolder) {
+      const reason = dropSkipReason(f);
+      if (reason) {
+        state.analyzeDroppedRejected.push({ name: f.name, reason });
+        continue;
+      }
+    }
+    const target = fromFolder ? foldDroppedName(f) : f.name;
+    try {
+      const resp = await fetch('/api/analyze-upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          // encodeURIComponent, damit Umlaute im Dateinamen den Header überleben
+          'X-Filename': encodeURIComponent(target)
+        },
+        body: f
+      });
+      const data = await resp.json().catch(() => ({ ok: false, message: 'HTTP ' + resp.status }));
+      if (!data.ok) {
+        state.analyzeDroppedRejected.push({ name: target, reason: data.message || 'abgewiesen' });
+      } else if (data.zip && data.skipped && data.skipped.length) {
+        // ZIP-Inhalt: derselbe Massstab wie beim Ordner — beim Einzel-Upload
+        // laut, beim Ordner-Durchlauf still in die Zusammenfassung.
+        const sink = fromFolder ? state.analyzeDroppedSkipped : state.analyzeDroppedRejected;
+        for (const sk of data.skipped) sink.push({ name: sk.name, reason: sk.reason });
+      }
+    } catch (err) {
+      state.analyzeDroppedRejected.push({ name: target, reason: err.message });
+    }
+    if (state.analyzeDroppedProgress) {
+      state.analyzeDroppedProgress.done++;
+      renderAnalyzePaths();
+    }
+  }
+
+  state.analyzeDroppedBusy = false;
+  state.analyzeDroppedProgress = null;
+  await loadDroppedFiles();
+}
+
+// Ordner uebergeben. Der Browser laeuft ihn selbst rekursiv ab und liefert
+// jede Datei samt webkitRelativePath — kein Entry-Walker noetig, und der
+// Server bleibt unveraendert.
+function pickAnalyzeLogFolder() {
+  const picker = document.getElementById('analyzeLogFolderPicker');
+  if (picker) picker.click();
+}
+
+function toggleDroppedSkipped() {
+  state.analyzeDroppedSkippedOpen = !state.analyzeDroppedSkippedOpen;
+  renderAnalyzePaths();
+}
+
+function dismissDroppedSkipped() {
+  state.analyzeDroppedSkipped = [];
+  state.analyzeDroppedSkippedOpen = false;
+  renderAnalyzePaths();
+}
+
+// Einzeln abgelegte Dateien bleiben mit Grund sichtbar: wer vier Dateien
+// hineinzieht und zwei ausgewertet bekommt, soll erfahren warum. Beim
+// Ordner-Durchlauf kippt dieselbe Liste ins Gegenteil — 200 Zeilen "nur .log
+// / .json / .zip" schieben die uebernommenen Dateien aus dem Bild. Deshalb
+// dort eine Zeile mit Zahl und Aufklapper.
 function renderDroppedGroup() {
   const files = state.analyzeDropped || [];
   const bad = state.analyzeDroppedRejected || [];
-  if (!files.length && !bad.length) return '';
+  const skipped = state.analyzeDroppedSkipped || [];
+  if (!files.length && !bad.length && !skipped.length) return '';
+
   const rows = files.map(f => `
     <div class="dropped-row">
       <code>${escapeHtml(f.name)}</code>
       <span class="sz">${fmtDropSize(f.size)}</span>
       <button class="x-btn" onclick="removeDroppedFile('${escapeJs(f.name)}')" title="Entfernen" aria-label="Datei entfernen">❌</button>
     </div>`).join('');
+
   const badRows = bad.map((b, i) => `
     <div class="dropped-row is-bad">
       <code>${escapeHtml(b.name)}</code>
       <span class="why">✕ ${escapeHtml(b.reason)}</span>
       <button class="x-btn" onclick="dismissDroppedReject(${i})" title="Hinweis ausblenden" aria-label="Hinweis ausblenden">❌</button>
     </div>`).join('');
+
+  let skippedBlock = '';
+  if (skipped.length) {
+    const open = !!state.analyzeDroppedSkippedOpen;
+    const detail = open ? skipped.map(s => `
+      <div class="dropped-row is-bad">
+        <code>${escapeHtml(s.name)}</code>
+        <span class="why">✕ ${escapeHtml(s.reason)}</span>
+      </div>`).join('') : '';
+    skippedBlock = `
+      <div class="dropped-skipped">
+        <span>↳ ${skipped.length} Datei${skipped.length === 1 ? '' : 'en'} im Ordner übersprungen</span>
+        <button type="button" class="link-btn" onclick="toggleDroppedSkipped()" aria-expanded="${open}">${open ? 'zuklappen' : 'ansehen'}</button>
+        <span style="flex:1"></span>
+        <button class="x-btn" onclick="dismissDroppedSkipped()" title="Hinweis ausblenden" aria-label="Hinweis ausblenden">❌</button>
+      </div>${detail}`;
+  }
+
+  const p = state.analyzeDroppedProgress;
   const pending = state.analyzeDroppedBusy
-    ? '<div class="dropped-row"><span class="sz">⏳ übertrage …</span></div>'
+    ? `<div class="dropped-row"><span class="sz">⏳ übertrage ${p ? `${p.done + 1} von ${p.total}` : ''} …</span></div>`
     : '';
+
   return `
     <div class="dropped-group">
       <div class="dropped-head">
@@ -165,7 +335,7 @@ function renderDroppedGroup() {
         <span style="flex:1"></span>
         <button class="x-btn" onclick="clearDroppedFiles()" title="Alle entfernen" aria-label="Alle abgelegten Dateien entfernen">❌</button>
       </div>
-      ${rows}${badRows}${pending}
+      ${rows}${badRows}${skippedBlock}${pending}
       <div style="font-size:0.78em; color:var(--text-muted); margin-top:4px;">
         ${files.length} Datei${files.length === 1 ? '' : 'en'} werden mitanalysiert · bleiben bis „Ergebnisse löschen"
       </div>
@@ -182,48 +352,6 @@ async function loadDroppedFiles() {
   }
   renderAnalyzePaths();
   updateAnalyzeButtons();
-}
-
-// Eine Datei pro Anfrage, der Reihe nach: so gibt es Fortschritt je Datei, und
-// eine abgewiesene Datei reisst nicht den ganzen Stapel mit.
-async function uploadDroppedFiles(fileList) {
-  const files = Array.from(fileList || []);
-  if (!files.length) return;
-  state.analyzeDroppedRejected = state.analyzeDroppedRejected || [];
-  state.analyzeDroppedBusy = true;
-  renderAnalyzePaths();
-  for (const f of files) {
-    const lower = f.name.toLowerCase();
-    if (!DROP_EXT.some(e => lower.endsWith(e))) {
-      state.analyzeDroppedRejected.push({ name: f.name, reason: 'nur ' + DROP_EXT.join(' / ') });
-      continue;
-    }
-    if (f.size === 0) {
-      state.analyzeDroppedRejected.push({ name: f.name, reason: 'leer' });
-      continue;
-    }
-    try {
-      const resp = await fetch('/api/analyze-upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          // encodeURIComponent, damit Umlaute im Dateinamen den Header überleben
-          'X-Filename': encodeURIComponent(f.name)
-        },
-        body: f
-      });
-      const data = await resp.json().catch(() => ({ ok: false, message: 'HTTP ' + resp.status }));
-      if (!data.ok) {
-        state.analyzeDroppedRejected.push({ name: f.name, reason: data.message || 'abgewiesen' });
-      } else if (data.zip && data.skipped && data.skipped.length) {
-        for (const sk of data.skipped) state.analyzeDroppedRejected.push({ name: sk.name, reason: sk.reason });
-      }
-    } catch (err) {
-      state.analyzeDroppedRejected.push({ name: f.name, reason: err.message });
-    }
-  }
-  state.analyzeDroppedBusy = false;
-  await loadDroppedFiles();
 }
 
 async function removeDroppedFile(name) {
@@ -250,6 +378,8 @@ async function clearDroppedFiles() {
     showToast('Entfernen fehlgeschlagen: ' + err.message, 'error');
   }
   state.analyzeDroppedRejected = [];
+  state.analyzeDroppedSkipped = [];
+  state.analyzeDroppedSkippedOpen = false;
   await loadDroppedFiles();
 }
 
@@ -559,6 +689,17 @@ document.addEventListener('DOMContentLoaded', () => {
       picker.value = '';
     });
   }
+
+  // Ordnerauswahl. Eigener Knopf statt zweiter Zeile in der Ablageflaeche:
+  // die Flaeche reagiert bereits auf Klick, ein zweites Ziel darin waere
+  // ohne den vorhandenen Klick nicht sauber zu treffen.
+  const folderPicker = document.getElementById('analyzeLogFolderPicker');
+  if (folderPicker) {
+    folderPicker.addEventListener('change', () => {
+      uploadDroppedFiles(folderPicker.files, { fromFolder: true });
+      folderPicker.value = '';
+    });
+  }
 });
 
 window.Keasy.analyze = {
@@ -566,7 +707,8 @@ window.Keasy.analyze = {
   startAnalysis, cancelAnalysis, clearAnalysis, saveAnalyzePaths,
   showAnalyzeStatus, updateAnalyzeProgress, toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder,
   markAnalyzeSaved,
-  loadDroppedFiles, uploadDroppedFiles, removeDroppedFile, clearDroppedFiles, openAnalyzePath
+  loadDroppedFiles, uploadDroppedFiles, removeDroppedFile, clearDroppedFiles, openAnalyzePath,
+  pickAnalyzeLogFolder, toggleDroppedSkipped, dismissDroppedSkipped
 };
 
 Object.assign(window, {
@@ -574,6 +716,7 @@ Object.assign(window, {
   clearAnalysis, saveAnalyzePaths, updateAnalyzeButtons,
   renderAnalyzePaths, updateAnalyzeProgress, showAnalyzeStatus,
   toggleAnalyzeImport, importAnalyzePaths, pickAnalyzeFolder,
-  removeDroppedFile, clearDroppedFiles, dismissDroppedReject, openAnalyzePath
+  removeDroppedFile, clearDroppedFiles, dismissDroppedReject, openAnalyzePath,
+  pickAnalyzeLogFolder, toggleDroppedSkipped, dismissDroppedSkipped
 });
 })();

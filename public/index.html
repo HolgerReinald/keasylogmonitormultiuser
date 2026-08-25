@@ -73,8 +73,11 @@
         <span class="drop-hint">.log, .json, .zip — auch mehrere auf einmal. Klick öffnet die Dateiauswahl.</span>
       </div>
       <input type="file" id="analyzeLogPicker" accept=".log,.json,.zip" multiple style="display:none">
+      <!-- webkitdirectory: der Browser laeuft den Ordner selbst rekursiv ab. accept greift hier nicht, gefiltert wird im JS. -->
+      <input type="file" id="analyzeLogFolderPicker" webkitdirectory multiple style="display:none">
       <div style="display:flex; gap:8px; margin-bottom:8px;">
         <button class="config-reset-btn" onclick="toggleAnalyzeImport()">📥 Import</button>
+        <button class="config-reset-btn" onclick="pickAnalyzeLogFolder()" title="Ganzen Ordner übergeben — mit allen Unterordnern. Für Dateien, die der Server nicht selbst sieht; was auf einem gemappten Laufwerk liegt, gehört als Analyse-Pfad hinzugefügt.">📁 Ordner</button>
       </div>
       <div id="analyzeImportArea" style="display:none; margin-bottom:12px;">
         <div id="analyzeDropZone" style="position:relative; border:2px dashed var(--border-color); border-radius:6px; padding:4px; transition: border-color 0.2s, background 0.2s;">
