@@ -101,5 +101,64 @@ console.log('\n5) Wegbeschreibungen zeigen auf Tabs, die es gibt');
   }
 }
 
+console.log('\n6) Bedienelemente des Analyse-Panels stehen in der Doku');
+{
+  // Anlass: der Abschnitt "Log-Analyse" beschrieb monatelang nur Pfade,
+  // Streaming und Limit -- waehrend Datei-Ablage, Import, Ordner-Uebergabe und
+  // die Gap-Warnung dazugekommen waren. Die Historie hatte jeden Zubau brav
+  // vermerkt, die Doku wusste von keinem. Dieselbe Verrottung wie bei der
+  // Tab-Tabelle (siehe Kopf dieser Datei), nur eine Stelle weiter.
+  //
+  // Mechanik: JEDER Knopf im Panel muss entweder in der Doku vorkommen oder
+  // hier begruendet ausgenommen sein. So kann auch ein NEUER Knopf nicht
+  // unbemerkt durchrutschen -- er steht in keiner der beiden Listen.
+  const pStart = html.indexOf('id="analyzePanel"');
+  const pEnd = html.indexOf('id="configPanel"');
+  const panel = html.slice(pStart, pEnd === -1 ? html.length : pEnd);
+  check('Analyse-Panel im Markup gefunden', pStart !== -1 && panel.length > 500);
+
+  // Doku-Abschnitt ohne Historie: er endet an der naechsten h2.
+  const dStart = readme.indexOf('Log-Analyse (einmalige Auswertung)');
+  const dEnd = readme.indexOf('\n## ', dStart + 5);
+  const doku = readme.slice(dStart, dEnd === -1 ? readme.length : dEnd);
+  check('Doku-Abschnitt "Log-Analyse" gefunden', dStart !== -1 && doku.length > 500);
+
+  // Bewusst nicht in der Doku -- mit Grund, sonst ist die Ausnahme wertlos.
+  const AUSGENOMMEN = {
+    'Importieren': 'Knopf im Import-Bereich, dessen Zweck dort beschrieben ist'
+  };
+
+  const buttons = [...panel.matchAll(/<button[^>]*>([^<]+)<\/button>/g)]
+    .map(m => m[1].trim())
+    .filter(t => t.length > 0);
+  check(buttons.length + ' Knoepfe im Panel gefunden', buttons.length >= 8);
+
+  for (const label of buttons) {
+    // Wortteil pruefen: Emoji-Varianten (mit/ohne Variantenselektor) sind
+    // unsichtbar verschieden codiert, der Text dahinter nicht.
+    const wort = label.replace(/^[^\wAEIOUaeiouÄÖÜäöüß]+/, '').trim();
+    if (!wort) { ok('"' + label + '" ist ein reiner Symbol-Knopf (kein Text zu pruefen)'); continue; }
+    if (AUSGENOMMEN[wort] !== undefined) {
+      ok('"' + wort + '" bewusst ausgenommen (' + AUSGENOMMEN[wort] + ')');
+      continue;
+    }
+    check('"' + label + '" in der Doku erwaehnt', doku.includes(wort),
+      '"' + wort + '" kommt im Abschnitt "Log-Analyse" nicht vor. Entweder dort ' +
+      'beschreiben oder in AUSGENOMMEN dieses Tests begruenden.');
+  }
+
+  // Die Zahlenfelder: ihr Label im Panel muss auch in der Doku stehen.
+  for (const id of ['analyzeMaxErrors', 'analyzeGapWarnSeconds', 'analyzeGapIdleMinutes']) {
+    const re = new RegExp('<label[^>]*>([^<]+)</label>\\s*<input[^>]*id="' + id + '"');
+    const m = panel.match(re);
+    if (!m) { bad('Label zu #' + id + ' im Panel gefunden', 'Markup umgebaut?'); continue; }
+    // Ohne Doppelpunkt und ohne Klammerzusatz wie "(Sek., 0 = aus)": die Doku
+    // formuliert freier, der Feldname selbst muss wiedererkennbar bleiben.
+    const kern = m[1].replace(/:\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+    check('Feld "' + kern + '" in der Doku erwaehnt', doku.includes(kern),
+      'Das Feld heisst im Panel "' + kern + '", der Doku-Abschnitt nennt es nicht.');
+  }
+}
+
 console.log(failed === 0 ? '\n✅ Doku und Oberflaeche stimmen ueberein\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);

@@ -55,12 +55,42 @@ Neben dem Live-Monitoring gibt es die **Log-Analyse** — eine einmalige Auswert
 
 Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher, eigene Anzeige im Dashboard (grauer Header statt blau), kein Einfluss auf laufende Überwachung. Analyse-Ergebnisse haben **keinen Papierkorb** — sie können jederzeit durch erneute Analyse wiederhergestellt werden.
 
-- **Pfade:** Einzelne `.log`-Dateien oder ganze Ordner (werden rekursiv nach `.log`-Dateien durchsucht)
+**Vier Wege, Dateien hineinzugeben**
+
+| Weg | Bedienelement | Wofür |
+|---|---|---|
+| **Pfad eintragen** | Eingabefeld + **📂** zur Ordnerauswahl, dann **➕ Hinzufügen** | Alles, was der Server selbst sieht — auch gemappte Laufwerke wie `Y:\`. Wird direkt von der Platte gelesen, **ohne Upload** |
+| **📥 Import** | Textfeld, ein Pfad pro Zeile (`#` = Kommentar); CSV/TXT/Excel kann hineingezogen werden | Viele Pfade auf einmal übernehmen |
+| **Datei ablegen** | Ablagefläche (Ziehen **oder** Klick öffnet die Dateiauswahl) | Dateien, die der Server **nicht** sieht — ein Log aus einer Mail, ein Notebook ohne Laufwerks-Mapping |
+| **📁 Ordner** | Ordnerauswahl, läuft rekursiv durch | Wie oben, nur ganzer Ordner statt Einzeldateien |
+
+Die beiden unteren Wege **laden hoch**: der Browser gibt beim Ablegen nur Name, Größe und Inhalt heraus, nicht den Pfad. Die Analyse arbeitet pfadbasiert, also landet der Inhalt in `temp-analyze/<benutzer>/` und wird von dort gelesen. Details:
+
+- **Erlaubt sind `.log`, `.json` und `.zip`** — ein ZIP wird nach dem Hochladen entpackt und selbst verworfen
+- **Ablagen älter als 24 Stunden** werden beim Serverstart weggeräumt
+- **Obergrenze 200 Dateien pro Ordner-Durchlauf** — ein versehentlich gewählter Downloads-Ordner soll keine hunderte Uploads auslösen. Überzählige werden nicht stillschweigend abgeschnitten, sondern mit Grund in der Zusammenfassung genannt
+- **Der Unterordner wandert in den Dateinamen** (`2026-08/app.log` → `2026-08~app.log`), weil die Ablage flach ist — sonst wären zwei `app.log` aus verschiedenen Ordnern im Ergebnis nicht mehr unterscheidbar
+- **Abweisungen sind einzeln laut, im Ordner leise:** einzeln abgelegt nennt jede untaugliche Datei ihren Grund, im Ordner gefundene werden still übersprungen und einmal zusammengefasst. Ein fehlgeschlagener **Upload** bleibt in beiden Fällen laut
+
+**Was ausgewertet wird**
+
+- **`.log` und `.json`** — JSON-Logs (etwa der KI-Schnittstelle) werden **strukturell** beurteilt (Error-Objekt bzw. `Success: false`), nicht über den Textfilter. Der würde in Prompt- und Antworttexten dauernd anschlagen. Eine `package.json` fällt damit von selbst durch
 - **Streaming:** Große Dateien werden zeilenweise gelesen — der Server bleibt responsiv
-- **Fehler-Limit (Lesestopp):** Pro Datei max. 100 Fehler (konfigurierbar), verhindert Überflutung bei sehr großen Logs. **Ist die Grenze erreicht, wird die Datei nicht weitergelesen** — spätere Fehler bleiben ungeprüft. Das Dashboard weist darauf hin und nennt den Zeitpunkt, bis zu dem gelesen wurde; Limit erhöhen und erneut starten liefert den Rest
-- **Speichern:** Der Knopf **💾 Speichern** sichert Pfade **und** die drei Zahlenfelder (Fehler-Limit, Gap-Warnung, Idle). Ohne Speichern gelten geänderte Zahlen nur für den aktuellen Lauf
-- **Abbruch:** Analyse kann jederzeit abgebrochen werden
-- **Löschen:** Pro Quellgruppe einzeln löschbar (🗑️-Button im Header) oder alle auf einmal (Config-Panel)
+- **Dieselben Regeln wie im Live-Monitoring:** Filter-Pattern, Ausschlüsse, Schwellwerte und Prioritätsregeln gelten unverändert
+
+**Einstellungen im Panel**
+
+- **Max. Fehler je Datei (Analyse)** — ein **Lesestopp**, Standard 100. Ist die Grenze in einer Datei erreicht, wird sie **nicht weitergelesen**; spätere Fehler bleiben ungeprüft. Das fällt nicht mehr unter den Tisch: ⚠-Badge am Dateikopf, Warnzeile mit dem Zeitpunkt des Abbruchs, Sammelbanner unter dem Fortschritt. Limit erhöhen und erneut starten liefert den Rest
+- **⏱️ Gap-Warnung ab (Sek.)** — meldet Wartezeiten *zwischen* zwei Log-Einträgen als Performance-Lücke. Richtwert **20** (der Schmerzpunkt für Anwender), `0` = aus. Lücken erscheinen als eigene ⏱️-Einträge mit eigenem Zähler und **verdrängen keine Fehler**
+- **Idle ab (Min.)** — Lücken größer als N Minuten gelten als Leerlauf (Nacht, Programmstart) und werden ignoriert. Leer = 30
+- **💾 Speichern** sichert Pfade **und** alle drei Zahlenfelder. Ohne Speichern gelten geänderte Zahlen nur für den aktuellen Lauf
+
+**Ablauf und Ergebnis**
+
+- **🔍 Analyse starten** wertet alle eingetragenen Pfade und alle abgelegten Dateien in einem Lauf aus. Der Knopf ist gesperrt, solange weder Pfad noch abgelegte Datei vorhanden ist
+- **Pro Benutzer getrennt:** eigener Datenspeicher, eigene Fortschrittsanzeige, eigener Lauf — zwei Benutzer stören sich nicht
+- **⏹ Abbrechen** hält einen laufenden Lauf an; bereits gefundene Fehler bleiben stehen
+- **Löschen:** Pro Quellgruppe einzeln (🗑️ im Header) oder alle auf einmal. „Ergebnisse löschen" räumt **auch die abgelegten Dateien** weg — sie gehören zum Ergebnis
 - **Zeitfilter:** Die Buttons 1h/2h/4h/6h/12h filtern auch Analyse-Ergebnisse (Datumsfilter Von/Bis nicht, da Analyse historische Daten enthält)
 
 ## Features
@@ -513,6 +543,25 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-31 — 📘 Die Doku wusste nichts von den letzten drei Ausbauten
+
+Direkt nach dem Doku-Commit von heute fiel auf: der Abschnitt **📂 Log-Analyse** war weiterhin veraltet. Er kannte Pfade, Streaming, Fehler-Limit und Zeitfilter — und sonst nichts. Nicht dabei: die **Datei-Ablage** per Drag & Drop, **📥 Import**, die **📁 Ordner**-Übergabe vom 2026-08-25, die **⏱️ Gap-Warnung**, die **📂**-Ordnerauswahl am Pfadfeld und der Start-Knopf selbst. Dass `.json`-Dateien mitanalysiert werden, stand ebenfalls nicht drin — der Abschnitt sprach durchgehend von „rekursiv nach `.log`-Dateien".
+
+**Die Historie hatte jeden einzelnen Zubau brav vermerkt.** Genau das ist die Falle: ein ausführlicher Historie-Eintrag fühlt sich wie erledigte Dokumentation an. Er beschreibt aber die **Veränderung**, nicht den **Zustand** — und wer wissen will, was das Werkzeug heute kann, liest nicht 1500 Zeilen Historie.
+
+| | Zweck | Zeitform |
+|---|---|---|
+| Abschnitte vor „Historie" | wie es **heute** ist | Gegenwart, wird überschrieben |
+| Abschnitt „Historie" | was **damals** geändert wurde und warum | Vergangenheit, bleibt stehen |
+
+**Der Abschnitt ist jetzt vollständig neu**, gegliedert in vier Wege der Dateiübergabe (mit Tabelle, welcher Weg wofür gedacht ist — die Verwechslung „Ordner übergeben" gegen „Analyse-Pfad hinzufügen" kostet sonst hunderte unnötige Uploads), was ausgewertet wird, die Einstellungen im Panel und den Ablauf. Dazu die harten Zahlen, die vorher nur im Code standen: 200 Dateien pro Ordner-Durchlauf, Ablagen älter als 24 Stunden werden beim Serverstart weggeräumt, `.zip` wird entpackt und selbst verworfen.
+
+**Damit es nicht wieder passiert, prüft `test/docs-tabs-sync.js` es jetzt statisch.** Dieselbe Datei, die schon die Tab-Tabelle gegen das Markup hält — sie war aus genau demselben Anlass entstanden, nur eine Stelle weiter. Neu ist Abschnitt 6: **jeder Knopf im Analyse-Panel** muss im Doku-Abschnitt vorkommen oder im Test begründet ausgenommen sein, und die drei Zahlenfelder müssen unter ihrem Panel-Namen auftauchen. Der Trick liegt in der Vollständigkeit beider Listen: ein **neuer** Knopf steht in keiner von beiden und fällt deshalb auf. Gegenprobe gemacht — ein testweise eingeschleuster Knopf ließ den Test sofort rot werden.
+
+Aufgefallen sind dabei zwei Lücken, die niemand vermutet hätte: **„🔍 Analyse starten" und „⏹ Abbrechen" waren nirgends beschrieben** — die beiden zentralen Knöpfe des Panels.
+
+**Und eine Klarstellung in AGENTS.md:** dort stand „Tool `update_docs` nutzen" als einziger Weg. Steht das Tool nicht zur Verfügung — in Claude Code etwa gibt es es nicht —, sind Version und README von Hand zu pflegen; das Fehlen ist zu erwähnen statt stillschweigend zu umgehen. Genau das war hier schiefgelaufen. Die Checkliste, welche Doku-Stellen bei einer Änderung durchzugehen sind, steht jetzt ebenfalls dort, samt Test-Hinweis.
 
 ### 2026-08-31 — ⚠️ Zwei Fehler-Limits, zwei Namen — und ein Lesestopp, der sich nicht mehr versteckt
 

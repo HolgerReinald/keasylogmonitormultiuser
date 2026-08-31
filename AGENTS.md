@@ -99,7 +99,27 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
 ## Versionierung & Dokumentation
 - `package.json` Version: `YYYY.MM.DD-HH:MM` Format
 - `README.md` enthält Historie aller Änderungen
-- Tool `update_docs` nutzen zum Aktualisieren (bumpt Version + README-Eintrag)
+- Tool `update_docs` nutzen zum Aktualisieren (bumpt Version + README-Eintrag).
+  **Steht es nicht zur Verfügung** (etwa in Claude Code), sind Version und
+  README von Hand zu pflegen — dann gilt die Checkliste unten vollständig,
+  und das Fehlen des Tools ist zu erwähnen statt stillschweigend zu umgehen.
+- **Ein Historie-Eintrag ersetzt nicht die Doku.** Beides gehört zu jeder
+  Änderung, und zwar an unterschiedlichen Stellen:
+
+  | | Zweck | Zeitform |
+  |---|---|---|
+  | Abschnitte **vor** „## Historie" | Wie es **heute** ist | Gegenwart, wird überschrieben |
+  | Abschnitt **„## Historie"** | Was **damals** geändert wurde und warum | Vergangenheit, bleibt stehen |
+
+  Konkret bei jeder Änderung durchgehen: betroffener Feature-Abschnitt (z. B.
+  „📂 Log-Analyse"), Config-Tabelle (neuer oder geänderter Schlüssel — auch
+  Standardwerte!), Tab-Tabelle bei UI-Umbauten, `config.js`-Beispiel.
+  **Verrottet ist die Doku schnell und unbemerkt**, weil beide Seiten für sich
+  plausibel aussehen: die Tab-Tabelle nannte über Monate neun Tabs statt zwölf,
+  der Abschnitt „Log-Analyse" kannte am 2026-08-31 weder Datei-Ablage noch
+  📥 Import, 📁 Ordner oder die Gap-Warnung — obwohl die Historie jeden dieser
+  Zubauten brav vermerkt hatte. `test/docs-tabs-sync.js` prüft beides jetzt
+  statisch; schlägt er an, ist die Doku dran und nicht der Test.
 - **In Historie-Einträgen keine `##`-Überschriften** — ein Eintrag ist ein `###`,
   darin nur fette Absätze. Ein `##` beendet den Abschnitt „Historie": der Doku-Tab
   gruppiert nach `h2` (`wrapH2Sections`) und zerlegt die Historie dann in Stücke,
@@ -112,6 +132,16 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
   `node test/error-index-wiring.js`, `node test/eviction-priority.js`
   (kein Server nötig — fangen fehlende DOM-IDs, nicht exportierte Globals
   und vergessene `<script>`-Tags)
+- **Doku-Abgleich:** `node test/docs-tabs-sync.js` prüft README gegen Markup —
+  Tab-Tabelle, Wegbeschreibungen („Einstellungen → …") und die Bedienelemente
+  des Analyse-Panels. Neue Knöpfe müssen dort beschrieben oder im Test
+  begründet ausgenommen werden
+- Die serverlosen Suiten laufen alle ohne Vorbereitung; `test/smoke.js` und
+  `test/smoke-auth-on.js` **brauchen einen eigenen Server** (Port 3847,
+  `KEASY_AUTH=off`) und überschreiben `config.js` per POST — nie gegen die
+  Live-Instanz laufen lassen
+- Testläufe **nicht** mit `|| echo …` verketten: ein roter Test muss die Kette
+  abbrechen, sonst läuft ein Commit trotz Fehler durch
 - Änderungen immer im Browser testen
 
 ## Einsatz & Security-Kontext
