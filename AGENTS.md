@@ -99,10 +99,18 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
 ## Versionierung & Dokumentation
 - `package.json` Version: `YYYY.MM.DD-HH:MM` Format
 - `README.md` enthält Historie aller Änderungen
-- Tool `update_docs` nutzen zum Aktualisieren (bumpt Version + README-Eintrag).
-  **Steht es nicht zur Verfügung** (etwa in Claude Code), sind Version und
-  README von Hand zu pflegen — dann gilt die Checkliste unten vollständig,
-  und das Fehlen des Tools ist zu erwähnen statt stillschweigend zu umgehen.
+- **Historie-Eintrag und Version:** `node scripts/update-docs.js "Titel" "- Punkt" … --files "a.js, b.js"`
+  (ohne Argumente interaktiv). Bumpt `package.json` und setzt den Eintrag oben in
+  die Historie. Das ist der vorgesehene Weg — er ist erreichbar, auch für Agenten;
+  in AGENTS.md hieß er früher „Tool `update_docs`", was nach einer Umgebungs-
+  funktion klang. Er erzeugt Einträge im **Bullet-Stil**; die ausführliche Form
+  der letzten Einträge (fette Absätze, Tabellen) ist Handarbeit — dann den Eintrag
+  danach ausbauen, aber Version und `**Dateien:**`-Zeile vom Skript nehmen.
+- **Das Skript pflegt NUR Historie und Version.** Die Feature-Abschnitte oben in
+  der README fasst es nicht an — genau daran ist die Doku über Monate verrottet:
+  jede Änderung hatte ihren Historie-Eintrag, aber „📂 Log-Analyse" wusste am
+  2026-08-31 nichts von Datei-Ablage, 📥 Import, 📁 Ordner-Übergabe und
+  Gap-Warnung. Die Checkliste unten deshalb bei **jeder** Änderung durchgehen.
 - **Ein Historie-Eintrag ersetzt nicht die Doku.** Beides gehört zu jeder
   Änderung, und zwar an unterschiedlichen Stellen:
 
@@ -125,6 +133,12 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
   gruppiert nach `h2` (`wrapH2Sections`) und zerlegt die Historie dann in Stücke,
   und `test/docs-tabs-sync.js` hält danach alte Einträge für aktuelle Doku. Am
   2026-08-20 genau so passiert.
+- **Historie-Einträge in der ausführlichen Form** — fette Absätze, bei Bedarf
+  Tabellen; nicht die knappe Bullet-Liste. Ein Eintrag soll das *Warum* tragen:
+  was der Anlass war, welche Alternative verworfen wurde und warum, welche Falle
+  dabei zugeschnappt ist. Das Skript erzeugt Bullets, deshalb: Version und
+  Grundeintrag (Titel + `**Dateien:**`) vom Skript nehmen, den Text danach
+  ausbauen. So festgelegt am 2026-08-31.
 - **Jeder Historie-Eintrag endet mit einer Zeile `**Dateien:** a.js, b.js`** —
   92 der 109 Einträge haben sie, bei den letzten drei war sie eingeschlafen.
   `test/docs-tabs-sync.js` prüft sie am jeweils neuesten Eintrag; ältere bleiben

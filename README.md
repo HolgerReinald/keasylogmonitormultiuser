@@ -6,7 +6,7 @@ Diese Version ist nicht dazu gedacht lokal auf seinem PC einzusetzen. Die zu üb
 ## Lokales Echtzeit-Monitoring
 Überwacht mehrere Log-Dateien gleichzeitig und zeigt Fehler live im Browser an.  
 Neue Fehler erscheinen typischerweise nach **~4,3s** (2s Polling + 100ms Debounce + 2,2s Stack-Trace-Pufferung). Polling ist Standard für alle Pfade (2s lokal, 5s Netzwerk), da Windows `fs.watch` Events verschlucken kann. Die Stack-Trace-Pufferung wartet bewusst länger als das Polling-Intervall (pollInterval + 200ms), damit mehrzeilige Einträge über Poll-Zyklen hinweg korrekt zusammengefasst werden.
-Die Dokumentation wird über die Funktion update_docs (Extension) über die Konsole aktualisiert mit Versions Historie und Versionsnummer (nach Neustart).
+Historie-Eintrag und Versionsnummer werden über `node scripts/update-docs.js` gesetzt (ohne Argumente interaktiv, sonst `"Titel" "- Punkt" … --files "a.js, b.js"`); die neue Version erscheint im Kopf des Dashboards nach einem Neustart. **Die Feature-Abschnitte dieser Doku pflegt das Skript nicht** — die gehören bei jeder Änderung von Hand nachgezogen, siehe Checkliste in `AGENTS.md`.
 Dann gibt es noch die Performance-Gap-Erkennung. Dazu gibt es ein eigene Erklärung.
 
 ### Tagesaktuelle Log-Dateien
@@ -545,6 +545,25 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-08-31 — 📎 update_docs war die ganze Zeit da — nur anders geschrieben
+
+Beim Doku-Commit am selben Tag hatte ich behauptet, das in AGENTS.md genannte „Tool `update_docs`" stehe in Claude Code nicht zur Verfügung, und Version wie Historie von Hand gepflegt. **Das war falsch** — und die Behauptung stand damit selbst in AGENTS.md und in einem Historie-Eintrag, also als Projektwissen verankert. Beide Sätze sind zurückgenommen.
+
+**Die Doku nannte die Funktion an zwei Stellen irreführend.** Im README-Kopf als „die Funktion update_docs (Extension) über die Konsole", in AGENTS.md als „Tool `update_docs` nutzen". Beides klingt nach einer Funktion der Umgebung, und wer nach `update_docs` sucht, findet `scripts/update-docs.js` nicht — Unterstrich gegen Bindestrich. Beide Stellen nennen jetzt den Aufruf:
+
+```
+node scripts/update-docs.js "Titel" "- Punkt 1" --files "a.js, b.js"
+node scripts/update-docs.js          # interaktiv
+```
+
+**Zu finden gewesen wäre es trotzdem:** AGENTS.md führt `scripts/` seit langem als „Build/Dev-Hilfsskripte (update-docs.js etc.)". Ein `ls scripts/` hätte gereicht. Aus einer Formulierung geschlossen und die Schlussfolgerung nicht geprüft — der Fehler liegt nicht bei der Schreibweise allein.
+
+**Der eigentliche Befund wiegt schwerer als der Irrtum.** Das Skript bumpt `package.json` und setzt einen Historie-Eintrag — **die Feature-Abschnitte oben in der README fasst es nicht an.** Damit war die Verrottung strukturell vorprogrammiert, die am selben Tag aufgefallen war: jede der im Abschnitt „📂 Log-Analyse" fehlenden Änderungen *hatte* ihren Historie-Eintrag. Das Werkzeug pflegt die Vergangenheit; den Zustand pflegte niemand. Das steht jetzt an beiden Stellen ausdrücklich dabei, damit die nächste Runde nicht wieder darauf baut.
+
+**Und eine Festlegung zum Stil:** Historie-Einträge bleiben in der **ausführlichen Form** — fette Absätze, bei Bedarf Tabellen, und das *Warum* mit drin. Das Skript erzeugt Bullets, deshalb ist der Weg: Version und Grundeintrag (Titel plus `**Dateien:**`) vom Skript nehmen, den Text danach ausbauen. Dieser Eintrag ist genau so entstanden.
+
+**Dateien:** AGENTS.md, README.md
+
 ### 2026-08-31 — 📦 Analyse-Ergebnisse in einem Sammelblock statt als Anhang
 
 Die Analyse hing als **letzte** von acht Quellgruppen unter den fünf Live-Quellen: pro Ordner eine eigene Gruppe, gleichrangig, gleich aussehend. Bei einem Ordner-Lauf über mehrere Unterordner musste man also für genau das am weitesten scrollen, was man gerade angefordert hatte.
@@ -584,7 +603,9 @@ Direkt nach dem Doku-Commit von heute fiel auf: der Abschnitt **📂 Log-Analyse
 
 Aufgefallen sind dabei zwei Lücken, die niemand vermutet hätte: **„🔍 Analyse starten" und „⏹ Abbrechen" waren nirgends beschrieben** — die beiden zentralen Knöpfe des Panels.
 
-**Und eine Klarstellung in AGENTS.md:** dort stand „Tool `update_docs` nutzen" als einziger Weg. Steht das Tool nicht zur Verfügung — in Claude Code etwa gibt es es nicht —, sind Version und README von Hand zu pflegen; das Fehlen ist zu erwähnen statt stillschweigend zu umgehen. Genau das war hier schiefgelaufen. Die Checkliste, welche Doku-Stellen bei einer Änderung durchzugehen sind, steht jetzt ebenfalls dort, samt Test-Hinweis.
+**Und eine Klarstellung in AGENTS.md** zum Weg dorthin. Dort stand „Tool `update_docs` nutzen" — das klingt nach einer Funktion der Umgebung, gemeint ist aber `node scripts/update-docs.js`, ein Skript im Repo. Es steht jetzt mit Aufruf da.
+
+**Was das Skript nicht kann, und warum die Doku trotzdem verrottet ist:** es bumpt die Version und setzt einen Historie-Eintrag — die Feature-Abschnitte oben in der README fasst es nicht an. Damit war genau dieser Zustand vorprogrammiert: jede der vermissten Änderungen hatte ihren Historie-Eintrag, gepflegt hat den *Zustand* niemand. Die Checkliste, welche Doku-Stellen bei einer Änderung durchzugehen sind, steht jetzt ebenfalls in AGENTS.md, samt Test-Hinweis.
 
 **Nachtrag zur Konvention:** 92 der 109 Historie-Einträge enden mit einer Zeile **Dateien:** — bei den letzten drei war das eingeschlafen, auch bei den beiden von heute. Nachgezogen, in AGENTS.md festgehalten (bisher stand die Konvention nirgends, deshalb konnte sie unbemerkt verschwinden) und in `test/docs-tabs-sync.js` geprüft: der **jeweils neueste** Eintrag muss die Zeile haben. Ältere bleiben unangetastet — die Historie wird nicht rückwirkend umgeschrieben.
 
