@@ -159,8 +159,10 @@ console.log('\n10) Ein Auf-/Zu-Zustand je Quelle, nicht zwei');
     /function toggleIndexGroup[\s\S]{0,500}toggleSource\(header, key\)/.test(actions + panel),
     'Sonst wird der Zustand an zwei Stellen gepflegt');
   check('Quellen-Koepfe tragen data-collapse-key',
-    (render.match(/data-collapse-key=/g) || []).length === 3,
-    'Live, Performance und Analyse — ueber dieses Attribut findet der Index den Kopf wieder');
+    (render.match(/data-collapse-key=/g) || []).length === 4,
+    'Live, Performance, Analyse-Quellen und der Analyse-Sammelblock. Ueber dieses ' +
+    'Attribut findet der Index den Kopf wieder; beim Sammelblock haengt zusaetzlich ' +
+    '"Alle zu/auf" daran (Selektor in actions.js).');
 }
 
 console.log('\n11) Alle Quellen auf einen Schlag');

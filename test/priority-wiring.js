@@ -152,7 +152,8 @@ console.log('\n11) 🚨 Alarmknopf statt Rollup-Badge');
   check('jumpToCritical als Global exportiert', /Object\.assign\(window, \{[\s\S]*?jumpToCritical[\s\S]*?\}\)/.test(actions));
   check('stopPropagation (Header klappt nicht zu)', /function jumpToCritical[\s\S]{0,200}event\.stopPropagation\(\)/.test(actions));
   check('Quelle wird über toggleSource aufgeklappt (Zustand bleibt gemerkt)',
-    /jumpToCritical[\s\S]{0,900}toggleSource\(sourceGroup\.querySelector/.test(actions));
+    /jumpToCritical[\s\S]{0,1600}toggleSource\(sourceGroup\.querySelector/.test(actions),
+    'Der Abstand waechst mit jedem Zweig in jumpToCritical — der Aufruf selbst muss bleiben');
   check('springt auf .error-entry.sev-kritisch', /querySelector\('\.error-entry\.sev-kritisch'\)/.test(actions));
 
   check('.alarm-btn im Stylesheet', css.includes('.alarm-btn'));

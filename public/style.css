@@ -3193,3 +3193,54 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
   background: var(--highlight-fehler);
   cursor: help;
 }
+
+/* === Sammelblock der Log-Analyse ===
+   Die Analyse-Ergebnisse stehen nicht mehr als gleichrangige Quellgruppen
+   hinter den Live-Quellen, sondern gebuendelt darueber. Der Rahmen in
+   --file-name-color grenzt sie deutlich von der Live-Ueberwachung ab: beides
+   sah vorher fast gleich aus, der graue Kopf war der einzige Unterschied. */
+.analyze-wrap {
+  border: 2px solid var(--file-name-color);
+  border-radius: 9px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  background: var(--file-group-bg);
+}
+.analyze-wrap-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 9px 13px;
+  background: var(--file-header-bg);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.analyze-wrap-head:hover {
+  background: var(--file-header-hover);
+}
+.analyze-wrap-title {
+  color: var(--file-name-color);
+  white-space: nowrap;
+}
+/* Die Kennzahlen nehmen den freien Platz und weichen zuerst, wenn es eng wird */
+.analyze-wrap-meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.84em;
+  font-weight: 400;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analyze-wrap-body {
+  padding: 8px;
+}
+/* Dieselbe Klasse wie bei .source-content: toggleSource() schaltet sie um,
+   damit der Block ohne eigenen Handler auskommt. */
+.analyze-wrap-body.collapsed {
+  display: none;
+}

@@ -133,7 +133,8 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
 ## Tests
 - Keine automatisierten Unit-Tests vorhanden
 - Statische Verdrahtungs-Prüfungen: `node test/priority-wiring.js`,
-  `node test/error-index-wiring.js`, `node test/eviction-priority.js`
+  `node test/error-index-wiring.js`, `node test/eviction-priority.js`,
+  `node test/analyze-wrap-wiring.js`
   (kein Server nötig — fangen fehlende DOM-IDs, nicht exportierte Globals
   und vergessene `<script>`-Tags)
 - **Laufzeit-Prüfungen ohne Server:** `node test/analyze-drop.js` (Log-Ablage,

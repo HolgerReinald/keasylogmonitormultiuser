@@ -54,7 +54,7 @@ function toggleSource(header, label) {
 // Setzt den Zustand gebündelt und schreibt einmal in den localStorage,
 // statt toggleSource je Quelle aufzurufen (das würde N-mal neu rendern).
 function toggleAllSources() {
-  const headers = [...document.querySelectorAll('.source-header[data-collapse-key]')];
+  const headers = [...document.querySelectorAll('.source-header[data-collapse-key], .analyze-wrap-head[data-collapse-key]')];
   if (headers.length === 0) return;
 
   const collapseAll = headers.some(h => !h.nextElementSibling.classList.contains('collapsed'));
@@ -77,7 +77,7 @@ function toggleAllSources() {
 function updateCollapseAllButton() {
   const btn = document.getElementById('collapseAllBtn');
   if (!btn) return;
-  const headers = [...document.querySelectorAll('.source-header[data-collapse-key]')];
+  const headers = [...document.querySelectorAll('.source-header[data-collapse-key], .analyze-wrap-head[data-collapse-key]')];
   btn.disabled = headers.length === 0;
   const anyOpen = headers.some(h => !h.nextElementSibling.classList.contains('collapsed'));
   btn.textContent = anyOpen ? '⊟ Alle zu' : '⊞ Alle auf';
@@ -94,8 +94,23 @@ function expandAndFindCritical(fileGroup) {
 // Gemeinsamer Abschluss aller Sprünge: Liste einblenden, markieren, hinscrollen,
 // kurz aufblitzen. Eine Stelle, damit Alarmknopf und Fehler-Index nicht zwei
 // verschiedene Sprungmechaniken haben.
+// Liegt das Ziel im Analyse-Sammelblock und ist der zugeklappt, muss er zuerst
+// auf: sonst springt man in ein display:none-Element und es passiert scheinbar
+// nichts. Hier und nicht in den Aufrufern, weil focusEntry die gemeinsame
+// Endstelle aller Spruenge ist (Index, Alarmknopf).
+function expandAnalyzeWrap(target) {
+  const wrap = target.closest('.analyze-wrap');
+  if (!wrap) return;
+  const head = wrap.querySelector('.analyze-wrap-head');
+  const body = head && head.nextElementSibling;
+  if (head && body && body.classList.contains('collapsed')) {
+    toggleSource(head, head.dataset.collapseKey);
+  }
+}
+
 function focusEntry(target) {
   if (!target) return;
+  expandAnalyzeWrap(target);
   const list = target.closest('.error-list');
   if (list) list.style.display = 'block';
 
@@ -137,9 +152,27 @@ function jumpToCritical(btn, event, label) {
 
   let target = null;
   const fileGroup = btn.closest('.file-group');
+  // Der Alarmknopf im Kopf des Analyse-Sammelblocks sitzt AUSSERHALB der
+  // Quellgruppen -- closest('.source-group') findet dort nichts, der Knopf waere
+  // ohne diesen Zweig ein stiller Blindgaenger. Reihenfolge des Aufklappens:
+  // Sammelblock, dann die Quelle mit dem kritischen Eintrag, dann die Datei.
+  const wrapHead = btn.closest('.analyze-wrap-head');
 
   if (fileGroup) {
     target = expandAndFindCritical(fileGroup);
+  } else if (wrapHead) {
+    // querySelector findet auch in einem zugeklappten (display:none) Block --
+    // sichtbar macht ihn anschliessend focusEntry.
+    const body = wrapHead.nextElementSibling;
+    const kritDatei = body ? body.querySelector('.file-group.has-kritisch') : null;
+    if (kritDatei) {
+      const srcHeader = kritDatei.closest('.source-group')?.querySelector('.source-header');
+      const srcContent = srcHeader && srcHeader.nextElementSibling;
+      if (srcHeader && srcContent && srcContent.classList.contains('collapsed')) {
+        toggleSource(srcHeader, srcHeader.dataset.collapseKey);
+      }
+      target = expandAndFindCritical(kritDatei);
+    }
   } else {
     const sourceGroup = btn.closest('.source-group');
     if (!sourceGroup) return;

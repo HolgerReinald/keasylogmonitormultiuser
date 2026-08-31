@@ -87,6 +87,7 @@ Die beiden unteren Wege **laden hoch**: der Browser gibt beim Ablegen nur Name, 
 
 **Ablauf und Ergebnis**
 
+- **Die Ergebnisse stehen in einem eigenen Sammelblock oberhalb der Live-Überwachung** — nicht mehr als gleichrangige Quellgruppen darunter. Der Block ist **standardmäßig zugeklappt** und kostet dann eine Zeile; seine Kopfzeile nennt die Kennzahlen (Dateien, Ordner, Fehler, kritische, ⏱️ Gaps, ⚠ unvollständig gelesen). Ein Klick klappt ihn auf, der Zustand wird gemerkt. „⊟ Alle zu" nimmt ihn mit, und bei einer aktiven Suche ist er immer offen
 - **🔍 Analyse starten** wertet alle eingetragenen Pfade und alle abgelegten Dateien in einem Lauf aus. Der Knopf ist gesperrt, solange weder Pfad noch abgelegte Datei vorhanden ist
 - **Pro Benutzer getrennt:** eigener Datenspeicher, eigene Fortschrittsanzeige, eigener Lauf — zwei Benutzer stören sich nicht
 - **⏹ Abbrechen** hält einen laufenden Lauf an; bereits gefundene Fehler bleiben stehen
@@ -543,6 +544,28 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-31 — 📦 Analyse-Ergebnisse in einem Sammelblock statt als Anhang
+
+Die Analyse hing als **letzte** von acht Quellgruppen unter den fünf Live-Quellen: pro Ordner eine eigene Gruppe, gleichrangig, gleich aussehend. Bei einem Ordner-Lauf über mehrere Unterordner musste man also für genau das am weitesten scrollen, was man gerade angefordert hatte.
+
+**Vorgehen:** Mockup mit vier Zuständen zum Vergleichen — Ist-Zustand und drei Vorschläge (A Ansichts-Umschalter im Kopf, B Sammelblock, C geteilte Ansicht), umschaltbar zwischen 2 und 14 Analyse-Dateien. Entschieden wurde **B als QuickWin jetzt, A als eigentliche Lösung morgen**. C fiel durch: mit dem Fehler-Index bleiben pro Spalte rund 40 % der Fensterbreite, und Fehlerzeilen sind mehrzeilig.
+
+**Der Block liegt oben und ist zugeklappt.** Die Kopfzeile trägt die Kennzahlen — Dateien, Ordner, Fehler, kritische, ⏱️ Gaps, ⚠ unvollständig gelesen — und ist damit auch zugeklappt aussagekräftig. Der Rahmen in `--file-name-color` grenzt die Analyse deutlich von der Live-Überwachung ab; vorher war der graue Kopf der einzige Unterschied.
+
+**Kein eigener Klapp-Mechanismus.** Der Kopf trägt `data-collapse-key` und ruft `toggleSource()` — dieselbe Funktion wie die Quellgruppen, die den Zustand bereits im `localStorage` merkt und die Seitenleiste mitnimmt. Für „standardmäßig zu" dient das invertierte Muster des Papierkorbs (`!== false`): ohne gemerkten Zustand zugeklappt, ein Klick speichert das Aufklappen. Bei aktiver Suche ist der Block immer offen — sonst sucht man in einem Block, der nichts zeigt.
+
+**Zwei Dinge wären still kaputt gewesen.** Erstens hätte „⊟ Alle zu" den Block übersehen: `toggleAllSources()` und `updateCollapseAllButton()` selektieren `.source-header[data-collapse-key]`, alles wäre zugeklappt und der Analyse-Block offen daneben stehen geblieben. Beide Selektoren sind erweitert.
+
+Zweitens der **Alarmknopf im Kopf**: er sitzt außerhalb der Quellgruppen, `closest('.source-group')` findet von dort nichts — `jumpToCritical()` wäre ohne eigenen Zweig still ausgestiegen, ein Knopf ohne Wirkung. Beim Bauen dieses Zweigs fiel der eigentliche Fehler auf: **auch der Klick im Fehler-Index** sprang bei zugeklapptem Block in ein `display:none`-Element, es passierte scheinbar nichts. `jumpToEntry()` klappt nur die Quellgruppe auf, nicht den Rahmen darum. Das Sichtbarmachen sitzt deshalb jetzt in `focusEntry()` — der gemeinsamen Endstelle **aller** Sprünge —, nicht in den einzelnen Aufrufern; sonst ist es beim nächsten Sprungweg wieder vergessen.
+
+**Zwei bestehende Tests wurden rot, beide zu Recht.** `priority-wiring.js` prüft mit einem Zeichenfenster, dass `jumpToCritical` die Quelle über `toggleSource` aufklappt — der neue Zweig hat den Abstand über die 900 Zeichen hinausgeschoben; Fenster vergrößert, Prüfung unverändert. `error-index-wiring.js` bestand auf genau drei `data-collapse-key` (Live, Performance, Analyse-Quellen) — jetzt sind es vier. Die exakte Zahl ist dort der Punkt, deshalb mitgezogen und nicht aufgeweicht.
+
+**`test/analyze-wrap-wiring.js` (neu)** hält die Fallstricke fest: dass der Block vorangestellt wird (`wrap + html` — steht er nicht vorne, ist das Feature wirkungslos), das invertierte Klapp-Muster, beide erweiterten Selektoren, der Alarmknopf-Zweig, `expandAnalyzeWrap` in `focusEntry` und die CSS-Regel `.analyze-wrap-body.collapsed` — ohne sie schaltet `toggleSource` eine Klasse, die nichts bewirkt, und der Klick bleibt folgenlos.
+
+**Offen bleibt Variante A** — der Ansichts-Umschalter „Live / Analyse / Beides" im Kopf. B verkürzt den Block, löst das Grundproblem aber nur halb: aufgeklappt ist die Seite genauso lang wie vorher. Vor dem Bauen zu klären: ob Zeitfilter und Suche nur die sichtbare Welt filtern, und ob die Auswahl einen Browser-Neustart überlebt.
+
+**Dateien:** public/js/render.js, public/js/actions.js, public/style.css, test/analyze-wrap-wiring.js (neu), test/priority-wiring.js, test/error-index-wiring.js, AGENTS.md, README.md
 
 ### 2026-08-31 — 📘 Die Doku wusste nichts von den letzten drei Ausbauten
 

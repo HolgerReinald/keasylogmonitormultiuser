@@ -112,6 +112,11 @@ function buildAlarmButtonHtml(criticalCount, label) {
   return `<button class="alarm-btn is-active" title="${criticalCount} ${plural} — zum ersten springen" onclick="jumpToCritical(this, event${labelArg})">🚨 <span class="alarm-count">${criticalCount}</span></button>`;
 }
 
+// Klapp-Schluessel des Analyse-Sammelblocks. Eine Konstante, weil er an drei
+// Stellen auftaucht (Markup, onclick, Zustandsabfrage) und ein Tippfehler dort
+// stillschweigend zu einem Block fuehrt, der seinen Zustand nicht behaelt.
+const ANALYZE_WRAP_KEY = 'analyze-wrap';
+
 // Datei-Block mit Header (Name, Pfad, Aktionen) und ausklappbarer Eintragsliste
 // noticeHtml steht in der Fehlerliste vor den Eintraegen — fuer Hinweise, die zur
 // ganzen Datei gehoeren und nicht zu einem einzelnen Fehler (z. B. Lesestopp).
@@ -397,6 +402,13 @@ function renderAll() {
   }
 
   // === Analyse-Ergebnisse (getrennt von Live) ===
+  // Sie landen in einem eigenen Sammelblock oberhalb der Live-Gruppen und nicht
+  // mehr als gleichrangige Quellgruppen darunter: bei einem Ordner-Lauf ueber
+  // mehrere Unterordner standen hier schnell ein Dutzend Gruppen hinter den
+  // Live-Quellen, und die Analyse war immer die letzte -- also die, fuer die man
+  // am weitesten scrollen musste, obwohl man sie gerade angefordert hat.
+  let analyzeHtml = '';
+  let anaFiles = 0, anaGroups = 0, anaErr = 0, anaGaps = 0, anaCrit = 0, anaTrunc = 0;
   if (analyzeKeys.length > 0) {
     const aGroups = {};
     for (const filePath of analyzeKeys) {
@@ -443,7 +455,9 @@ function renderAll() {
         // Lesestopp: das Analyse-Limit hat das Lesen dieser Datei beendet, der
         // hintere Teil ist ungeprueft. Das Badge sitzt im Kopf und bleibt damit
         // auch bei zugeklappter Liste sichtbar; die Warnzeile nennt die Stelle.
+        anaFiles++;
         const trunc = state.analyzeTruncated[filePath];
+        if (trunc) anaTrunc++;
         let truncBadge = '';
         let truncNotice = '';
         if (trunc) {
@@ -464,12 +478,16 @@ function renderAll() {
       if (groupCount > 0) {
         filteredTotal += groupErrCount; // ⏱️-Lücken zählen nicht in den Fehlerzähler
         criticalTotal += groupCriticalCount;
+        anaGroups++;
+        anaErr += groupErrCount;
+        anaGaps += groupGapCount;
+        anaCrit += groupCriticalCount;
         const collapseKey = 'analyze:' + label;
         const isCollapsed = (state.searchTerm && groupCount > 0) ? false : state.collapsedSources[collapseKey] === true;
         const analyzeUserHint = state.analyzeUser ? ` <span style="font-size:0.85em; opacity:0.7;">(${escapeHtml(state.analyzeUser)})</span>` : '';
         const clearDisabled = state.analyzeIsRunning ? ' disabled title="Analyse läuft…"' : ' title="Analyse-Ergebnisse dieser Quelle löschen"';
         const groupGapBadge = groupGapCount > 0 ? `<span class="source-badge gap-badge" title="Anzahl Performance-Gaps (Analyse)">⏱️ ${groupGapCount}</span>` : '';
-        html += `
+        analyzeHtml += `
           <div class="source-group analyze-source">
             <div class="source-header analyze-header" data-collapse-key="${attr(collapseKey)}" onclick="toggleSource(this, '${escapeJs(collapseKey)}')">
               <span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span> ${escapeHtml(label)}${analyzeUserHint}</span>
@@ -484,6 +502,36 @@ function renderAll() {
           </div>`;
       }
     }
+  }
+
+  // Sammelblock um die Analyse. Standard ist zu — dasselbe invertierte Muster
+  // wie beim Papierkorb (`!== false`): ohne gemerkten Zustand zugeklappt, ein
+  // Klick speichert das Aufklappen. Bei aktiver Suche immer offen, sonst sucht
+  // man in einem Block, der nichts zeigt.
+  if (analyzeHtml) {
+    const zu = state.searchTerm ? false : state.collapsedSources[ANALYZE_WRAP_KEY] !== false;
+    const teile = [
+      `${anaFiles} ${anaFiles === 1 ? 'Datei' : 'Dateien'}`,
+      `${anaGroups} Ordner`,   // im Deutschen gleich in Ein- und Mehrzahl
+      `${anaErr} Fehler`
+    ];
+    if (anaCrit > 0) teile.push(`🚨 ${anaCrit} kritisch`);
+    if (anaGaps > 0) teile.push(`⏱️ ${anaGaps} Gaps`);
+    if (anaTrunc > 0) teile.push(`⚠ ${anaTrunc} unvollständig gelesen`);
+    const userHint = state.analyzeUser ? ` (${escapeHtml(state.analyzeUser)})` : '';
+
+    html = `
+      <div class="analyze-wrap">
+        <div class="analyze-wrap-head" data-collapse-key="${attr(ANALYZE_WRAP_KEY)}"
+             onclick="toggleSource(this, '${escapeJs(ANALYZE_WRAP_KEY)}')"
+             title="Ergebnisse der Log-Analyse — anklicken zum Auf- und Zuklappen">
+          <span class="toggle-arrow">${zu ? '▶' : '▼'}</span>
+          <span class="analyze-wrap-title">📂 Log-Analyse${userHint}</span>
+          <span class="analyze-wrap-meta">${teile.join(' · ')}</span>
+          ${buildAlarmButtonHtml(anaCrit, ANALYZE_WRAP_KEY)}<span class="source-badge" title="Fehler aus der Analyse">${anaErr}</span>
+        </div>
+        <div class="analyze-wrap-body${zu ? ' collapsed' : ''}">${analyzeHtml}</div>
+      </div>` + html;
   }
 
   if (!html) {
