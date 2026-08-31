@@ -35,6 +35,10 @@ function getOrCreateAnalyzeUser(username) {
     analyzeUsers.set(username, {
       store: new Map(),       // filePath → errors[]
       labelMap: new Map(),    // filePath → label
+      // filePath → { limit, lastTimestamp }: gesetzt, wenn das Analyse-Limit
+      // das Lesen abgebrochen hat. Ohne diesen Vermerk waere im Ergebnis nicht
+      // zu erkennen, dass die Datei nur teilweise geprueft wurde.
+      truncated: new Map(),
       running: false,
       aborted: false,
       runId: 0,

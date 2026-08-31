@@ -112,7 +112,11 @@ console.log('\nQuelltext-Abgleich (Spiegelung ist aktuell)');
   check('utils: capKeepCritical vorhanden', utils.includes('capKeepCritical(entries, max)'), true);
   check('utils: altes trimKeepCritical entfernt', utils.includes('trimKeepCritical'), false);
   check('wsClient nutzt capKeepCritical', wsc.includes('Keasy.utils.capKeepCritical'), true);
-  check('wsClient nutzt maxErrorsPerFile * 2 (keine harte 20)', /maxErrorsPerFile \|\| 10\) \* 2/.test(wsc), true);
+  // Der Wert gilt woertlich: kein "* 2" mehr, sonst haelt der Client eine andere
+  // Menge als der Server und das Dashboard zeigt eine falsche Anzahl.
+  check('wsClient nutzt maxErrorsPerFile woertlich (kein * 2)', /maxErrorsPerFile \|\| 50\)/.test(wsc), true);
+  check('wsClient: Verdopplung entfernt', /maxErrorsPerFile \|\| \d+\) \* 2/.test(wsc), false);
+  check('watchService: Verdopplung entfernt', /maxErrorsPerFile \* 2/.test(ws), false);
   check('server.js schickt maxErrorsPerFile im init', /maxErrorsPerFile: config\.maxErrorsPerFile/.test(srv), true);
   check('watchService: findIndex-Logik identisch zur Spiegelung', ws.includes("errors.findIndex(e => e.level !== 'kritisch')"), true);
 }

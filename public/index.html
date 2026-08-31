@@ -94,8 +94,12 @@
         </div>
       </div>
       <div class="config-field">
-        <label>Max. Fehler pro Datei:</label>
-        <input type="number" id="analyzeMaxErrors" value="100" min="1" max="10000" style="width:80px;">
+        <label title="Lesestopp: ist die Grenze erreicht, wird die Datei nicht weitergelesen — spätere Fehler bleiben ungeprüft. Bei Bedarf erhöhen und erneut starten.">Max. Fehler je Datei (Analyse):</label>
+        <input type="number" id="analyzeMaxErrors" value="100" min="1" max="10000" style="width:80px;" title="Lesestopp: ist die Grenze erreicht, wird die Datei nicht weitergelesen — spätere Fehler bleiben ungeprüft. Bei Bedarf erhöhen und erneut starten.">
+      </div>
+      <div class="field-hint">
+        <span class="ico">ℹ️</span>
+        <span><b>Lesestopp:</b> ist die Grenze erreicht, wird die Datei nicht weitergelesen — spätere Fehler bleiben ungeprüft. Bei Bedarf erhöhen und erneut starten.</span>
       </div>
       <div class="config-field">
         <label title="Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. Richtwert: 20 (Schmerzpunkt für Anwender). 0 oder leer = aus.">⏱️ Gap-Warnung ab (Sek., 0 = aus):</label>
@@ -107,7 +111,7 @@
         <button class="config-save-btn" id="analyzeStartBtn" onclick="startAnalysis()">🔍 Analyse starten</button>
         <button class="config-reset-btn" id="analyzeCancelBtn" onclick="cancelAnalysis()" style="display:none;">⏹ Abbrechen</button>
         <button class="config-reset-btn" id="analyzeClearBtn" onclick="clearAnalysis()">🗑️ Ergebnisse löschen</button>
-        <button class="config-save-btn" id="analyzeSaveBtn" onclick="saveAnalyzePaths()" style="background:#10b981;">💾 Pfade speichern</button>
+        <button class="config-save-btn" id="analyzeSaveBtn" onclick="saveAnalyzePaths()" style="background:#10b981;" title="Pfade, Fehler-Limit und Gap-Einstellungen dauerhaft speichern">💾 Speichern</button>
       </div>
       <span id="analyzeSaveMessage" style="font-size:0.85em; display:none; margin-top:4px;"></span>
       <div id="analyzeProgress" style="margin-top:10px; display:none;">
@@ -115,6 +119,8 @@
           <div id="analyzeProgressBar" style="background:var(--accent-color); height:100%; width:0%; transition:width 0.3s;"></div>
         </div>
         <span id="analyzeStatus" style="font-size:0.85em; color:var(--text-secondary);"></span>
+        <!-- Lesestopp-Hinweis: eigenes Element, damit analyzeStatus reiner Text bleibt -->
+        <div class="analyze-truncated-hint" id="analyzeTruncatedHint" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -162,8 +168,12 @@
           <h4 class="config-column-title">📄 Dateien & Fehler</h4>
           <div class="config-group">
             <div class="config-field">
-              <label>Max. Fehler pro Datei:</label>
-              <input type="text" id="cfg-maxErrors" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:50px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" data-admin-only>
+              <label title="Ringpuffer der Live-Anzeige: ist die Grenze erreicht, fällt der älteste nicht-kritische Eintrag heraus. Kritische Fehler werden zuletzt verdrängt. Die Log-Datei selbst bleibt unberührt.">Max. Fehler je Datei (Live-Überwachung):</label>
+              <input type="text" id="cfg-maxErrors" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:50px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" data-admin-only title="Ringpuffer der Live-Anzeige: ist die Grenze erreicht, fällt der älteste nicht-kritische Eintrag heraus. Kritische Fehler werden zuletzt verdrängt. Die Log-Datei selbst bleibt unberührt.">
+            </div>
+            <div class="field-hint">
+              <span class="ico">ℹ️</span>
+              <span>Ringpuffer der Live-Anzeige: ist die Grenze erreicht, fällt der <b>älteste nicht-kritische</b> Eintrag heraus — kritische Fehler werden zuletzt verdrängt. Die Log-Datei selbst bleibt unberührt.</span>
             </div>
             <div class="config-field">
               <label>Datei-Pattern:</label>

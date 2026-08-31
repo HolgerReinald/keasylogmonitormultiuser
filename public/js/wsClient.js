@@ -119,6 +119,7 @@ function connect() {
         for (const [filePath, data] of Object.entries(msg.analyzeData)) {
           state.analyzeErrors[filePath] = data.errors || [];
           if (data.label) state.analyzeLabels[filePath] = data.label;
+          if (data.truncated) state.analyzeTruncated[filePath] = data.truncated;
         }
       }
       if (msg.analyzeRunning) {
@@ -152,7 +153,7 @@ function connect() {
       if (label) state.fileLabels[filePath] = label;
       // Dieselbe Obergrenze und dieselbe Regel wie der Server (evictOldest),
       // damit das Dashboard nicht weniger kritische Fehler zeigt als vorhanden
-      Keasy.utils.capKeepCritical(state.errors[filePath], (state.maxErrorsPerFile || 10) * 2);
+      Keasy.utils.capKeepCritical(state.errors[filePath], state.maxErrorsPerFile || 50);
       if (!state.paused) {
         scheduleRender();
         notifyNewError(error, label || state.fileLabels[filePath]);
@@ -268,21 +269,29 @@ function connect() {
       state.analyzeErrors[filePath].push(error);
       if (label) state.analyzeLabels[filePath] = label;
       if (!state.paused) scheduleRender();
+    } else if (msg.type === 'analyze-truncated') {
+      // Das Limit hat das Lesen dieser Datei beendet — der Rest ist ungeprüft.
+      const { filePath, limit, lastTimestamp } = msg.data;
+      state.analyzeTruncated[filePath] = { limit, lastTimestamp };
+      if (!state.paused) scheduleRender();
     } else if (msg.type === 'analyze-start') {
       state.analyzeUser = msg.data.username || '';
       // Alte Ergebnisse leeren — Server startet mit leerem Store
       state.analyzeErrors = {};
       state.analyzeLabels = {};
+      state.analyzeTruncated = {};
       updateAnalyzeProgress(0, msg.data.total, 0, true, false, msg.data.skippedPaths);
     } else if (msg.type === 'analyze-progress') {
       updateAnalyzeProgress(msg.data.current, msg.data.total, msg.data.errors, true, false, undefined, msg.data.gaps);
     } else if (msg.type === 'analyze-done') {
       state.analyzeUser = msg.data.username || state.analyzeUser || '';
-      updateAnalyzeProgress(msg.data.processed, msg.data.total, msg.data.errors, false, msg.data.aborted, undefined, msg.data.gaps);
+      updateAnalyzeProgress(msg.data.processed, msg.data.total, msg.data.errors, false, msg.data.aborted, undefined, msg.data.gaps,
+        { truncatedFiles: msg.data.truncatedFiles || 0, limit: msg.data.limit });
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'analyze-cleared') {
       state.analyzeErrors = {};
       state.analyzeLabels = {};
+      state.analyzeTruncated = {};
       updateAnalyzeButtons();
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'analyze-source-cleared') {
@@ -291,6 +300,7 @@ function connect() {
         if (state.analyzeLabels[fp] === label) {
           delete state.analyzeErrors[fp];
           delete state.analyzeLabels[fp];
+          delete state.analyzeTruncated[fp];
         }
       }
       updateAnalyzeButtons();

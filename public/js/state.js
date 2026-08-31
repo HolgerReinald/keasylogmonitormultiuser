@@ -7,8 +7,8 @@ window.Keasy.state = {
   oversizedFiles: {},
   maxLogFileSizeMB: 6,
   // Wird beim init vom Server überschrieben — Grundlage der Kürzung im Client
-  // (Obergrenze maxErrorsPerFile * 2, identisch zum Server)
-  maxErrorsPerFile: 10,
+  // (Obergrenze maxErrorsPerFile, identisch zum Server: der Wert gilt wörtlich)
+  maxErrorsPerFile: 50,
   paused: false,
   totalErrors: 0,
   criticalErrors: 0,
@@ -31,10 +31,15 @@ window.Keasy.state = {
   // Analyse
   analyzeErrors: {},
   analyzeLabels: {},
+  // filePath → { limit, lastTimestamp } für Dateien, bei denen das Analyse-Limit
+  // das Lesen abgebrochen hat. Ohne diesen Vermerk sieht ein unvollständiges
+  // Ergebnis genauso aus wie ein vollständiges.
+  analyzeTruncated: {},
   analyzeUser: '',
   analyzePaths: [],
   analyzeIsRunning: false,
-  // Vergleichsstand für „Pfade speichern": null = noch nicht geladen, dann gibt
+  // Vergleichsstand des Speichern-Knopfs der Analyse (Pfade, Fehler-Limit und
+  // Gap-Werte): null = noch nicht geladen, dann gibt
   // es auch nichts zu speichern. Sonst der Stand der zuletzt gespeicherten
   // Werte — weicht die Anzeige davon ab, ist der Knopf aktiv.
   analyzeSavedSnapshot: null,

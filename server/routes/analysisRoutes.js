@@ -24,7 +24,10 @@ module.exports = function analysisRoutes(deps) {
         const username0 = req.session ? req.session.username : 'unbekannt';
         const droppedFiles = dropStore.list(username0);
         const dropInput = droppedFiles.length ? [dropStore.userDir(username0)] : [];
-        const maxErrors = (body && body.maxErrorsPerFile) || 100;
+        // Als Zahl erzwingen: der Wert wird jetzt auch im Lesestopp-Hinweis
+        // angezeigt, und aus dem Body kommt sonst beliebiger JSON-Inhalt.
+        // Gleiche Behandlung wie bei den Gap-Optionen darunter.
+        const maxErrors = Math.max(1, Math.floor(Number(body && body.maxErrorsPerFile)) || 100);
         const gapOpts = {
           gapWarnSeconds: (body && Number(body.gapWarnSeconds)) || 0,
           gapIdleMinutes: (body && Number(body.gapIdleMinutes)) || 30
@@ -81,6 +84,7 @@ module.exports = function analysisRoutes(deps) {
         au.aborted = false;
         au.store.clear();
         au.labelMap.clear();
+        au.truncated.clear();
         // Abgelegte Dateien gehoeren zum Ergebnis: "Ergebnisse loeschen" raeumt
         // sie deshalb mit weg. Sonst liegen Uploads unbemerkt weiter herum und
         // tauchen beim naechsten Lauf wieder auf.
@@ -103,6 +107,7 @@ module.exports = function analysisRoutes(deps) {
             if (lbl === label) {
               au.store.delete(filePath);
               au.labelMap.delete(filePath);
+              au.truncated.delete(filePath);
             }
           }
           broadcastToUser(username, { type: 'analyze-source-cleared', data: { label } });

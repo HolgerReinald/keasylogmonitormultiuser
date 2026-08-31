@@ -389,7 +389,7 @@ function dismissDroppedReject(i) {
 }
 
 // Vergleichsstand der speicherbaren Werte. Wird beim Laden gesetzt und nach
-// dem Speichern erneuert; daraus ergibt sich, ob "Pfade speichern" etwas zu
+// dem Speichern erneuert; daraus ergibt sich, ob der Speichern-Knopf etwas zu
 // tun hat. Ein Knopf, der immer wie eine offene Aufgabe aussieht, verliert
 // seine Aussage — dasselbe Muster wie beim Speichern-Knopf der Config.
 function analyzeSnapshot() {
@@ -496,7 +496,7 @@ async function saveAnalyzePaths() {
     });
     const result = await saveResp.json();
     if (result.ok) {
-      msg.textContent = '✅ Pfade gespeichert';
+      msg.textContent = '✅ Gespeichert';
       msg.style.color = '#10b981';
       state.currentConfig = cfg;
       markAnalyzeSaved();
@@ -518,9 +518,11 @@ function showAnalyzeStatus(text, type) {
   progress.style.display = '';
   document.getElementById('analyzeProgressBar').style.width = '0%';
   status.textContent = text;
+  // Banner des vorigen Laufs raeumen: es gehoert nicht zu dieser Meldung.
+  showAnalyzeTruncatedHint(0);
 }
 
-function updateAnalyzeProgress(current, total, errorCount, running, aborted, skippedPaths, gaps) {
+function updateAnalyzeProgress(current, total, errorCount, running, aborted, skippedPaths, gaps, opts) {
   const progress = document.getElementById('analyzeProgress');
   const bar = document.getElementById('analyzeProgressBar');
   const status = document.getElementById('analyzeStatus');
@@ -550,6 +552,23 @@ function updateAnalyzeProgress(current, total, errorCount, running, aborted, ski
       status.textContent = `✅ Abgeschlossen: ${errorCount} Fehler${gapInfo} in ${total} Dateien`;
     }
   }
+  // Lesestopp-Banner: eigenes Element, damit analyzeStatus reiner Text bleibt.
+  // Nur am Ende eines Laufs — waehrend der Analyse ist die Zahl noch im Fluss.
+  showAnalyzeTruncatedHint(running ? 0 : (opts && opts.truncatedFiles) || 0, total, opts && opts.limit);
+}
+
+// Zeigt an, dass das Analyse-Limit das Lesen abgebrochen hat. Das war vorher
+// unsichtbar: das Ergebnis sah vollstaendig aus, obwohl der hintere Teil der
+// Datei nie gelesen wurde.
+function showAnalyzeTruncatedHint(truncatedFiles, total, limit) {
+  const hint = document.getElementById('analyzeTruncatedHint');
+  if (!hint) return;
+  if (!truncatedFiles) { hint.style.display = 'none'; hint.textContent = ''; return; }
+  const dateiWort = truncatedFiles === 1 ? 'Datei' : 'Dateien';
+  const limitInfo = limit ? ` (Limit ${limit} erreicht)` : '';
+  hint.innerHTML = `⚠ <b>${truncatedFiles} von ${total} ${dateiWort} unvollständig gelesen</b>${limitInfo}. `
+    + 'Spätere Fehler in diesen Dateien sind ungeprüft — Limit erhöhen und erneut starten.';
+  hint.style.display = '';
 }
 
 // --- Import ---

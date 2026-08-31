@@ -113,7 +113,9 @@ function buildAlarmButtonHtml(criticalCount, label) {
 }
 
 // Datei-Block mit Header (Name, Pfad, Aktionen) und ausklappbarer Eintragsliste
-function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '') {
+// noticeHtml steht in der Fehlerliste vor den Eintraegen — fuer Hinweise, die zur
+// ganzen Datei gehoeren und nicht zu einem einzelnen Fehler (z. B. Lesestopp).
+function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '', noticeHtml = '') {
   return `
         <div class="file-group${extraClass}">
           <div class="file-header" onclick="toggleGroup(this)">
@@ -125,7 +127,7 @@ function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, ex
               ${actionsHtml}
             </div>
           </div>
-          <div class="error-list" style="display:none">${entriesHtml}</div>
+          <div class="error-list" style="display:none">${noticeHtml}${entriesHtml}</div>
         </div>`;
 }
 
@@ -438,9 +440,25 @@ function renderAll() {
         groupCriticalCount += fileCriticalCount;
         const critClass = fileCriticalCount > 0 ? ' has-kritisch' : '';
 
+        // Lesestopp: das Analyse-Limit hat das Lesen dieser Datei beendet, der
+        // hintere Teil ist ungeprueft. Das Badge sitzt im Kopf und bleibt damit
+        // auch bei zugeklappter Liste sichtbar; die Warnzeile nennt die Stelle.
+        const trunc = state.analyzeTruncated[filePath];
+        let truncBadge = '';
+        let truncNotice = '';
+        if (trunc) {
+          const bis = trunc.lastTimestamp
+            ? new Date(trunc.lastTimestamp).toLocaleTimeString('de-DE')
+            : null;
+          const bisText = bis ? ` — die Datei wurde nur bis <b>${escapeHtml(bis)}</b> gelesen.` : '.';
+          truncBadge = `<span class="file-badge truncate-badge" title="Limit ${trunc.limit} erreicht${bis ? ` — nur bis ${bis} gelesen` : ''}">⚠</span>`;
+          truncNotice = `<div class="truncate-warning">⚠ <b>Limit ${trunc.limit} erreicht</b>${bisText}`
+            + ' Alles danach ist ungeprüft. Limit erhöhen und erneut starten.</div>';
+        }
+
         const actionsHtml = `${buildOpenButtonsHtml(filePath)}
-              ${buildAlarmButtonHtml(fileCriticalCount)}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
-        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, critClass);
+              ${buildAlarmButtonHtml(fileCriticalCount)}${truncBadge}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, critClass, truncNotice);
       }
 
       if (groupCount > 0) {

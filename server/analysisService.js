@@ -16,7 +16,10 @@ function getAnalyzeErrors(username) {
   const au = getOrCreateAnalyzeUser(username);
   const result = {};
   for (const [filePath, errors] of au.store) {
-    result[filePath] = { label: au.labelMap.get(filePath) || '', errors };
+    // truncated nur setzen, wenn vorhanden — sonst traegt jeder Eintrag im
+    // init-Snapshot ein leeres Feld mit sich.
+    const t = au.truncated.get(filePath);
+    result[filePath] = { label: au.labelMap.get(filePath) || '', errors, ...(t ? { truncated: t } : {}) };
   }
   return result;
 }
@@ -35,6 +38,19 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
 
     function isStale() {
       return au.aborted || au.runId !== runId;
+    }
+
+    // Das Limit hat das Lesen beendet: einmal pro Datei vermerken und melden.
+    // lastTs ist der Zeitstempel des letzten gelesenen Eintrags — genau die
+    // Stelle, bis zu der die Datei geprueft wurde. Er wird fuer die
+    // Gap-Erkennung ohnehin mitgefuehrt.
+    let truncatedReported = false;
+    function markTruncated() {
+      if (truncatedReported || isStale()) return;
+      truncatedReported = true;
+      const info = { limit: maxErrorsPerFile, lastTimestamp: lastTs ? lastTs.toISOString() : null };
+      au.truncated.set(filePath, info);
+      broadcastToUser(username, { type: 'analyze-truncated', data: { filePath, label, ...info } });
     }
 
     function trackGapAt(ts, firstLine) {
@@ -64,7 +80,8 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
 
     function emitAnalyzeErrors(entries) {
       for (const entry of entries) {
-        if (isStale() || errorCount >= maxErrorsPerFile) return true;
+        if (isStale()) return true;
+        if (errorCount >= maxErrorsPerFile) { markTruncated(); return true; }
         if (!entry.trim()) continue;
         trackGap(entry);
         if (!matchesFilter(entry)) continue;
@@ -78,7 +95,9 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
         errorCount++;
         broadcastToUser(username, { type: 'analyze-error', data: { filePath, error, label } });
       }
-      return isStale() || errorCount >= maxErrorsPerFile;
+      if (isStale()) return true;
+      if (errorCount >= maxErrorsPerFile) { markTruncated(); return true; }
+      return false;
     }
 
     // JSON-Logs (KI-Schnittstelle) werden strukturell ausgewertet, nicht über den
@@ -87,7 +106,8 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
     // entscheidet evaluateJsonEntry anhand von Error-Objekt bzw. Success:false.
     function emitJsonErrors(entries) {
       for (const block of entries) {
-        if (isStale() || errorCount >= maxErrorsPerFile) return true;
+        if (isStale()) return true;
+        if (errorCount >= maxErrorsPerFile) { markTruncated(); return true; }
         if (!block.trim()) continue;
         const { report, line, timestamp } = evaluateJsonEntry(block);
         // Für die Lückenerkennung ist der Timestamp aus dem JSON-Feld die
@@ -107,7 +127,9 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
         errorCount++;
         broadcastToUser(username, { type: 'analyze-error', data: { filePath, error, label } });
       }
-      return isStale() || errorCount >= maxErrorsPerFile;
+      if (isStale()) return true;
+      if (errorCount >= maxErrorsPerFile) { markTruncated(); return true; }
+      return false;
     }
 
     // Ein Umschalter statt zweier Codepfade durch die Stream-Behandlung
@@ -116,18 +138,19 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
     const emitEntries = (entries) => isJson ? emitJsonErrors(entries) : emitAnalyzeErrors(entries);
 
     try {
-      if (!fs.existsSync(filePath)) { resolve({ errors: 0, gaps: 0 }); return; }
+      if (!fs.existsSync(filePath)) { resolve({ errors: 0, gaps: 0, truncated: false }); return; }
       const stream = fs.createReadStream(filePath, { encoding: 'utf8' });
       const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
 
       stream.on('error', (err) => {
         console.error(`Analyse Stream-Fehler: ${filePath}: ${err.message}`);
         rl.close();
-        resolve({ errors: errorCount, gaps: gapCount });
+        resolve({ errors: errorCount, gaps: gapCount, truncated: truncatedReported });
       });
 
       rl.on('line', (line) => {
         if (isStale() || errorCount >= maxErrorsPerFile) {
+          if (!isStale() && errorCount >= maxErrorsPerFile) markTruncated();
           rl.close();
           stream.destroy();
           return;
@@ -145,16 +168,16 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
           const { entries } = parseChunk(chunks, { flushFinal: true });
           emitEntries(entries);
         }
-        resolve({ errors: errorCount, gaps: gapCount });
+        resolve({ errors: errorCount, gaps: gapCount, truncated: truncatedReported });
       });
 
       rl.on('error', (err) => {
         console.error(`Analyse-Fehler: ${filePath}: ${err.message}`);
-        resolve({ errors: errorCount, gaps: gapCount });
+        resolve({ errors: errorCount, gaps: gapCount, truncated: truncatedReported });
       });
     } catch (err) {
       console.error(`Analyse-Fehler: ${filePath}: ${err.message}`);
-      resolve({ errors: 0, gaps: 0 });
+      resolve({ errors: 0, gaps: 0, truncated: false });
     }
   });
 }
@@ -228,6 +251,7 @@ async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '', ga
   // Neuen Lauf starten: Store leeren, runId inkrementieren
   au.store.clear();
   au.labelMap.clear();
+  au.truncated.clear();
   au.aborted = false;
   au.running = true;
   au.runId++;
@@ -243,10 +267,11 @@ async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '', ga
 
     let totalErrors = 0;
     let totalGaps = 0;
+    let truncatedFiles = 0;
     for (let i = 0; i < logFiles.length; i++) {
       if (au.aborted || au.runId !== currentRunId) {
         console.log(`📂 Log-Analyse abgebrochen (${username}).`);
-        broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: i, errors: totalErrors, gaps: totalGaps, aborted: true, username } });
+        broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: i, errors: totalErrors, gaps: totalGaps, truncatedFiles, aborted: true, username } });
         return;
       }
 
@@ -255,21 +280,25 @@ async function runAnalysis(inputPaths, maxErrorsPerFile = 100, username = '', ga
       const result = await analyzeFile(filePath, label, maxErrorsPerFile, username, currentRunId, gapOpts);
       totalErrors += result.errors;
       totalGaps += result.gaps;
+      if (result.truncated) truncatedFiles++;
 
       if (au.runId === currentRunId) {
         broadcastToUser(username, {
           type: 'analyze-progress',
-          data: { current: i + 1, total: logFiles.length, file: path.basename(filePath), errors: totalErrors, gaps: totalGaps }
+          data: { current: i + 1, total: logFiles.length, file: path.basename(filePath), errors: totalErrors, gaps: totalGaps, truncatedFiles }
         });
       }
-      console.log(`  📂 ${i + 1}/${logFiles.length}: ${path.basename(filePath)} (${result.errors} Fehler${result.gaps ? `, ${result.gaps} ⏱️ Gaps` : ''})`);
+      console.log(`  📂 ${i + 1}/${logFiles.length}: ${path.basename(filePath)} (${result.errors} Fehler${result.gaps ? `, ${result.gaps} ⏱️ Gaps` : ''}${result.truncated ? ` — ⚠️ Limit ${maxErrorsPerFile} erreicht, Datei nur teilweise gelesen` : ''})`);
 
       await new Promise(r => setImmediate(r));
     }
 
     console.log(`📂 Log-Analyse abgeschlossen (${username}): ${totalErrors} Fehler${totalGaps ? `, ${totalGaps} ⏱️ Gaps` : ''} in ${logFiles.length} Dateien`);
+    if (truncatedFiles > 0) {
+      console.log(`   ⚠️ ${truncatedFiles} Datei(en) unvollständig gelesen — Limit ${maxErrorsPerFile} erreicht.`);
+    }
     if (au.runId === currentRunId) {
-      broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: logFiles.length, errors: totalErrors, gaps: totalGaps, aborted: false, username } });
+      broadcastToUser(username, { type: 'analyze-done', data: { total: logFiles.length, processed: logFiles.length, errors: totalErrors, gaps: totalGaps, truncatedFiles, limit: maxErrorsPerFile, aborted: false, username } });
     }
   } finally {
     // Garantiert: running=false nur wenn dies noch der aktuelle Lauf ist

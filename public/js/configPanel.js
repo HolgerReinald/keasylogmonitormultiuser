@@ -129,7 +129,7 @@ async function loadConfig() {
 function populateConfigForm(cfg) {
   _populatingForm = true;
   document.getElementById('cfg-port').value = cfg.port || 3847;
-  document.getElementById('cfg-maxErrors').value = cfg.maxErrorsPerFile || 10;
+  document.getElementById('cfg-maxErrors').value = cfg.maxErrorsPerFile || 50;
   document.getElementById('cfg-autoOpen').checked = cfg.autoOpen !== false;
   document.getElementById('cfg-debugLogging').checked = !!cfg.debugLogging;
   document.getElementById('cfg-authEnabled').checked = cfg.authEnabled !== false;
@@ -257,7 +257,7 @@ function buildConfigFromForm() {
     autoOpen: document.getElementById('cfg-autoOpen').checked,
     debugLogging: document.getElementById('cfg-debugLogging').checked,
     authEnabled: document.getElementById('cfg-authEnabled').checked,
-    maxErrorsPerFile: parseInt(document.getElementById('cfg-maxErrors').value) || 10,
+    maxErrorsPerFile: parseInt(document.getElementById('cfg-maxErrors').value) || 50,
     loadExistingErrors: document.getElementById('cfg-loadExistingErrors').checked,
     maxLogFileSizeMB: Math.min(99, Math.max(1, parseInt(document.getElementById('cfg-maxLogFileSizeMB').value) || 6)),
     trashAutoCleanupHours: Math.max(0, parseInt(document.getElementById('cfg-trashAutoCleanupHours').value) || 48),

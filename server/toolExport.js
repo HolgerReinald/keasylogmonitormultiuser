@@ -20,7 +20,7 @@ const BASE_DEFAULTS = {
   autoOpen: true,
   debugLogging: false,
   authEnabled: true,
-  maxErrorsPerFile: 10,
+  maxErrorsPerFile: 50,
   loadExistingErrors: true,
   maxLogFileSizeMB: 6,
   trashAutoCleanupHours: 48,

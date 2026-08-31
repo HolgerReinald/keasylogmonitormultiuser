@@ -121,6 +121,9 @@ function processNewLines(filePath, changeDetectedAt, flushDelay, opts) {
 // Der Client nutzt in utils.js dieselbe Regel (capKeepCritical) mit derselben
 // Obergrenze — nur so zeigt das Dashboard dieselbe Anzahl kritischer Fehler,
 // die der Server hält.
+// maxErrorsPerFile gilt wörtlich: der eingestellte Wert ist die Zahl der
+// gehaltenen Einträge. Früher stand hier "* 2", das Feld log also um den
+// Faktor zwei — siehe Label "Max. Fehler je Datei (Live-Überwachung)".
 function evictOldest(errors) {
   const idx = errors.findIndex(e => e.level !== 'kritisch');
   errors.splice(idx === -1 ? 0 : idx, 1);
@@ -146,7 +149,7 @@ function emitError(filePath, entry, changeDetectedAt, explicitTs) {
   const errors = errorStore.get(filePath);
   errors.push(error);
 
-  while (errors.length > config.maxErrorsPerFile * 2) {
+  while (errors.length > config.maxErrorsPerFile) {
     evictOldest(errors);
   }
 
@@ -231,7 +234,7 @@ function emitPerformance(filePath, gapSeconds, prevTs, ts, entry, silent) {
   const entries = performanceStore.get(filePath);
   entries.push(performanceEntry);
 
-  while (entries.length > config.maxErrorsPerFile * 2) {
+  while (entries.length > config.maxErrorsPerFile) {
     entries.shift();
   }
 
@@ -430,8 +433,10 @@ function startPreloadProcessing() {
     const errorsBefore = (errorStore.get(filePath) || []).length;
     processNewLines(filePath, null, flushDelay, { silentPerformance: true });
     const errorsAfter = (errorStore.get(filePath) || []).length;
-    const max = config.maxErrorsPerFile || 10;
-    const errorsInFile = Math.min(errorsAfter - errorsBefore, max);
+    // Kein zusaetzlicher Deckel: der Store ist durch evictOldest bereits auf
+    // maxErrorsPerFile begrenzt. Ein Math.min hier hat die Startmeldung
+    // faelschlich kleiner gemacht, als tatsaechlich gespeichert wurde.
+    const errorsInFile = errorsAfter - errorsBefore;
     totalErrorsFound += errorsInFile;
     labelErrors[label] = (labelErrors[label] || 0) + errorsInFile;
     current++;
@@ -644,7 +649,7 @@ function getAllErrors() {
   for (const [filePath, errors] of errorStore) {
     result[filePath] = {
       // Kompletter Speicherstand — er ist durch evictOldest ohnehin auf
-      // maxErrorsPerFile * 2 begrenzt. Vorher wurde hier zusätzlich gekürzt,
+      // maxErrorsPerFile begrenzt. Vorher wurde hier zusätzlich gekürzt,
       // wodurch das Dashboard weniger kritische Fehler zeigte als vorhanden.
       errors: errors.slice(),
       label: fileLabelMap.get(filePath) || getLabelForFile(filePath) || ''

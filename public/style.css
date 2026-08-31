@@ -3136,3 +3136,60 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
   top: 0;
   max-height: calc(100vh - 12px);
 }
+
+/* === Erklaerzeile unter einem Eingabefeld ===
+   Die beiden Limits ("Live-Ueberwachung" vs. "Analyse") wirken voellig
+   verschieden. Die Erklaerung steht sichtbar unter dem Feld und nicht nur im
+   Tooltip: bei Nicht-Admins ersetzt loginPanel.js den title des gesperrten
+   Feldes durch den Schloss-Hinweis, der Tooltip waere dort also weg. */
+.field-hint {
+  font-size: 0.82em;
+  color: var(--text-secondary);
+  margin: -2px 0 10px 2px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  line-height: 1.45;
+}
+.field-hint .ico {
+  flex: 0 0 auto;
+  opacity: 0.8;
+}
+
+/* === Analyse: Hinweis auf den Lesestopp ===
+   Bewusst --highlight-fehler (orange) statt des Kritisch-Rots: ein erreichtes
+   Limit ist kein kritischer Fehler, sondern ein unvollstaendiges Ergebnis. */
+.analyze-truncated-hint {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-radius: 6px;
+  background: var(--sev-critical-bg);
+  border-left: 4px solid var(--highlight-fehler);
+  color: var(--text-primary);
+  font-size: 0.87em;
+  line-height: 1.5;
+}
+.analyze-truncated-hint b {
+  color: var(--highlight-fehler);
+}
+
+/* Warnzeile als erstes Element der aufgeklappten Fehlerliste */
+.truncate-warning {
+  background: var(--sev-critical-bg);
+  border-left: 4px solid var(--highlight-fehler);
+  padding: 8px 11px;
+  margin-bottom: 6px;
+  border-radius: 4px;
+  font-size: 0.87em;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.truncate-warning b {
+  color: var(--highlight-fehler);
+}
+
+/* Badge im Datei-Kopf — bleibt sichtbar, auch wenn die Liste zugeklappt ist */
+.file-badge.truncate-badge {
+  background: var(--highlight-fehler);
+  cursor: help;
+}

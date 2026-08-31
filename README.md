@@ -57,7 +57,8 @@ Die Analyse läuft komplett getrennt vom Live-Monitoring: eigener Datenspeicher,
 
 - **Pfade:** Einzelne `.log`-Dateien oder ganze Ordner (werden rekursiv nach `.log`-Dateien durchsucht)
 - **Streaming:** Große Dateien werden zeilenweise gelesen — der Server bleibt responsiv
-- **Fehler-Limit:** Pro Datei max. 100 Fehler (konfigurierbar), verhindert Überflutung bei sehr großen Logs
+- **Fehler-Limit (Lesestopp):** Pro Datei max. 100 Fehler (konfigurierbar), verhindert Überflutung bei sehr großen Logs. **Ist die Grenze erreicht, wird die Datei nicht weitergelesen** — spätere Fehler bleiben ungeprüft. Das Dashboard weist darauf hin und nennt den Zeitpunkt, bis zu dem gelesen wurde; Limit erhöhen und erneut starten liefert den Rest
+- **Speichern:** Der Knopf **💾 Speichern** sichert Pfade **und** die drei Zahlenfelder (Fehler-Limit, Gap-Warnung, Idle). Ohne Speichern gelten geänderte Zahlen nur für den aktuellen Lauf
 - **Abbruch:** Analyse kann jederzeit abgebrochen werden
 - **Löschen:** Pro Quellgruppe einzeln löschbar (🗑️-Button im Header) oder alle auf einmal (Config-Panel)
 - **Zeitfilter:** Die Buttons 1h/2h/4h/6h/12h filtern auch Analyse-Ergebnisse (Datumsfilter Von/Bis nicht, da Analyse historische Daten enthält)
@@ -135,7 +136,7 @@ Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel. Di
 
 | Tab | Einstellungen |
 |---|---|
-| **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler pro Datei, Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) · 🤖 KI-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
+| **⚙️ Allgemein** | 🖥️ Server (Port, Browser automatisch öffnen, Debug-Logging, Rechte-System) · 📄 Dateien & Fehler (Max. Fehler je Datei (Live-Überwachung), Datei-Pattern, bestehende Fehler beim Start einlesen, Max. Log-Dateigröße) · 🗑️ Papierkorb (Auto-Cleanup) · 🤖 KI-Export (Develop- und Release-Pfad, gelten **pro Benutzer**) |
 | **🕵️ Monitor** | 📂 Überwachte Pfade als Tabelle: Pfad, Label, E-Mail an, Polling, JSON, ⏱️ Gap (s), Idle (min). Pfade hinzufügen/entfernen, Ordnerauswahl, Import per 📥 (auch Drag & Drop) |
 | **📋 Regeln** | ⚠️ Fehlererkennung · 🚫 Ausschluss-Patterns · 📊 Schwellwertregeln · 🔴 Prioritätsregeln |
 | **✉️ E-Mail** 🔒 | SMTP-Konfiguration, Intervall, Duplikatschutz (normal und kritisch), Absender, Betreff |
@@ -165,7 +166,7 @@ Klick auf **⚙️ Einstellungen** im Header öffnet ein einklappbares Panel. Di
 module.exports = {
   port: 3847,
   autoOpen: true,
-  maxErrorsPerFile: 10,
+  maxErrorsPerFile: 50,
 
   // E-Mail-Benachrichtigung
   email: {
@@ -227,6 +228,7 @@ module.exports = {
 | `watchPaths[].gapWarnSeconds` | ⏱️ Performance-Warnung, wenn zwischen zwei Log-Einträgen mehr als N Sekunden liegen. `0`/leer = aus. Richtwert: `20` (Schmerzpunkt für Anwender) — neue Zeilen werden damit vorbelegt |
 | `watchPaths[].gapIdleMinutes` | Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = `30` |
 | `watchPaths[].includeJson` | `true` = in diesem Pfad zusätzlich `.json`-Logs überwachen (Glob `**/*.{log,json}`) und pro JSON-Objekt strukturell auswerten (`Error`/`Success:false`), z. B. KI-Schnittstelle. Standard `false` — bewusst pro Pfad aktivieren, um Netzlaufwerke (`X:`/`Y:`) nicht unnötig nach JSON zu durchsuchen |
+| `analyzeMaxErrors` | **Lesestopp** der Log-Analyse (Standard: `100`): Ist die Grenze in einer Datei erreicht, wird sie **nicht weitergelesen** — spätere Fehler bleiben ungeprüft. Anders als bei `maxErrorsPerFile` verdrängt hier nichts, es fehlt einfach der hintere Teil der Datei. Greift die Grenze, weist das Dashboard darauf hin (⚠-Badge an der Datei, Warnzeile mit dem Zeitpunkt des Abbruchs, Sammelbanner unter dem Fortschritt) |
 | `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
 | `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
@@ -235,7 +237,7 @@ module.exports = {
 | `priorityRules` | Array von `{ name, contains, level }` — stuft erkannte Fehler nach **Dringlichkeit** ein, beeinflusst aber **nicht**, ob etwas als Fehler gilt. Erste passende Regel gewinnt (Reihenfolge = Vorrang, im Dashboard mit ▲▼ umsortierbar), kein Treffer ⇒ `normal`. Leer = Feature aus (alles wie ohne Prioritätsregeln). Wirkt auch auf JSON-Logs und Schwellwert-Treffer |
 | `priorityRules[].contains` | Suchbegriff (case-insensitive, Teilzeichenkette — kein Regex). Wird im **gesamten Eintrag** gesucht, auch über Zeilenumbrüche hinweg — der Begriff muss also nicht in der ersten Zeile stehen. Pflichtfeld. Siehe Abschnitt „Prioritätsregeln in der Praxis" |
 | `priorityRules[].level` | `kritisch` (🚨 Alarmknopf mit Sprung zum Eintrag, roter Blockrahmen, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
-| `maxErrorsPerFile` | Grundwert für die Aufbewahrung pro Datei. Server **und** Dashboard halten jeweils bis zu `maxErrorsPerFile * 2` Einträge pro Datei (Standard also 20) und verdrängen dabei immer den ältesten **nicht**-kritischen Eintrag zuerst — als `kritisch` eingestufte Fehler bleiben, solange normale vorhanden sind |
+| `maxErrorsPerFile` | Aufbewahrung pro Datei im **Live-Monitoring** (Standard: `50`). Der Wert gilt wörtlich: Server **und** Dashboard halten genau so viele Einträge je Datei und verdrängen dabei immer den ältesten **nicht**-kritischen Eintrag zuerst — als `kritisch` eingestufte Fehler bleiben, solange normale vorhanden sind. Die Log-Datei selbst bleibt unberührt. **Nicht zu verwechseln mit `analyzeMaxErrors`**, dem Lesestopp der Log-Analyse |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
 | `trashAutoCleanupHours` | Papierkorb Auto-Cleanup nach X Stunden (Standard: `48`). `0` = nie automatisch leeren |
@@ -511,6 +513,52 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-08-31 — ⚠️ Zwei Fehler-Limits, zwei Namen — und ein Lesestopp, der sich nicht mehr versteckt
+
+Eine Analyse von `KeasyWin_2026-08-05.log` zeigte **100 Fehler**, obwohl **110** in der Datei stehen. Die zehn fehlenden lagen alle nach 17:22 Uhr, darunter ein `exception.ErrorCode: invalid_grant` um 17:26 und zwei Postausgang-Meldungen um 20:00. Kein Parser-Fehler: `analyzeFile()` bricht das Lesen ab, sobald das Limit erreicht ist (`rl.close(); stream.destroy()`), und die Datei war schlicht nur bis **17:21:45** gelesen. **Zu sehen war davon nichts** — ein unvollständiges Ergebnis sah genauso aus wie ein vollständiges, und die Fehlersuche lief prompt in die falsche Richtung („warum fehlen die *älteren*?").
+
+Beim Nachsehen kamen zwei weitere Dinge hoch, die dieselbe Wurzel haben.
+
+---
+
+**Zwei Felder hießen wörtlich gleich.** „Max. Fehler pro Datei" stand sowohl unter *Allgemein → Dateien & Fehler* als auch im *Log-Analyse*-Panel. Sie tun grundverschiedene Dinge:
+
+| | Live-Überwachung | Log-Analyse |
+|---|---|---|
+| Wirkung | **Ringpuffer** — ältester nicht-kritischer Eintrag fällt heraus | **Lesestopp** — Datei wird nicht weitergelesen |
+| Verlust | nur in der Anzeige, Datei unberührt | der hintere Teil der Datei bleibt ungeprüft |
+| Standard | 50 | 100 |
+
+Sie heißen jetzt **„Max. Fehler je Datei (Live-Überwachung)"** und **„Max. Fehler je Datei (Analyse)"**. Beide haben einen Tooltip *und* eine sichtbare Erklärzeile darunter (`.field-hint`). Die Erklärung steht bewusst sichtbar und nicht nur im Tooltip: bei Nicht-Admins ersetzt `loginPanel.js` den `title` des gesperrten Feldes durch „🔒 Nur für Administratoren" — der Tooltip wäre dort also gar nicht lesbar.
+
+**Das Live-Feld täuschte um den Faktor zwei.** `watchService.js` hielt `maxErrorsPerFile * 2`; bei eingetragenen 10 waren es 20. Der Wert gilt jetzt wörtlich, und der Standard steigt auf **50** — dieselbe Größenordnung wie vorher, nur ehrlich benannt. Client-Spiegelung (`wsClient.js`, `state.js`) und Defaults (`toolExport.js`, `configPanel.js`) ziehen mit; sie **müssen** übereinstimmen, sonst zeigt das Dashboard eine andere Anzahl kritischer Fehler als der Server hält. `test/eviction-priority.js` prüft die Spiegelung schon lange und schlug beim Umbau sofort an, was genau seine Aufgabe ist — der Check auf `* 2` ist jetzt einer *gegen* `* 2`, plus einer für `watchService.js`.
+
+**Wichtig beim Update:** `config.js` ist gitignored, der neue Standard erreicht also keine bestehende Installation. Wer dort noch `maxErrorsPerFile: 10` stehen hat, bekommt nach diesem Update **10 statt der bisherigen 20** Einträge. Der Wert gehört einmalig hochgesetzt. Eine automatische Migration wurde bewusst *nicht* eingebaut: sie würde eine bewusst gesetzte Einstellung überschreiben und könnte 10 nicht von „wollte wirklich 10" unterscheiden.
+
+---
+
+**Ein Deckel, der einmal richtig war.** Beim Einlesen zum Start zählte `watchService.js` mit `Math.min(errorsAfter - errorsBefore, maxErrorsPerFile)` — eingeführt am 2026-05-09 („Fix: Fehler-Zählung Konsole ↔ Dashboard"), und damals korrekt: das Dashboard zeigte seinerzeit nur `maxErrorsPerFile` Einträge, die Konsole meldete mehr, also wurde die Konsole gedeckelt. Mit dem Umbau am 2026-07-30 („Dashboard zeigte zu wenige kritische Fehler") liefert das Dashboard alles, was der Server hält — der Deckel war ab da nicht mehr Gleichstand, sondern Untertreibung, und die Startmeldung „📥 X Fehler in Y Dateien" nannte bei Dateien mit vielen Treffern zu wenig. Er ist ersatzlos weg; der Store ist durch `evictOldest` ohnehin begrenzt.
+
+---
+
+**Der Lesestopp meldet sich jetzt.** `analyzeFile()` merkt sich in `au.truncated` (Map je Analyse-Benutzer), dass das Limit gegriffen hat, und **wann**: `lastTs` — der Zeitstempel des letzten gelesenen Eintrags — wurde für die Gap-Erkennung schon mitgeführt und ist genau die gesuchte Stelle. Der Vermerk geht als `analyze-truncated` an den Client, zählt in `analyze-done` als `truncatedFiles` mit und steckt in `getAnalyzeErrors()` — **sonst wäre der Hinweis nach F5 verschwunden**, obwohl die Ergebnisse bleiben.
+
+Im Dashboard drei Stellen, absichtlich mehr als eine:
+
+- **⚠-Badge im Datei-Kopf** — die Warnzeile allein wäre bei zugeklappter Gruppe unsichtbar, und zugeklappt ist der Normalfall bei vielen Dateien
+- **Warnzeile über den Fehlern** („⚠ Limit 100 erreicht — die Datei wurde nur bis 17:21:45 gelesen.") — `buildFileGroupHtml()` nimmt dafür einen optionalen Block *vor* den Einträgen
+- **Sammelbanner unter dem Fortschritt** („⚠ 1 von 1 Datei unvollständig gelesen") — eigenes Element, damit `analyzeStatus` weiter reiner Text bleibt
+
+Farbe ist durchgehend `--highlight-fehler` (orange), **nicht** das Kritisch-Rot: ein erreichtes Limit ist kein kritischer Fehler, sondern ein unvollständiges Ergebnis. Aufgeräumt wird der Vermerk überall dort, wo auch die Ergebnisse verschwinden — Laufstart, „Ergebnisse löschen", Quelle löschen.
+
+**Nebenbei gehärtet:** `maxErrorsPerFile` kam in `analysisRoutes.js` ungefiltert aus dem POST-Body und wird jetzt angezeigt. Der Wert wird auf eine Ganzzahl ≥ 1 gezwungen (`Math.max(1, Math.floor(Number(…)) || 100)`) — gleiche Behandlung wie die Gap-Optionen daneben, die das schon immer so machten.
+
+---
+
+**„💾 Pfade speichern" heißt jetzt „💾 Speichern".** Der Knopf sichert vier Dinge — Pfade, Fehler-Limit, Gap-Warnung, Idle-Schwelle —, und `analyzeSnapshot()` vergleicht auch alle vier; ein eigener Listener weckt ihn, wenn man an den Zahlenfeldern dreht. Nur das Label verschwieg die drei Zahlen. Das ist keine Kosmetik: wer das Analyse-Limit von 100 auf 500 stellt, muss auf diesen Knopf drücken, damit es beim nächsten Mal noch steht — auf „Pfade speichern" kommt man dabei nicht. Die Erfolgsmeldung heißt entsprechend „✅ Gespeichert". Der gleichnamige Knopf in der **Benutzerverwaltung** bleibt „Pfade speichern": dort speichert `userPanel_savePaths()` wirklich nur Pfade.
+
+**Vorgehen:** erst ein bedienbares Mockup mit beiden Feldern, Badge, Warnzeile und Banner samt Umschalter zwischen „Limit hat gegriffen" und „vollständig" — abgenommen, dann der Code. Geprüft wurde gegen die echte Datei: Limit 100 → 100 Fehler, Lesestopp 17:21:45, ein Banner; Limit 500 → 110 Fehler, kein Hinweis, Vermerk des Vorlaufs geräumt.
 
 ### 2026-08-25 — 📁 Ganzen Ordner an die Log-Analyse übergeben
 
