@@ -563,6 +563,10 @@ Aufgefallen sind dabei zwei Lücken, die niemand vermutet hätte: **„🔍 Anal
 
 **Und eine Klarstellung in AGENTS.md:** dort stand „Tool `update_docs` nutzen" als einziger Weg. Steht das Tool nicht zur Verfügung — in Claude Code etwa gibt es es nicht —, sind Version und README von Hand zu pflegen; das Fehlen ist zu erwähnen statt stillschweigend zu umgehen. Genau das war hier schiefgelaufen. Die Checkliste, welche Doku-Stellen bei einer Änderung durchzugehen sind, steht jetzt ebenfalls dort, samt Test-Hinweis.
 
+**Nachtrag zur Konvention:** 92 der 109 Historie-Einträge enden mit einer Zeile **Dateien:** — bei den letzten drei war das eingeschlafen, auch bei den beiden von heute. Nachgezogen, in AGENTS.md festgehalten (bisher stand die Konvention nirgends, deshalb konnte sie unbemerkt verschwinden) und in `test/docs-tabs-sync.js` geprüft: der **jeweils neueste** Eintrag muss die Zeile haben. Ältere bleiben unangetastet — die Historie wird nicht rückwirkend umgeschrieben.
+
+**Dateien:** README.md, AGENTS.md, test/docs-tabs-sync.js
+
 ### 2026-08-31 — ⚠️ Zwei Fehler-Limits, zwei Namen — und ein Lesestopp, der sich nicht mehr versteckt
 
 Eine Analyse von `KeasyWin_2026-08-05.log` zeigte **100 Fehler**, obwohl **110** in der Datei stehen. Die zehn fehlenden lagen alle nach 17:22 Uhr, darunter ein `exception.ErrorCode: invalid_grant` um 17:26 und zwei Postausgang-Meldungen um 20:00. Kein Parser-Fehler: `analyzeFile()` bricht das Lesen ab, sobald das Limit erreicht ist (`rl.close(); stream.destroy()`), und die Datei war schlicht nur bis **17:21:45** gelesen. **Zu sehen war davon nichts** — ein unvollständiges Ergebnis sah genauso aus wie ein vollständiges, und die Fehlersuche lief prompt in die falsche Richtung („warum fehlen die *älteren*?").
@@ -608,6 +612,14 @@ Farbe ist durchgehend `--highlight-fehler` (orange), **nicht** das Kritisch-Rot:
 **„💾 Pfade speichern" heißt jetzt „💾 Speichern".** Der Knopf sichert vier Dinge — Pfade, Fehler-Limit, Gap-Warnung, Idle-Schwelle —, und `analyzeSnapshot()` vergleicht auch alle vier; ein eigener Listener weckt ihn, wenn man an den Zahlenfeldern dreht. Nur das Label verschwieg die drei Zahlen. Das ist keine Kosmetik: wer das Analyse-Limit von 100 auf 500 stellt, muss auf diesen Knopf drücken, damit es beim nächsten Mal noch steht — auf „Pfade speichern" kommt man dabei nicht. Die Erfolgsmeldung heißt entsprechend „✅ Gespeichert". Der gleichnamige Knopf in der **Benutzerverwaltung** bleibt „Pfade speichern": dort speichert `userPanel_savePaths()` wirklich nur Pfade.
 
 **Vorgehen:** erst ein bedienbares Mockup mit beiden Feldern, Badge, Warnzeile und Banner samt Umschalter zwischen „Limit hat gegriffen" und „vollständig" — abgenommen, dann der Code. Geprüft wurde gegen die echte Datei: Limit 100 → 100 Fehler, Lesestopp 17:21:45, ein Banner; Limit 500 → 110 Fehler, kein Hinweis, Vermerk des Vorlaufs geräumt.
+
+**`test/analyze-truncate.js` (neu) hält das fest** — zunächst belegte nur ein Wegwerf-Skript, dass der Lesestopp gemeldet wird. Der Test baut seine Log-Datei selbst in einem temporären Verzeichnis und setzt die Filter-Pattern explizit: `*.log` **und** `config.js` sind gitignored, ein Repo-Test darf von beidem nicht abhängen, sonst läuft er auf einem frischen Klon nicht. Geprüft wird nicht nur, *dass* abgebrochen wird, sondern dass es beim Client ankommt: das Ereignis `analyze-truncated`, der Zähler in `analyze-done`, der Vermerk im Snapshot (ohne ihn ist der Hinweis nach F5 weg) und das Aufräumen beim nächsten Lauf. Der **JSON-Pfad wird eigens geprüft**: `emitJsonErrors` ist eine zweite, unabhängige Implementierung derselben Grenze und wird beim Nachziehen leicht vergessen.
+
+Eine Feinheit steckt in der Ladereihenfolge: `analysisService` destrukturiert `broadcastToUser` beim Laden, ein später gesetzter Patch läuft ins Leere. Der Test lädt `wsBroadcast` deshalb **vor** dem Service — steht als Kommentar darüber, sonst dreht das jemand beim Aufräumen um und der Test wird stillschweigend blind.
+
+Gegenprobe mit drei Mutationen am Quelltext: Broadcast entfernt, Store-Vermerk entfernt, `truncated.clear()` entfernt — jede wurde von genau dem zuständigen Check gemeldet.
+
+**Dateien:** server/analysisService.js, server/runtimeStore.js, server/routes/analysisRoutes.js, server/watchService.js, server/toolExport.js, public/index.html, public/style.css, public/js/render.js, public/js/wsClient.js, public/js/state.js, public/js/analyzePanel.js, public/js/configPanel.js, test/eviction-priority.js, test/analyze-truncate.js (neu), README.md
 
 ### 2026-08-25 — 📁 Ganzen Ordner an die Log-Analyse übergeben
 

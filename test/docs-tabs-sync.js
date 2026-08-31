@@ -160,5 +160,26 @@ console.log('\n6) Bedienelemente des Analyse-Panels stehen in der Doku');
   }
 }
 
+console.log('\n7) Der neueste Historie-Eintrag nennt die geaenderten Dateien');
+{
+  // 92 von 109 Eintraegen enden mit einer Zeile "**Dateien:**" -- bei den
+  // letzten drei war das eingeschlafen, weil die Konvention nirgends stand.
+  // Geprueft wird nur der NEUESTE Eintrag: die Historie wird nicht rueckwirkend
+  // umgeschrieben, aber ein neuer Eintrag soll die Zeile nicht vergessen.
+  const hStart = readme.indexOf('\n## Historie\n');
+  const hEnd = readme.indexOf('\n## ', hStart + 5);
+  const historie = readme.slice(hStart, hEnd === -1 ? readme.length : hEnd);
+
+  const ersterEintrag = historie.indexOf('\n### ');
+  const zweiterEintrag = historie.indexOf('\n### ', ersterEintrag + 5);
+  const neuester = historie.slice(ersterEintrag, zweiterEintrag === -1 ? historie.length : zweiterEintrag);
+
+  const titel = (neuester.split('\n')[1] || '').replace(/^### /, '').slice(0, 60);
+  check('neuesten Historie-Eintrag gefunden', neuester.length > 100, 'Abschnitt Historie umgebaut?');
+  check(`"${titel}" nennt seine Dateien`, /\n\*\*Dateien:\*\* \S/.test(neuester),
+    'Am Ende des Eintrags fehlt die Zeile "**Dateien:** pfad/a.js, pfad/b.js" ' +
+    '-- sie macht nachvollziehbar, was der Eintrag angefasst hat.');
+}
+
 console.log(failed === 0 ? '\n✅ Doku und Oberflaeche stimmen ueberein\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);

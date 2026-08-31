@@ -125,6 +125,10 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
   gruppiert nach `h2` (`wrapH2Sections`) und zerlegt die Historie dann in Stücke,
   und `test/docs-tabs-sync.js` hält danach alte Einträge für aktuelle Doku. Am
   2026-08-20 genau so passiert.
+- **Jeder Historie-Eintrag endet mit einer Zeile `**Dateien:** a.js, b.js`** —
+  92 der 109 Einträge haben sie, bei den letzten drei war sie eingeschlafen.
+  `test/docs-tabs-sync.js` prüft sie am jeweils neuesten Eintrag; ältere bleiben
+  unangetastet, die Historie wird nicht rückwirkend umgeschrieben.
 
 ## Tests
 - Keine automatisierten Unit-Tests vorhanden
@@ -132,6 +136,13 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
   `node test/error-index-wiring.js`, `node test/eviction-priority.js`
   (kein Server nötig — fangen fehlende DOM-IDs, nicht exportierte Globals
   und vergessene `<script>`-Tags)
+- **Laufzeit-Prüfungen ohne Server:** `node test/analyze-drop.js` (Log-Ablage,
+  JSON-Auswertung, ZIP-Slip) und `node test/analyze-truncate.js` (Lesestopp der
+  Analyse — Ereignis, Zähler, Snapshot, Aufräumen, JSON-Pfad). Beide bauen ihre
+  Testdaten selbst in `os.tmpdir()`. **Kein Repo-Test darf `*.log` oder
+  `config.js` voraussetzen** — beide sind gitignored, auf einem frischen Klon
+  nicht vorhanden. Filter-Pattern im Test explizit setzen
+  (`rebuildFilterRegex`), nie aus der lokalen Config übernehmen
 - **Doku-Abgleich:** `node test/docs-tabs-sync.js` prüft README gegen Markup —
   Tab-Tabelle, Wegbeschreibungen („Einstellungen → …") und die Bedienelemente
   des Analyse-Panels. Neue Knöpfe müssen dort beschrieben oder im Test
