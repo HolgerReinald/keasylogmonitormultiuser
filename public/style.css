@@ -1535,7 +1535,7 @@ body.theme-blue .performance-header {
    Grund. Die Karte hat ueber .config-card-wide die volle Rasterbreite, die
    Felder liefen aber weiter gegen die max-width: 350px der Basisregel — rund
    54 Zeichen, waehrend die Pfade 40–60 lang sind und das Unterscheidende
-   (…Keasy_n8Dev gegen …Keasy_Release26.2hotfix) am Ende steht. Ohne diese
+   (der Zweig-Teil, z. B. …_Develop gegen …_Release) am Ende steht. Ohne diese
    Zeile bringt die breite Karte den Feldern nichts. flex: 1 steht hier mit,
    seit die Karte im Tab "Allgemein" sitzt: im Regel-Raster kam es von
    .config-rules-grid .config-field input, das dort nicht mehr greift. */
@@ -3244,3 +3244,182 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 .analyze-wrap-body.collapsed {
   display: none;
 }
+
+/* === Einrichtungsassistent (Erste Schritte) ===
+   Schwebt fixiert unten rechts. Inline verschob die Karte beim Auf- und
+   Zuklappen die ganze Fehlerliste -- und gerade beim Einrichten arbeitet man in
+   den Einstellungen, wo ein springendes Layout am meisten stoert. */
+.wz {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 375px;
+  max-width: calc(100vw - 36px);
+  z-index: 120;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 11px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+.wz-kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  cursor: pointer;
+  background: var(--file-header-bg);
+}
+.wz-kopf:hover { background: var(--file-header-hover); }
+.wz-kopf .t { flex: 1; min-width: 0; }
+.wz-kopf .t b { display: block; font-size: 0.93em; }
+.wz-kopf .t span { font-size: 0.79em; color: var(--text-secondary); }
+.wz-pfeil { color: var(--text-secondary); }
+.wz-koerper { padding: 5px 7px 9px; max-height: 46vh; overflow: auto; }
+.wz-fuss {
+  padding: 7px 13px;
+  background: var(--bg-tertiary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.79em;
+}
+.wz-fuss button {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 9px;
+  font-size: 1em;
+}
+.wz-fuss button:hover { color: var(--text-primary); }
+/* Eingeklappt bleibt nur der Kopf; die Breite schrumpft auf den Inhalt */
+.wz.zu { width: auto; }
+.wz.zu .wz-koerper,
+.wz.zu .wz-fuss { display: none; }
+
+/* Fortschrittsring -- zeigt den Stand auch im eingeklappten Zustand.
+   Abgehaktes zaehlt nicht mit, sonst behauptet er Fortschritt, den es
+   nicht gibt (siehe fortschritt() in setupPanel.js). */
+.wz-ring {
+  --p: 0;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: conic-gradient(var(--accent) calc(var(--p) * 1%), var(--bg-tertiary) 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.wz-ring::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+}
+.wz-ring span {
+  position: relative;
+  z-index: 1;
+  font-size: 0.68em;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.wz-schritt {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.87em;
+}
+.wz-schritt:hover { background: var(--bg-tertiary); }
+.wz-schritt .mk {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75em;
+  font-weight: 700;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  color: var(--text-secondary);
+}
+.wz-schritt .nm { font-weight: 600; }
+.wz-schritt .tx {
+  display: block;
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 0.92em;
+  line-height: 1.4;
+  margin-top: 1px;
+}
+.wz-pflicht { font-size: 0.8em; color: var(--accent); }
+/* Der naechste offene Schritt ist hervorgehoben -- man soll nicht suchen muessen */
+.wz-schritt.jetzt { background: var(--bg-tertiary); outline: 1px solid var(--accent); }
+.wz-schritt.jetzt .mk { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wz-schritt.fertig .mk { background: #10b981; border-color: #10b981; color: #fff; }
+.wz-schritt.fertig .nm { text-decoration: line-through; opacity: 0.6; }
+/* Bewusst abgehakt: kursiv-blass statt durchgestrichen. Durchgestrichen heisst
+   "eingerichtet", blass heisst "bewusst weggelassen" -- sonst ist spaeter nicht
+   erkennbar, was der Fall war. */
+.wz-schritt.unnoetig { opacity: 0.45; }
+.wz-schritt.unnoetig .tx { font-style: italic; }
+
+.wz-weg {
+  flex: 0 0 auto;
+  align-self: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95em;
+  color: var(--text-muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.wz-schritt:hover .wz-weg { opacity: 1; }
+.wz-schritt.unnoetig .wz-weg { opacity: 0.8; }
+.wz-weg:hover { background: var(--bg-secondary); color: var(--text-primary); }
+/* Auf Touch-Geraeten gibt es kein Hover -- sonst waere das Abhaken unerreichbar */
+@media (hover: none) {
+  .wz-weg { opacity: 0.8; }
+}
+
+/* Punkt am Tab, solange der zugehoerige Schritt offen ist. Der Pflichtschritt
+   in der Akzentfarbe, optionale gedimmt -- sonst sehen alle gleich dringend aus. */
+.config-tab { position: relative; }
+.config-tab.setup-todo::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.config-tab.setup-todo-optional::after { background: var(--text-muted); opacity: 0.65; }
+
+/* Rueckweg im Kopf, wenn die Karte weggehakt wurde */
+.setup-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 11px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.82em;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+}
+

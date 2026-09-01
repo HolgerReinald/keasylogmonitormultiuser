@@ -151,6 +151,11 @@ tatsächliche Reihenfolge in `index.html`; `test/error-index-wiring.js` prüft s
   `node test/analyze-wrap-wiring.js`
   (kein Server nötig — fangen fehlende DOM-IDs, nicht exportierte Globals
   und vergessene `<script>`-Tags)
+- **Einrichtungsassistent:** `node test/setup-wiring.js` prüft die Zustandslogik
+  am echten Modul (frisches Paket, Bestandsinstallation, Standardpasswort) und
+  die Verdrahtung im Frontend. Er prüft außerdem, dass das Weitergabe-Paket keine
+  firmeninternen Pfade enthält — Beispielpfade in `placeholder`-Attributen und
+  Kommentaren gehören neutral gehalten
 - **Laufzeit-Prüfungen ohne Server:** `node test/analyze-drop.js` (Log-Ablage,
   JSON-Auswertung, ZIP-Slip) und `node test/analyze-truncate.js` (Lesestopp der
   Analyse — Ereignis, Zähler, Snapshot, Aufräumen, JSON-Pfad). Beide bauen ihre

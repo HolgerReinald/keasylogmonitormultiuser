@@ -40,6 +40,8 @@
       <button id="stopBtn" class="header-btn stop-btn" onclick="stopServer()" title="Monitor beenden" data-admin-only>⏹️ Monitor beenden</button>
       <button id="restartWatcherBtn" class="header-btn restart-btn" onclick="restartWatcher()" title="FileWatcher neu starten" data-admin-only>🔄 Watcher neu starten</button>
       <button class="header-btn" onclick="toggleAnalyzePanel()" title="Log-Dateien analysieren">📂 Log-Analyse</button>
+      <!-- Rückweg zu ausgeblendeten Einrichtungshinweisen; leer, solange nichts abgehakt ist -->
+      <span id="setupPill"></span>
       <button class="header-btn config-toggle-btn" onclick="toggleConfigPanel()" title="Einstellungen">⚙️ Einstellungen</button>
     </div>
   </header>
@@ -202,13 +204,13 @@
           <div class="config-group">
             <div class="config-field">
               <label>Working-Pfad Develop:</label>
-              <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="C:\vfm\keasyrepository\Keasy_n8" title="Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt.">
+              <input type="text" id="cfg-copilotWorkingPathDevelop" placeholder="z. B. C:\Repos\Projekt_Develop" title="Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt.">
               <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathDevelop" title="Ordner auswählen">📂</button>
               <button type="button" class="folder-picker-btn" id="btn-openCopilotDevelop" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathDevelop', event)">↗️</button>
             </div>
             <div class="config-field">
               <label>Working-Pfad Release:</label>
-              <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="C:\vfm\keasyrepository\Keasy_Release" title="Release-Verzeichnis für den KI-Export. Leer = 🚀-Knopf gesperrt.">
+              <input type="text" id="cfg-copilotWorkingPathRelease" placeholder="z. B. C:\Repos\Projekt_Release" title="Release-Verzeichnis für den KI-Export. Leer = 🚀-Knopf gesperrt.">
               <button type="button" class="folder-picker-btn" data-target="cfg-copilotWorkingPathRelease" title="Ordner auswählen">📂</button>
               <button type="button" class="folder-picker-btn" id="btn-openCopilotRelease" title="Pfad im Explorer öffnen" onclick="openConfigPath('cfg-copilotWorkingPathRelease', event)">↗️</button>
             </div>
@@ -713,6 +715,8 @@
   <script src="js/state.js" defer></script>
   <script src="js/render.js" defer></script>
   <script src="js/errorIndexPanel.js" defer></script>
+  <!-- setupPanel liefert die Einrichtungskarte, die render.js oben einsetzt -->
+  <script src="js/setupPanel.js" defer></script>
   <script src="js/actions.js" defer></script>
   <script src="js/docsPanel.js" defer></script>
   <script src="js/cssEditorPanel.js" defer></script>
@@ -728,6 +732,10 @@
   <script src="js/backupPanel.js" defer></script>
   <script src="js/systemCheckPanel.js" defer></script>
   <script src="js/trashPanel.js" defer></script>
+  <!-- Einrichtungsassistent: schwebt fixiert unten rechts und liegt damit
+       ausserhalb des Seitenflusses — Auf- und Zuklappen verschiebt nichts. -->
+  <div id="setupHost"></div>
+
   <script src="js/userPanel.js" defer></script>
   <script src="js/loginPanel.js" defer></script>
   <script src="js/wsClient.js" defer></script>

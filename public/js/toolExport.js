@@ -3,14 +3,16 @@ window.Keasy = window.Keasy || {};
 
 // Deklarative Registry — eine neue exportierbare Sektion = ein Eintrag hier.
 // defaultOn: teilenswerte Logik ist vorbelegt; Pfade/Zugangsdaten bewusst nicht.
+// Ausnahmen stehen im Label selbst -- eine Zeile je Sektion, kein Zusatztext
+// darunter. Sonst waechst die Liste in die Hoehe und der Dialog wird unruhig.
 const CONFIG_SECTIONS = [
-  { id: 'general',    label: 'Allgemeine Optionen',                   defaultOn: true  },
-  { id: 'patterns',   label: 'Filter- & Ausschluss-Muster',          defaultOn: true  },
-  { id: 'thresholds', label: 'Schwellwert-Regeln',                    defaultOn: true  },
-  { id: 'priorities', label: 'Prioritätsregeln (Dringlichkeit)',      defaultOn: true  },
-  { id: 'watchPaths', label: 'Watch-Pfade',                           defaultOn: false },
-  { id: 'email',      label: 'E-Mail / SMTP (ohne Passwort)',         defaultOn: false },
-  { id: 'backup',     label: 'Backup-Ziele & FTP (ohne Passwort)',    defaultOn: false }
+  { id: 'general',    label: 'Allgemeine Optionen (KI-Export-Pfade ausgenommen)', defaultOn: true  },
+  { id: 'patterns',   label: 'Filter- & Ausschluss-Muster',                       defaultOn: true  },
+  { id: 'thresholds', label: 'Schwellwert-Regeln',                                defaultOn: true  },
+  { id: 'priorities', label: 'Prioritätsregeln (Dringlichkeit)',                  defaultOn: true  },
+  { id: 'watchPaths', label: 'Watch-Pfade',                                       defaultOn: false },
+  { id: 'email',      label: 'E-Mail / SMTP (ohne Zugangsdaten)',                 defaultOn: false },
+  { id: 'backup',     label: 'Backup-Ziele & FTP (ohne Zugangsdaten)',            defaultOn: false }
 ];
 
 let _rendered = false;

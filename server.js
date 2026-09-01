@@ -142,6 +142,13 @@ wss.on('connection', (ws, req) => {
     // bedienbar sind. Die Pfade selbst gehoeren nicht in jede init-Nachricht.
     copilotDevelopSet: !!copilotCfg.copilotWorkingPathDevelop,
     copilotReleaseSet: !!copilotCfg.copilotWorkingPathRelease,
+    // Einrichtungsstand fuer die "Erste Schritte"-Karte. Nur Wahrheitswerte,
+    // keine Pfade oder Hosts -- die Nachricht geht auch an Nicht-Admins, dort
+    // allerdings nur als { zeigen: false }.
+    setupState: require('./server/setupState').getSetupState(
+      session.role === 'admin' || !configStore.isAuthEnabled(),
+      session.username
+    ),
     analyzeData: analyzeData,
     analyzeRunning: au.running,
     analyzeUser: session.username,
@@ -360,6 +367,11 @@ if (!fs.existsSync(styleDefaultPath)) {
 // Users initialisieren + Migration + Server starten
 const userConfigStore = require('./server/userConfigStore');
 userStore.ensureDefaultAdmin().then(() => {
+  // Bestehende Installationen sollen die Einrichtungskarte nicht sehen -- sie
+  // ist fuer frisch verteilte Pakete gedacht. Muss VOR dem ersten Client
+  // laufen, sonst blitzt die Karte einmal auf.
+  require('./server/setupState').migriereBestandsinstallation();
+
   // Migration: emailTo/Copilot/Analyze aus globaler Config → Admin User-Config
   userConfigStore.migrateEmailToFromGlobal('admin', config);
 

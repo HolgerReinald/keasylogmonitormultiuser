@@ -29,7 +29,13 @@ const BASE_DEFAULTS = {
   filterPatterns: ['Exception', 'Fehler'],
   excludePatterns: [],
   thresholdRules: [],
-  priorityRules: []
+  priorityRules: [],
+  // Ausdrueckliches false statt gar nichts: ein ausgeliefertes Paket ist immer
+  // eine Neuinstallation und soll den Einrichtungsassistenten zeigen. Fehlte das
+  // Feld, wuerde die Bestandserkennung beim ersten Start zuschlagen, sobald die
+  // Sektion "watchPaths" mitexportiert wurde -- der Empfaenger saehe die
+  // Hinweise dann nie, obwohl er gerade erst anfaengt.
+  setupCompleted: false
 };
 
 // Sektion → Config-Keys, die bei angehakter Sektion aus der Laufzeit-Config übernommen werden.

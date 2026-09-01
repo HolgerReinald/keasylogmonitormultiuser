@@ -58,6 +58,7 @@ const ADMIN_ONLY_ROUTES = new Set([
   'POST /api/export-copilot-file',
   'GET /api/export-tool',
   'POST /api/system-check/run',
+  'POST /api/setup-dismiss',
   'GET /api/users',
   'POST /api/users',
   'POST /api/users/update',

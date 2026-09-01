@@ -36,7 +36,12 @@ function switchConfigTab(tab) {
   state.cssCurrentTab = tab;
   document.querySelectorAll('#configPanel .config-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#configPanel .config-section').forEach(s => s.classList.remove('active'));
-  event.target.classList.add('active');
+  // Den Knopf ueber den Tab-Namen suchen statt ueber event.target: der Aufruf
+  // kommt nicht mehr nur vom Tab selbst, sondern auch aus der Einrichtungskarte.
+  // Dort waere event.target die angeklickte Karte -- der Tab bliebe unmarkiert.
+  const tabBtn = [...document.querySelectorAll('#configPanel .config-tab')]
+    .find(t => (t.getAttribute('onclick') || '').includes("'" + tab + "'"));
+  if (tabBtn) tabBtn.classList.add('active');
   document.getElementById('config-' + tab).classList.add('active');
   // Doku und Historie haengen an demselben Abruf: die Historie wird beim
   // Aufbereiten aus der gerenderten README in ihren Tab umgehaengt

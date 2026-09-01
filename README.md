@@ -260,6 +260,8 @@ module.exports = {
 | `watchPaths[].gapIdleMinutes` | Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = `30` |
 | `watchPaths[].includeJson` | `true` = in diesem Pfad zusätzlich `.json`-Logs überwachen (Glob `**/*.{log,json}`) und pro JSON-Objekt strukturell auswerten (`Error`/`Success:false`), z. B. KI-Schnittstelle. Standard `false` — bewusst pro Pfad aktivieren, um Netzlaufwerke (`X:`/`Y:`) nicht unnötig nach JSON zu durchsuchen |
 | `analyzeMaxErrors` | **Lesestopp** der Log-Analyse (Standard: `100`): Ist die Grenze in einer Datei erreicht, wird sie **nicht weitergelesen** — spätere Fehler bleiben ungeprüft. Anders als bei `maxErrorsPerFile` verdrängt hier nichts, es fehlt einfach der hintere Teil der Datei. Greift die Grenze, weist das Dashboard darauf hin (⚠-Badge an der Datei, Warnzeile mit dem Zeitpunkt des Abbruchs, Sammelbanner unter dem Fortschritt) |
+| `setupCompleted` | `true` = der Einrichtungsassistent ist erledigt und erscheint nicht mehr. Gesetzt per „Nicht mehr anzeigen" oder beim ersten Start einer **bestehenden** Installation (Feld fehlt + Watchpaths vorhanden). Ein gesetztes Feld — auch `false` — wird beim Start nicht mehr angefasst |
+| `setupDismissed` | Array der **einzeln** als „brauche ich nicht" abgehakten Schritte (`paths`, `allg`, `reg`, `mail`, `ana`, `bak`). Gilt für die **Installation**, nicht für den Browser. Bewusst getrennt von `setupCompleted` |
 | `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
 | `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
 | `filePattern` | Glob-Pattern für Dateinamen (z.B. `*.log`, `KeasyServer*.log`) |
@@ -412,6 +414,7 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | ⏸️ Pause | Stoppt die Live-Aktualisierung global |
 | ⊟ Alle zu / ⊞ Alle auf | Klappt alle Quellen zu bzw. auf. Ist irgendeine offen, klappt der Knopf alle zu — die Beschriftung sagt, was der Klick tut |
 | 🧭 Index | Blendet den Fehler-Index (Seitenleiste) ein oder aus |
+| ⚑ Einrichtung | Nur sichtbar, wenn Einrichtungshinweise weggehakt wurden — holt sie zurück |
 | ⬇️ Neueste | Scrollt zum neuesten Fehler |
 | 🔍 Suche | Volltextsuche mit Wildcard-Unterstützung (`*`) — klappt Quellen mit Treffern automatisch auf |
 | ☀️/🌙/🔵 Theme | Wechsel zwischen Hell, Dunkel und Blau (wird gespeichert) |
@@ -501,6 +504,55 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 
 > **Papierkorb:** Der Papierkorb (WatchPath) gilt nur für Live-Monitoring-Einträge. Analyse-Ergebnisse haben keinen Papierkorb — sie können jederzeit durch erneute Analyse wiederhergestellt werden.
 
+### 🚧 Erste Schritte (Einrichtungsassistent)
+
+Ein frisch verteiltes Paket hat noch keine überwachten Pfade. In diesem Zustand
+schwebt unten rechts eine **Einrichtungskarte** — sie startet geöffnet und liegt
+außerhalb des Seitenflusses, verschiebt also nichts, wenn man sie auf- oder
+zuklappt. Ein Klick auf den Kopf klappt sie ein; dieser Zustand wird pro Browser
+gemerkt.
+
+| Element | Bedeutung |
+|---|---|
+| **Ring** (z. B. `2/7`) | Anteil der wirklich eingerichteten Schritte — auch eingeklappt sichtbar. Abgehaktes zählt **nicht** mit |
+| **Hervorgehobene Zeile** | der nächste offene Schritt |
+| Klick auf eine Zeile | öffnet die passende Stelle (Tab in den Einstellungen bzw. das Analyse-Panel) |
+| **✕** an einer Zeile | „brauche ich nicht" — der Punkt zählt nicht mehr als offen |
+| **↺** | nimmt einen abgehakten Punkt wieder auf |
+| **Nicht mehr anzeigen** | beendet den Assistenten dauerhaft (`setupCompleted`) — kein Rückweg in der Hauptansicht |
+| **⚑ Einrichtung** im Kopf | erscheint nur, wenn einzelne Punkte per ✕ ausgeblendet **und** nicht eingerichtet sind; holt sie zurück |
+
+**Ein Pflichtschritt, fünf Angebote.** Nur ohne überwachten Pfad läuft der
+Monitor leer; alles andere — Allgemein, Regeln, E-Mail, Log-Analyse, Backup —
+ist Angebot. Sind alle Punkte erledigt oder abgehakt, verschwindet die Karte von
+selbst. **Das Rechtesystem hat keinen eigenen Schritt:** es wird unter
+*Allgemein → Server* per Checkbox aktiviert, und der Hinweis auf `admin`/`admin`
+steht im Text dieses Schritts.
+
+**Erledigt und abgehakt sehen unterschiedlich aus:** durchgestrichen mit grünem
+Häkchen heißt „eingerichtet", kursiv-blass heißt „bewusst weggelassen". Wird ein
+abgehakter Punkt später doch eingerichtet, gewinnt „erledigt".
+
+**Die Tabs tragen einen Punkt**, solange ihr Schritt offen ist — in der
+Akzentfarbe beim Pflichtschritt, gedimmt bei den optionalen.
+
+**Nur für Administratoren.** Alle Ziele sind admin-only; einem normalen Benutzer
+würde die Karte zu Gesperrtem auffordern und erscheint deshalb nicht.
+
+**Bestehende Installationen sehen die Karte nicht.** Beim ersten Start nach dem
+Update gilt: gibt es schon überwachte Pfade, war hier jemand am Werk — dann wird
+`setupCompleted: true` gesetzt.
+
+**Zwei getrennte Dinge.** `setupCompleted` beendet den Assistenten als Ganzes
+(Migration oder „Nicht mehr anzeigen"); `setupDismissed` sammelt die einzeln
+weggeklickten Punkte. Teilten sie sich ein Feld, nähme ein Zurückholen der
+Einzelpunkte die Grundentscheidung mit zurück — genau so kam die Karte nach
+einem Klick auf die Pille dauerhaft wieder.
+
+**Solange kein Pfad eingerichtet ist**, sagt auch der leere Hauptbereich die
+Wahrheit („🚧 Noch nichts eingerichtet") statt „✅ Keine Fehler" — sonst wirkt es
+beim eingeklappten Assistenten, als liefe alles.
+
 ## Beenden
 
 - ⏹️ "Monitor beenden" im Dashboard klicken, oder
@@ -544,6 +596,52 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-09-01 — 🚧 Einrichtungsassistent für frisch verteilte Pakete
+
+Ein frisch verteiltes Paket hat keine `config.js`; `bootstrapConfig()` erzeugt sie aus `config.default.js` — mit `watchPaths: []`. Das Dashboard zeigte in diesem Zustand **„✅ Keine Fehler — Überwache Log-Dateien…"**: ein grünes Häkchen und die Behauptung, es werde überwacht, obwohl nichts eingerichtet ist. Dazu legt `userStore` bei fehlender `users.json` still **admin/admin** an — die Warnung ging bisher nur in die Konsole.
+
+**Ein Pflichtschritt, sechs Angebote.** Ohne überwachten Pfad läuft der Monitor leer; Allgemein (inkl. KI-Export-Pfade), Regeln, E-Mail, Log-Analyse, Backup und Benutzer sind Angebot. Wer einen davon nicht braucht, hakt ihn mit **✕** ab; sind alle Punkte erledigt oder abgehakt, verschwindet die Karte von selbst. Ohne das Abhaken stände bei jemandem, der weder E-Mail noch Backup nutzt, dauerhaft „5 offen" — eine Karte, die nie zufrieden wird, klickt man einmal weg und verliert dann auch die nützlichen Hinweise.
+
+**Erledigt und abgehakt sehen unterschiedlich aus:** durchgestrichen mit grünem Häkchen heißt „eingerichtet", kursiv-blass heißt „bewusst weggelassen". Sonst ist in einem halben Jahr nicht mehr zu erkennen, was der Fall war. **„Erledigt" gewinnt über „abgehakt"**: wer E-Mail später doch einrichtet, sieht das, auch wenn er den Punkt einmal weggeklickt hatte.
+
+**Die Karte schwebt, statt im Seitenfluss zu liegen.** Der erste Entwurf setzte sie über die Fehlerliste — beim Auf- und Zuklappen sprang damit das ganze Layout, und gerade beim Einrichten arbeitet man in den Einstellungen, wo das am meisten stört. Sie liegt jetzt in einem eigenen fixierten Host (`#setupHost`) unten rechts, startet **geöffnet** und verschiebt nichts. Ein **Fortschrittsring** (`conic-gradient`) zeigt den Stand auch eingeklappt; er zählt bewusst nur **wirklich Erledigtes**, sonst behauptet er Fortschritt, den es nicht gibt. Der Klappzustand liegt im `localStorage` — auf/zu ist Ansichtssache des Einzelnen, während `setupDismissed` für die ganze Installation gilt.
+
+**Verworfen wurden zwei Alternativen.** Ein Drawer von rechts nimmt 340 px — zusammen mit dem Fehler-Index links bleibt beim Einrichten kaum Mitte. Eine Leiste am unteren Rand wäre gleichwertig, ist beim allerersten Start aber leichter zu übersehen. Freies Positionieren wurde bewusst nicht gebaut: der Assistent verschwindet nach der Einrichtung ohnehin.
+
+**Der leere Hauptbereich sagt jetzt selbst die Wahrheit.** Beim Umbau auf die Schwebekarte wäre dort wieder „Keine Fehler" gestanden — also genau die Falschaussage, gegen die das Ganze gebaut ist, sichtbar spätestens beim Einklappen. Ohne Watchpath steht dort **„🚧 Noch nichts eingerichtet"**.
+
+**Zwei Fehler, die erst der Praxiseinsatz zeigte.** Erstens meldete die Karte **KI-Export-Pfade und Analyse-Pfade als offen, obwohl beide genutzt wurden**: die Werte liegen in der **Benutzer**-Config (`userConfigStore`), geprüft wurde nur die globale `config.js`. `getSetupState()` bekommt jetzt den Benutzernamen. Zweitens hätte die Karte selbst mit korrekter Erkennung bei **jeder bestehenden Installation** aufgepoppt, sobald irgendein optionales Feature ungenutzt ist — sie ist für frisch verteilte Pakete gedacht. Fehlt `setupDismissed` und gibt es bereits Watchpaths, war hier schon jemand am Werk: die optionalen Punkte gelten dann als bewusst übergangen.
+
+**Und ein dritter, den ein Screenshot aufdeckte:** „Nicht mehr anzeigen" schickt jeden offenen Schritt ans Abhaken — auch den Pflichtschritt, den die Whitelist ausschloss. Der Server antwortete korrekt mit „Unbekannter Schritt", die Karte blieb stehen. Serverseitig ist jetzt alles abhakbar; der Pflichtcharakter zeigt sich in der Darstellung, nicht im Verbot. Das ist auch nötig: wer das Werkzeug nur für die Log-Analyse nutzt, legt nie einen Watchpath an.
+
+**Nur für Administratoren, und nur Wahrheitswerte.** Der Status geht in jede `init`-Nachricht, also auch an Nicht-Admins — dort als `{ zeigen: false }`. Er enthält keine Pfade und keine Hosts. Alle Ziele sind `data-admin-only`; einem normalen Benutzer würde die Karte zu Gesperrtem auffordern. Ohne Rechtesystem gilt der Passwort-Punkt als erledigt, statt zum Ändern eines Passworts aufzufordern, das niemand braucht.
+
+**Der Passwort-Vergleich läuft einmal beim Serverstart.** `bcrypt.compare` ist absichtlich langsam (~50–100 ms); pro Verbindungsaufbau wäre das spürbar und hätte den WebSocket-Handler `async` gemacht. Solange nichts ermittelt wurde, gilt „kein Standardpasswort" — ein Fehlalarm wäre schlimmer als ein verspäteter Hinweis.
+
+**Live nachziehen war Pflicht.** Ohne `broadcastSetupState()` stände „Log-Pfad eintragen" noch da, nachdem man ihn eingetragen hat. Der Broadcast wird pro Client nach Rolle berechnet und nach jedem Config-Speichern sowie nach jedem Abhaken ausgelöst.
+
+**Ein latenter Fehler kam mit:** `switchConfigTab()` markierte den aktiven Tab über das globale `event.target`. Beim Aufruf aus der Karte wäre das die Karte gewesen, nicht der Tab — der Sprung hätte den falschen Tab markiert. Die Funktion sucht den Knopf jetzt über den Tab-Namen.
+
+**Aufgeräumt beim Weitergabe-Paket:** in drei Paketdateien standen firmeninterne KI-Export-Pfade — als `placeholder` in `index.html`, als Beispiel in einem CSS-Kommentar und in einem Historie-Eintrag. Keine aktiven Werte, aber die Pfadstruktur wandert so in jedes verteilte Paket. Alle drei sind neutral (`z. B. C:\Repos\Projekt_Develop`).
+
+**`test/setup-wiring.js` (neu)** prüft die Zustandslogik am echten Modul — ein simuliertes frisches Paket (die echten `BASE_DEFAULTS`) meldet 6 von 7 Schritten offen, ein gemocktes `admin/admin` wird von bcrypt erkannt, die Bestands-Migration läuft in beide Richtungen — und die Verdrahtung im Frontend, die in Node nicht nachstellbar ist. Dazu durchsucht er alle 94 Paketdateien nach internen Pfaden; die Suchmuster sind aus Fragmenten zusammengesetzt, sonst findet der Test seine eigenen Literale.
+
+**Der Benutzer-Schritt ist wieder entfallen.** Das Rechtesystem wird unter *Allgemein → Server* per Checkbox aktiviert — dort gehört der Hinweis hin, nicht in einen eigenen Punkt. Mit ihm verschwand der aufwändigste Teil des Features restlos: `bcryptjs`, die Prüfung des Standardpassworts, deren Aufruf beim Serverstart und der `authAktiv`-Parameter. Aus sieben Schritten wurden sechs.
+
+**„Fertig" und „abgehakt" mussten getrennt werden.** Beides lag zunächst in `setupDismissed`: die Bestandserkennung trug dort alle Punkte ein, ebenso „Nicht mehr anzeigen". Ein Klick auf die Pille holte damit **auch die Grundentscheidung** zurück — und weil ein leeres Array als „schon migriert" galt, kam die Karte danach dauerhaft wieder. `setupCompleted` ist jetzt ein eigenes Feld; die Pille erscheint bei gesetztem Flag gar nicht, und nach „Nicht mehr anzeigen" gibt es bewusst keinen Rückweg per Klick in der Hauptansicht.
+
+**Die Pille hing auch sonst falsch.** Sie prüfte `abgehakt.length > 0` statt zu fragen, ob dort noch etwas *versteckt* ist. Nach der Bestandserkennung steht in der Liste alles drin, obwohl alles eingerichtet ist — die Pille wäre dauerhaft im Kopf geblieben, ohne dass es etwas zurückzuholen gäbe. Jetzt gilt dieselbe Regel wie in der Karte: `SCHRITTE.some(istAbgehakt)`, und „erledigt" gewinnt.
+
+**Ein ausgeliefertes Paket markiert sich als Neuinstallation.** Wird die Sektion *Watch-Pfade* mitexportiert, bringt der Empfänger Pfade mit — und die Bestandserkennung hätte zugeschlagen: Pfade vorhanden, Feld fehlt, also „da war schon jemand". Der Assistent wäre bei genau dem stillgelegt worden, für den er gebaut ist. Die Auslieferungs-Defaults tragen deshalb ausdrücklich `setupCompleted: false`.
+
+**Die Pause fror zu viel ein.** Das Nachziehen von Karte und Pille hängte an `if (!state.paused)` — bei aktiver Pause blieb die Pille klickbar stehen, obwohl der Server sie längst abgeschaltet hatte. Die Pause friert die **Fehlerliste** ein, nicht den Einrichtungsstand.
+
+**Der Weitergabe-Dialog nennt seine Ausnahmen.** Bisher stand nirgends, dass die KI-Export-Pfade trotz angehakter Sektion *Allgemeine Optionen* nicht mitgehen. Die Labels sagen es jetzt — einzeilig neben der Checkbox, ohne Zusatzzeile darunter. Dabei fiel auf, dass „E-Mail / SMTP (ohne Passwort)" und „Backup-Ziele & FTP (ohne Passwort)" zu wenig versprachen: der Export entfernt bei beiden auch den **Benutzernamen**. Der Test hält Zusage und Verhalten gegeneinander — eine Zusage, die der Export nicht einhält, wäre schlimmer als gar kein Hinweis.
+
+**Vorgehen:** Mockup mit vier Zuständen (frisch, teilweise, abgehakt, fertig), dann Code; für den Umbau auf die Schwebekarte ein zweites Mockup mit eingebauter **Messlatte**, die den Layout-Sprung in Pixeln anzeigt — inline mehrere hundert, schwebend 0.
+
+**Dateien:** server/setupState.js (neu), server.js, server/wsBroadcast.js, server/routes/configRoutes.js, server/httpRouter.js, public/js/setupPanel.js (neu), public/js/render.js, public/js/state.js, public/js/wsClient.js, public/js/configPanel.js, public/index.html, public/style.css, test/setup-wiring.js (neu), README.md, AGENTS.md
 
 ### 2026-08-31 — 📎 update_docs war die ganze Zeit da — nur anders geschrieben
 
@@ -1039,7 +1137,7 @@ Der **Pfeil in Akzentfarbe** kommt als drittes Signal hinzu, zwei der drei komme
 
 Zwei Layoutmängel im Tab „Monitor-Einstellungen", beide aus derselben Ursache: das Raster `repeat(auto-fit, minmax(340px, 1fr))` behandelt alle fünf Abschnitte als gleich breite Karten auf Inhaltshöhe. Für die Musterlisten passt das, für zwei Pfadfelder nicht.
 
-**Die Copilot-Pfade waren unlesbar kurz.** In einer 340-px-Karte blieben nach dem 160-px-Label und dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60 Zeichen lang sind (`C:\vfm\keasyrepository\Keasy_Release26.2hotfix`). Sichtbar war damit nie der Teil, auf den es ankommt — das Ende, das Develop von Release unterscheidet. Die Karte bekommt über die neue Klasse `.config-card-wide` mit `grid-column: 1 / -1` die volle Rasterbreite; die Felder haben dort schon `flex: 1` und wachsen von selbst mit — allerdings nur bis rund 54 Zeichen. **Korrigiert im Eintrag darüber:** hier stand ursprünglich „rund 150 Zeichen". Übersehen war die Basisregel `.config-field input[type="text"]` mit `max-width: 350px`, die weiter griff — die breite Karte brachte den Feldern damit weit weniger als behauptet.
+**Die Copilot-Pfade waren unlesbar kurz.** In einer 340-px-Karte blieben nach dem 160-px-Label und dem 📂-Knopf rund 15 Zeichen sichtbar, während die Windows-Pfade 40–60 Zeichen lang sind (etwa `C:\Repos\Projekt_Release26.2hotfix`). Sichtbar war damit nie der Teil, auf den es ankommt — das Ende, das Develop von Release unterscheidet. Die Karte bekommt über die neue Klasse `.config-card-wide` mit `grid-column: 1 / -1` die volle Rasterbreite; die Felder haben dort schon `flex: 1` und wachsen von selbst mit — allerdings nur bis rund 54 Zeichen. **Korrigiert im Eintrag darüber:** hier stand ursprünglich „rund 150 Zeichen". Übersehen war die Basisregel `.config-field input[type="text"]` mit `max-width: 350px`, die weiter griff — die breite Karte brachte den Feldern damit weit weniger als behauptet.
 
 **Kein fester Pixelwert.** Vor dem Umzug in dieses Raster hatten die Felder über `.config-column .config-field input[type="text"]` feste 350 px — genau der Wert, der eine 340-px-Karte gesprengt hätte und deshalb damals auf `flex: 1` wich. Eine Zahl wäre hier auch grundsätzlich falsch: die Schriftgröße ist über den Tab „CSS-Style" änderbar, eine in Pixeln gesetzte Feldbreite trägt dann eine andere Zeichenzahl.
 

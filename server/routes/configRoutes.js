@@ -18,6 +18,7 @@ const { getAnalyzeErrors } = require('../analysisService');
 const { getLabelForFile } = require('../watchService');
 const dropStore = require('../analyzeDropStore');
 const toolExport = require('../toolExport');
+const setupState = require('../setupState');
 
 // KI-Zielverzeichnis fuer 'develop' | 'release' ermitteln. Die Pfade sind
 // PRO BENUTZER konfiguriert (users/<name>/config.json); der Rueckfall auf die
@@ -111,6 +112,48 @@ module.exports = function configRoutes(deps) {
       res.end(JSON.stringify(safeConfig));
     },
 
+    // Einen optionalen Einrichtungsschritt als "brauche ich nicht" ablegen --
+    // oder das wieder zuruecknehmen. Das gehoert in die Config und nicht in den
+    // localStorage: es ist eine Aussage ueber DIESE Installation, nicht ueber
+    // diesen Browser. Sonst hakt ein Admin an seinem Rechner ab und der Kollege
+    // sieht die Karte von vorn.
+    // Admin-Schutz laeuft zentral ueber ADMIN_ONLY_ROUTES in httpRouter.js --
+    // kein eigener Check hier, sonst gibt es zwei Wahrheiten.
+    'POST /api/setup-dismiss': (req, res) => {
+      parseJsonBody(req, (body) => {
+        // "Nicht mehr anzeigen" schaltet den Assistenten als Ganzes ab. Eigenes
+        // Feld statt alle Punkte abzuhaken: sonst nimmt ein Zurueckholen der
+        // Einzelpunkte diese Entscheidung mit zurueck.
+        if (body && body.fertig !== undefined) {
+          const neuF = { ...config, setupCompleted: !!body.fertig };
+          configStore.writeConfig(neuF);
+          configStore.replaceConfig(neuF);
+          require('../wsBroadcast').broadcastSetupState();
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, setupCompleted: !!body.fertig }));
+          return;
+        }
+        const id = body && typeof body.id === 'string' ? body.id : '';
+        // Whitelist: der Wert landet in der Config und spaeter im Markup.
+        if (!setupState.ABHAKBAR.includes(id)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, message: 'Unbekannter Schritt' }));
+          return;
+        }
+        const aus = !!(body && body.dismissed);
+        const liste = new Set(Array.isArray(config.setupDismissed) ? config.setupDismissed : []);
+        if (aus) liste.add(id); else liste.delete(id);
+
+        const neu = { ...config, setupDismissed: [...liste] };
+        configStore.writeConfig(neu);
+        configStore.replaceConfig(neu);
+        // Alle offenen Dashboards nachziehen, nicht nur das eigene
+        require('../wsBroadcast').broadcastSetupState();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, setupDismissed: [...liste] }));
+      });
+    },
+
     'POST /api/config': (req, res) => {
       parseJsonBody(req, (newConfig) => {
         if (!newConfig) { res.writeHead(400); res.end('Ungültige Config'); return; }
@@ -152,6 +195,12 @@ module.exports = function configRoutes(deps) {
             applyConfigChanges(globalConfig);
             configStore.writeConfig(globalConfig);
           }
+
+          // Der Einrichtungsstand kann sich mit jedem Speichern geaendert haben:
+          // erster Watchpath, E-Mail aktiviert, Regeln angepasst, Analyse-Pfade
+          // hinterlegt. Ohne das bliebe die Karte stehen und wuerde zu etwas
+          // auffordern, das gerade erledigt wurde.
+          require('../wsBroadcast').broadcastSetupState();
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true, message: 'Config gespeichert und angewendet' }));

@@ -35,6 +35,21 @@ function broadcastToUser(username, message) {
   }
 }
 
+// Einrichtungsstand an alle offenen Dashboards schicken. Pro Client berechnet,
+// weil er von der Rolle abhaengt: Nicht-Admins bekommen { zeigen: false }.
+// Ohne diesen Weg bliebe die Karte stehen, nachdem man den Watchpath angelegt
+// hat -- man haette den Schritt erledigt und wuerde weiter dazu aufgefordert.
+function broadcastSetupState() {
+  const setupState = require('./setupState');
+  const configStore = require('./configStore');
+  const authAktiv = configStore.isAuthEnabled();
+  for (const client of clients) {
+    if (client.readyState !== 1) continue;
+    const state = setupState.getSetupState(client.role === 'admin' || !authAktiv, client.username);
+    try { client.send(JSON.stringify({ type: 'setup-state', data: state })); } catch (_) {}
+  }
+}
+
 // WS-Close für einen bestimmten User erzwingen (bei Rechteänderung)
 function disconnectUser(username) {
   for (const client of clients) {
@@ -108,4 +123,4 @@ function labelMessageFilter(msg, visibleLabels) {
   return visibleLabels.includes(msg.data.label) ? msg : null;
 }
 
-module.exports = { clients, broadcast, broadcastFiltered, broadcastToUser, broadcastTrash, setTrashSnapshotFn, disconnectUser, filterErrorsByLabels, filterTrashSnapshot, filterMapByLabels, labelMessageFilter };
+module.exports = { clients, broadcast, broadcastFiltered, broadcastToUser, broadcastTrash, setTrashSnapshotFn, disconnectUser, filterErrorsByLabels, filterTrashSnapshot, filterMapByLabels, labelMessageFilter, broadcastSetupState };

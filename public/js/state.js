@@ -28,6 +28,12 @@ window.Keasy.state = {
   copilotDevelopSet: false,
   copilotReleaseSet: false,
 
+  // Einrichtungsstand ("Erste Schritte"-Karte). Kommt vom Server in der
+  // init-Nachricht und bei jeder Aenderung als 'setup-state'.
+  // { zeigen: bool, erledigt: {id:bool}, abgehakt: [id] } — fuer Nicht-Admins
+  // nur { zeigen: false }, weil alle Schritte data-admin-only sind.
+  setupState: { zeigen: false },
+
   // Analyse
   analyzeErrors: {},
   analyzeLabels: {},

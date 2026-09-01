@@ -212,11 +212,23 @@ function renderAll() {
     state.criticalErrors = 0;
     document.getElementById('totalCount').textContent = state.totalErrors;
     updateBrowserTitle();
-    container.innerHTML = `
-      <div class="empty-state" id="emptyState">
-        <h2>✅ Keine Fehler</h2>
-        <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
-      </div>`;
+    // "✅ Keine Fehler — Überwache Log-Dateien…" ist eine Falschaussage, solange
+    // gar kein Pfad eingerichtet ist: es wird nichts überwacht. Die
+    // Einrichtungskarte schwebt zwar daneben, der Leerzustand muss aber trotzdem
+    // die Wahrheit sagen — wer die Karte einklappt, sieht sonst nur das
+    // grüne Häkchen.
+    const nichtEingerichtet = Keasy.setup && Keasy.setup.pflichtOffen();
+    container.innerHTML = nichtEingerichtet
+      ? `<div class="empty-state" id="emptyState">
+          <h2>🚧 Noch nichts eingerichtet</h2>
+          <p>Es ist kein Log-Pfad hinterlegt — daher wird nichts überwacht.<br>
+             Die Einrichtung unten rechts führt in einem Schritt hin.</p>
+        </div>`
+      : `<div class="empty-state" id="emptyState">
+          <h2>✅ Keine Fehler</h2>
+          <p>Überwache Log-Dateien... Fehler werden hier live angezeigt.</p>
+        </div>`;
+    if (Keasy.setup) Keasy.setup.renderSetupPill();
     updateLiveControlStates(0);
     renderErrorIndex();
   updateCollapseAllButton();
@@ -533,6 +545,11 @@ function renderAll() {
         <div class="analyze-wrap-body${zu ? ' collapsed' : ''}">${analyzeHtml}</div>
       </div>` + html;
   }
+
+  // Die Einrichtungskarte liegt NICHT im Seitenfluss: sie schwebt in ihrem
+  // eigenen fixierten Host (#setupHost) und verschiebt damit nichts, wenn man
+  // sie auf- oder zuklappt. renderSetupPill() zeichnet sie mit.
+  if (Keasy.setup) Keasy.setup.renderSetupPill();
 
   if (!html) {
     state.totalErrors = 0;

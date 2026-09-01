@@ -112,6 +112,7 @@ function connect() {
         state.nextEmailSendTime = msg.nextEmailSendTime;
       }
       // Analyse-Ergebnisse laden
+      state.setupState = msg.setupState || { zeigen: false };
       state.analyzeErrors = {};
       state.analyzeLabels = {};
       state.analyzeUser = msg.analyzeUser || (state.currentUser && state.currentUser.username) || '';
@@ -268,6 +269,15 @@ function connect() {
       if (!state.analyzeErrors[filePath]) state.analyzeErrors[filePath] = [];
       state.analyzeErrors[filePath].push(error);
       if (label) state.analyzeLabels[filePath] = label;
+      if (!state.paused) scheduleRender();
+    } else if (msg.type === 'setup-state') {
+      // Der Einrichtungsstand hat sich geaendert (Config gespeichert oder ein
+      // Punkt abgehakt) — ohne das bliebe die Karte auf dem alten Stand stehen.
+      state.setupState = msg.data || { zeigen: false };
+      // Karte, Pille und Tab-Punkte sofort nachziehen, auch bei aktiver Pause:
+      // die Pause friert die FEHLERLISTE ein, nicht den Einrichtungsstand. Sonst
+      // bleibt die Pille klickbar stehen, obwohl der Server sie abgeschaltet hat.
+      if (Keasy.setup) Keasy.setup.renderSetupPill();
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'analyze-truncated') {
       // Das Limit hat das Lesen dieser Datei beendet — der Rest ist ungeprüft.
