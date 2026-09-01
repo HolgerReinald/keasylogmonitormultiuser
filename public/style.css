@@ -3295,6 +3295,16 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
   font-size: 1em;
 }
 .wz-fuss button:hover { color: var(--text-primary); }
+/* Der Abschluss ist die Hauptaktion der Karte und wird als solche sichtbar --
+   als blasser Nebenknopf wurde er nicht als Abschluss erkannt. */
+.wz-fertig {
+  background: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #fff !important;
+  font-weight: 600;
+  padding: 3px 12px !important;
+}
+.wz-fertig:hover { filter: brightness(1.08); color: #fff !important; }
 /* Eingeklappt bleibt nur der Kopf; die Breite schrumpft auf den Inhalt */
 .wz.zu { width: auto; }
 .wz.zu .wz-koerper,
@@ -3367,11 +3377,14 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 .wz-schritt.jetzt .mk { background: var(--accent); border-color: var(--accent); color: #fff; }
 .wz-schritt.fertig .mk { background: #10b981; border-color: #10b981; color: #fff; }
 .wz-schritt.fertig .nm { text-decoration: line-through; opacity: 0.6; }
-/* Bewusst abgehakt: kursiv-blass statt durchgestrichen. Durchgestrichen heisst
-   "eingerichtet", blass heisst "bewusst weggelassen" -- sonst ist spaeter nicht
-   erkennbar, was der Fall war. */
-.wz-schritt.unnoetig { opacity: 0.45; }
+/* Bewusst abgehakt: ebenfalls durchgestrichen -- ein erledigter Punkt sah sonst
+   anders aus als ein abgehakter, obwohl beide "abgearbeitet" sind, und der
+   abgehakte wirkte weiter offen. Unterscheidbar bleiben sie am Zeichen: gruenes
+   Haekchen = eingerichtet, graues Kreuz = bewusst weggelassen. */
+.wz-schritt.unnoetig { opacity: 0.5; }
+.wz-schritt.unnoetig .nm { text-decoration: line-through; }
 .wz-schritt.unnoetig .tx { font-style: italic; }
+.wz-schritt.unnoetig .mk { background: var(--bg-tertiary); color: var(--text-muted); }
 
 .wz-weg {
   flex: 0 0 auto;
@@ -3409,17 +3422,4 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 }
 .config-tab.setup-todo-optional::after { background: var(--text-muted); opacity: 0.65; }
 
-/* Rueckweg im Kopf, wenn die Karte weggehakt wurde */
-.setup-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 11px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 0.82em;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-}
 

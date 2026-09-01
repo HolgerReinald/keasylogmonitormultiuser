@@ -218,11 +218,15 @@ function renderAll() {
     // die Wahrheit sagen — wer die Karte einklappt, sieht sonst nur das
     // grüne Häkchen.
     const nichtEingerichtet = Keasy.setup && Keasy.setup.pflichtOffen();
+    // Der Verweis auf die Karte nur, solange es sie gibt -- nach "Einrichtung
+    // abgeschlossen" zeigt er sonst auf etwas, das nicht mehr da ist.
+    const verweis = Keasy.setup && Keasy.setup.istSichtbar()
+      ? '<br>Die Einrichtung unten rechts führt in einem Schritt hin.'
+      : '<br>Ein Pfad lässt sich unter <b>Einstellungen → Monitor</b> hinterlegen.';
     container.innerHTML = nichtEingerichtet
       ? `<div class="empty-state" id="emptyState">
           <h2>🚧 Noch nichts eingerichtet</h2>
-          <p>Es ist kein Log-Pfad hinterlegt — daher wird nichts überwacht.<br>
-             Die Einrichtung unten rechts führt in einem Schritt hin.</p>
+          <p>Es ist kein Log-Pfad hinterlegt — daher wird nichts überwacht.${verweis}</p>
         </div>`
       : `<div class="empty-state" id="emptyState">
           <h2>✅ Keine Fehler</h2>

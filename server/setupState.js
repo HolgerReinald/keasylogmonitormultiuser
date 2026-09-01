@@ -39,6 +39,18 @@ function istStandardFilter(patterns) {
   return DEFAULT_FILTER.every((p, i) => list[i] === p);
 }
 
+// Der Schritt "Regeln" steht fuer den ganzen Tab -- Fehlererkennung,
+// Ausschluesse, Schwellwerte, Prioritaet. Er gilt als bearbeitet, sobald EINE
+// der vier Listen vom Auslieferungszustand abweicht. Nur auf filterPatterns zu
+// sehen war zu eng: wer Schwellwerte anlegt und die Filter so laesst, hat den
+// Tab sehr wohl bearbeitet, der Punkt waere aber offen geblieben.
+// Auslieferung: filterPatterns = ['Exception','Fehler'], die drei anderen leer.
+function regelnAngepasst() {
+  if (!istStandardFilter(config.filterPatterns)) return true;
+  return ['excludePatterns', 'thresholdRules', 'priorityRules']
+    .some(k => (config[k] || []).length > 0);
+}
+
 /**
  * Einmalige Unterscheidung Neuinstallation / Bestand.
  *
@@ -102,7 +114,7 @@ function getSetupState(istAdmin, username) {
     erledigt: {
       paths: (config.watchPaths || []).length > 0,
       allg: kiPfad,
-      reg: !istStandardFilter(config.filterPatterns),
+      reg: regelnAngepasst(),
       mail: !!(config.email && config.email.enabled && config.email.smtp && config.email.smtp.host),
       ana: anaPfade,
       bak: backupZiel
@@ -118,4 +130,4 @@ function getSetupState(istAdmin, username) {
 }
 
 module.exports = { getSetupState, migriereBestandsinstallation,
-                   istStandardFilter, DEFAULT_FILTER, SETUP_IDS, ABHAKBAR };
+                   istStandardFilter, regelnAngepasst, DEFAULT_FILTER, SETUP_IDS, ABHAKBAR };

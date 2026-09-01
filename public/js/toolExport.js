@@ -7,9 +7,7 @@ window.Keasy = window.Keasy || {};
 // darunter. Sonst waechst die Liste in die Hoehe und der Dialog wird unruhig.
 const CONFIG_SECTIONS = [
   { id: 'general',    label: 'Allgemeine Optionen (KI-Export-Pfade ausgenommen)', defaultOn: true  },
-  { id: 'patterns',   label: 'Filter- & Ausschluss-Muster',                       defaultOn: true  },
-  { id: 'thresholds', label: 'Schwellwert-Regeln',                                defaultOn: true  },
-  { id: 'priorities', label: 'Prioritätsregeln (Dringlichkeit)',                  defaultOn: true  },
+  { id: 'rules',      label: 'Regeln (Erkennung, Ausschlüsse, Schwellwerte, Priorität)', defaultOn: true  },
   { id: 'watchPaths', label: 'Watch-Pfade',                                       defaultOn: false },
   { id: 'email',      label: 'E-Mail / SMTP (ohne Zugangsdaten)',                 defaultOn: false },
   { id: 'backup',     label: 'Backup-Ziele & FTP (ohne Zugangsdaten)',            defaultOn: false }

@@ -212,7 +212,7 @@ module.exports = function configRoutes(deps) {
     },
 
     // Tool-Paket exportieren: schlankes, bereinigtes ZIP zur Weitergabe.
-    // sections=general,patterns,thresholds,watchPaths,email,backup steuert die
+    // sections=general,rules,watchPaths,email,backup steuert die
     // eingebackene Start-Config. Admin-only via ADMIN_ONLY_ROUTES.
     'GET /api/export-tool': (req, res) => {
       let sections = [];

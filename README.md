@@ -260,7 +260,7 @@ module.exports = {
 | `watchPaths[].gapIdleMinutes` | Gaps größer als N Minuten gelten als Leerlauf (Nacht/Programmstart) und werden ignoriert. Leer = `30` |
 | `watchPaths[].includeJson` | `true` = in diesem Pfad zusätzlich `.json`-Logs überwachen (Glob `**/*.{log,json}`) und pro JSON-Objekt strukturell auswerten (`Error`/`Success:false`), z. B. KI-Schnittstelle. Standard `false` — bewusst pro Pfad aktivieren, um Netzlaufwerke (`X:`/`Y:`) nicht unnötig nach JSON zu durchsuchen |
 | `analyzeMaxErrors` | **Lesestopp** der Log-Analyse (Standard: `100`): Ist die Grenze in einer Datei erreicht, wird sie **nicht weitergelesen** — spätere Fehler bleiben ungeprüft. Anders als bei `maxErrorsPerFile` verdrängt hier nichts, es fehlt einfach der hintere Teil der Datei. Greift die Grenze, weist das Dashboard darauf hin (⚠-Badge an der Datei, Warnzeile mit dem Zeitpunkt des Abbruchs, Sammelbanner unter dem Fortschritt) |
-| `setupCompleted` | `true` = der Einrichtungsassistent ist erledigt und erscheint nicht mehr. Gesetzt per „Nicht mehr anzeigen" oder beim ersten Start einer **bestehenden** Installation (Feld fehlt + Watchpaths vorhanden). Ein gesetztes Feld — auch `false` — wird beim Start nicht mehr angefasst |
+| `setupCompleted` | `true` = der Einrichtungsassistent ist erledigt und erscheint nicht mehr. Gesetzt per „✓ Einrichtung abgeschlossen" oder beim ersten Start einer **bestehenden** Installation (Feld fehlt + Watchpaths vorhanden). Ein gesetztes Feld — auch `false` — wird beim Start nicht mehr angefasst |
 | `setupDismissed` | Array der **einzeln** als „brauche ich nicht" abgehakten Schritte (`paths`, `allg`, `reg`, `mail`, `ana`, `bak`). Gilt für die **Installation**, nicht für den Browser. Bewusst getrennt von `setupCompleted` |
 | `analyzeGapWarnSeconds` | ⏱️ Gap-Warnung für die Log-Analyse (Sek., `0` = aus). Nie konfiguriert = Richtwert `20` |
 | `analyzeGapIdleMinutes` | Leerlauf-Grenze für die Log-Analyse (Min., leer = `30`) |
@@ -414,7 +414,6 @@ Das Suchfeld im Header unterstützt **Wildcard-Suche** mit `*`:
 | ⏸️ Pause | Stoppt die Live-Aktualisierung global |
 | ⊟ Alle zu / ⊞ Alle auf | Klappt alle Quellen zu bzw. auf. Ist irgendeine offen, klappt der Knopf alle zu — die Beschriftung sagt, was der Klick tut |
 | 🧭 Index | Blendet den Fehler-Index (Seitenleiste) ein oder aus |
-| ⚑ Einrichtung | Nur sichtbar, wenn Einrichtungshinweise weggehakt wurden — holt sie zurück |
 | ⬇️ Neueste | Scrollt zum neuesten Fehler |
 | 🔍 Suche | Volltextsuche mit Wildcard-Unterstützung (`*`) — klappt Quellen mit Treffern automatisch auf |
 | ☀️/🌙/🔵 Theme | Wechsel zwischen Hell, Dunkel und Blau (wird gespeichert) |
@@ -504,6 +503,31 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 
 > **Papierkorb:** Der Papierkorb (WatchPath) gilt nur für Live-Monitoring-Einträge. Analyse-Ergebnisse haben keinen Papierkorb — sie können jederzeit durch erneute Analyse wiederhergestellt werden.
 
+### 📤 Weitergabe: was ins Paket wandert
+
+Der Tab **📤 Weitergabe** erzeugt ein ZIP mit dem Programmcode und einer
+bereinigten Start-Konfiguration. Fünf Sektionen sind wählbar:
+
+| Sektion | Enthält | Standard |
+|---|---|---|
+| **Allgemeine Optionen** | Port, Dateigrenzen, Papierkorb, **Datei-Pattern** — ohne die KI-Export-Pfade (die gelten pro Benutzer) | an |
+| **Regeln** | Fehlererkennung, Ausschlüsse, Schwellwerte, Priorität — alle vier Karten des Regeln-Tabs | an |
+| **Watch-Pfade** | die überwachten Verzeichnisse | aus |
+| **E-Mail / SMTP** | Server und Einstellungen, **ohne** Benutzername und Passwort | aus |
+| **Backup-Ziele & FTP** | Ziele, **ohne** FTP-Benutzer und -Passwort | aus |
+
+**Die Aufteilung folgt den Tabs, nicht der Datenstruktur.** Das `filePattern`
+(`**/*.log`) gehört zu den Allgemeinen Optionen, weil es dort in der Oberfläche
+steht — früher lag es bei den Mustern, und wer die abwählte, verlor es unbemerkt.
+Die vier Regel-Karten bilden **eine** Sektion: sie beantworten gemeinsam „was ist
+ein Fehler und wie wichtig ist er", einzeln weiterzugeben ergibt selten Sinn, und
+der Einrichtungsassistent führt sie ebenfalls als einen Punkt.
+
+**Nie im Paket:** Zugangsdaten, Benutzerkonten (`users/`), Logs, `node_modules`,
+die Analyse-Pfade und die KI-Export-Pfade. Ein Paket trägt außerdem
+`setupCompleted: false` — es ist immer eine Neuinstallation und soll den
+Einrichtungsassistenten zeigen.
+
 ### 🚧 Erste Schritte (Einrichtungsassistent)
 
 Ein frisch verteiltes Paket hat noch keine überwachten Pfade. In diesem Zustand
@@ -519,19 +543,30 @@ gemerkt.
 | Klick auf eine Zeile | öffnet die passende Stelle (Tab in den Einstellungen bzw. das Analyse-Panel) |
 | **✕** an einer Zeile | „brauche ich nicht" — der Punkt zählt nicht mehr als offen |
 | **↺** | nimmt einen abgehakten Punkt wieder auf |
-| **Nicht mehr anzeigen** | beendet den Assistenten dauerhaft (`setupCompleted`) — kein Rückweg in der Hauptansicht |
-| **⚑ Einrichtung** im Kopf | erscheint nur, wenn einzelne Punkte per ✕ ausgeblendet **und** nicht eingerichtet sind; holt sie zurück |
+| **✓ Einrichtung abgeschlossen** | beendet den Assistenten dauerhaft (`setupCompleted`). **Der einzige Weg, die Karte loszuwerden** — danach kein Rückweg in der Hauptansicht |
 
 **Ein Pflichtschritt, fünf Angebote.** Nur ohne überwachten Pfad läuft der
 Monitor leer; alles andere — Allgemein, Regeln, E-Mail, Log-Analyse, Backup —
-ist Angebot. Sind alle Punkte erledigt oder abgehakt, verschwindet die Karte von
-selbst. **Das Rechtesystem hat keinen eigenen Schritt:** es wird unter
+ist Angebot. **Das Rechtesystem hat keinen eigenen Schritt:** es wird unter
 *Allgemein → Server* per Checkbox aktiviert, und der Hinweis auf `admin`/`admin`
 steht im Text dieses Schritts.
 
-**Erledigt und abgehakt sehen unterschiedlich aus:** durchgestrichen mit grünem
-Häkchen heißt „eingerichtet", kursiv-blass heißt „bewusst weggelassen". Wird ein
-abgehakter Punkt später doch eingerichtet, gewinnt „erledigt".
+**Die Karte bleibt stehen, bis du abschließt** — nicht nur solange Punkte offen
+sind. Sonst wird sie einem unter der Hand weggerissen, sobald man den letzten
+Punkt abhakt. Vorübergehend wegräumen geht über das Einklappen (Kopf anklicken);
+zugeklappt zeigt der Ring weiter den Stand. Steht nichts mehr aus, meldet die
+Kopfzeile „alles entschieden · unten abschließen".
+
+**Wann gilt „Regeln" als erledigt?** Sobald **eine** der vier Listen des Tabs vom
+Auslieferungszustand abweicht — Fehlererkennung (`Exception`, `Fehler`),
+Ausschlüsse, Schwellwerte oder Priorität. Nicht alle vier: wer Schwellwerte
+anlegt und die Filter so lässt, hat den Tab sehr wohl bearbeitet.
+
+**Erledigt und abgehakt sind beide durchgestrichen** — beides ist abgearbeitet.
+Unterscheidbar bleiben sie am Zeichen: grünes **✓** = eingerichtet, graues
+**✕** = bewusst weggelassen (zusätzlich kursiv und blasser, mit **↺** zum
+Zurücknehmen). Wird ein abgehakter Punkt später doch eingerichtet, gewinnt
+„erledigt".
 
 **Die Tabs tragen einen Punkt**, solange ihr Schritt offen ist — in der
 Akzentfarbe beim Pflichtschritt, gedimmt bei den optionalen.
@@ -544,7 +579,7 @@ Update gilt: gibt es schon überwachte Pfade, war hier jemand am Werk — dann w
 `setupCompleted: true` gesetzt.
 
 **Zwei getrennte Dinge.** `setupCompleted` beendet den Assistenten als Ganzes
-(Migration oder „Nicht mehr anzeigen"); `setupDismissed` sammelt die einzeln
+(Bestandserkennung oder „✓ Einrichtung abgeschlossen"); `setupDismissed` sammelt die einzeln
 weggeklickten Punkte. Teilten sie sich ein Feld, nähme ein Zurückholen der
 Einzelpunkte die Grundentscheidung mit zurück — genau so kam die Karte nach
 einem Klick auf die Pille dauerhaft wieder.
@@ -638,6 +673,20 @@ Ein frisch verteiltes Paket hat keine `config.js`; `bootstrapConfig()` erzeugt s
 **Die Pause fror zu viel ein.** Das Nachziehen von Karte und Pille hängte an `if (!state.paused)` — bei aktiver Pause blieb die Pille klickbar stehen, obwohl der Server sie längst abgeschaltet hatte. Die Pause friert die **Fehlerliste** ein, nicht den Einrichtungsstand.
 
 **Der Weitergabe-Dialog nennt seine Ausnahmen.** Bisher stand nirgends, dass die KI-Export-Pfade trotz angehakter Sektion *Allgemeine Optionen* nicht mitgehen. Die Labels sagen es jetzt — einzeilig neben der Checkbox, ohne Zusatzzeile darunter. Dabei fiel auf, dass „E-Mail / SMTP (ohne Passwort)" und „Backup-Ziele & FTP (ohne Passwort)" zu wenig versprachen: der Export entfernt bei beiden auch den **Benutzernamen**. Der Test hält Zusage und Verhalten gegeneinander — eine Zusage, die der Export nicht einhält, wäre schlimmer als gar kein Hinweis.
+
+**Der Abschluss-Knopf hieß falsch — und das kostete mehrere Runden.** Er stand als blasser Nebenknopf da und hieß „Nicht mehr anzeigen": das klingt nach Unterdrücken, nicht nach Abschluss. Der Betreiber ging die Punkte durch, entschied je Punkt und suchte dann etwas, das „fertig" bedeutet — fand es nicht und meldete den Assistenten mehrfach als kaputt. Technisch war nach dem Klick alles korrekt; die Beschriftung hat nur nie dorthin geführt. Jetzt: **✓ Einrichtung abgeschlossen**, grün und als Hauptaktion erkennbar, die Funktion heißt `setupFertig()`.
+
+**Die Karte verschwand von selbst — mitten in der Arbeit.** Sie hängte an „solange Punkte offen sind"; wer den letzten offenen Punkt abhakte, dem wurde sie unter der Hand weggerissen. Sie bleibt jetzt, bis abgeschlossen wird. Vorübergehend wegräumen geht über das Einklappen. **Damit entfällt die Pille ersatzlos** — sie war nur nötig, weil die Karte von selbst ging, und ihr Klick nahm alle Abhakungen zurück: ein abgehakter Punkt tauchte wieder auf, der halbe Fortschritt war weg.
+
+**Vier Stellen, drei Antworten.** Die Frage „ist der Assistent noch aktiv?" wurde in Karte, Pille, Tab-Punkten und Leerzustand unterschiedlich beantwortet — `markiereTabs()` prüfte nur `zeigen`, nicht `fertig`, weshalb die grauen Punkte an Allgemein, E-Mail und Backup nach dem Abschluss stehen blieben. Statt die vergessene Stelle einzeln zu flicken, gibt es jetzt `assistentAktiv()`; ein Test verhindert, dass in `markiereTabs()` wieder eine eigene Prüfung entsteht. Ausgenommen bleibt der Leerzustand: ohne Watchpath wird tatsächlich nichts überwacht, und das bleibt wahr — nur der Verweis auf die Karte entfällt, wenn es sie nicht mehr gibt.
+
+**Abgehaktes sah aus wie offen.** Blass-kursiv statt durchgestrichen — dabei ist ein bewusst weggelassener Punkt genauso abgearbeitet wie ein eingerichteter. Beide werden jetzt durchgestrichen; unterschieden wird am Zeichen (grünes ✓ gegen graues ✕).
+
+**„Regeln" hängte nur an den Filtern.** Der Schritt steht für einen Tab mit vier Karten, geprüft wurde aber allein `filterPatterns`. Wer Schwellwerte anlegte und die Filter so ließ, sah den Punkt weiter offen. Jetzt genügt **eine** der vier Listen.
+
+**Der Export teilte dasselbe Thema anders auf als der Rest.** Vier Karten im Regeln-Tab, drei Haken im Weitergabe-Dialog — einer davon fasste zwei Karten zusammen, ohne erkennbaren Grund, während der Einrichtungsassistent einen einzigen Punkt „Regeln" führt. Aus `patterns`, `thresholds` und `priorities` wurde die Sektion **`rules`**; aus sieben Haken werden fünf. **Dabei fiel ein stiller Datenverlust auf:** `filePattern` (`**/*.log`) lag in „Filter- & Ausschluss-Muster", steht in der Oberfläche aber unter *Allgemein → Dateien & Fehler*. Wer die Muster abwählte, setzte dem Empfänger unbemerkt das Datei-Muster zurück. Es gehört jetzt zu `general`.
+
+**Was diese Runde gekostet hat, war die Diagnose.** Der Assistent wurde dreimal als „gleiches Verhalten" gemeldet, und dreimal habe ich erklärt, warum er so nicht funktionieren *kann*, statt am laufenden System nachzusehen. Als ich es tat, war die Sache in zwei Abfragen klar: Port 3848 lieferte eine Config mit einem einzigen Watchpath, leerer E-Mail und leerem Backup — das getestete Paket, nicht die Hauptinstallation. Und der eigentliche Fehler stand die ganze Zeit im Wort auf dem Knopf.
 
 **Vorgehen:** Mockup mit vier Zuständen (frisch, teilweise, abgehakt, fertig), dann Code; für den Umbau auf die Schwebekarte ein zweites Mockup mit eingebauter **Messlatte**, die den Layout-Sprung in Pixeln anzeigt — inline mehrere hundert, schwebend 0.
 

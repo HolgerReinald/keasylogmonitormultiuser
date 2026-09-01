@@ -40,12 +40,19 @@ const BASE_DEFAULTS = {
 
 // Sektion → Config-Keys, die bei angehakter Sektion aus der Laufzeit-Config übernommen werden.
 // analyzePaths / copilotWorkingPath* sind bewusst in KEINER Sektion → werden nie exportiert.
+//
+// Die Aufteilung folgt den Tabs, nicht der Datenstruktur:
+// - `filePattern` steht in der Oberfläche unter *Allgemein → Dateien & Fehler*
+//   und gehört deshalb zu `general`. Es lag früher bei den Mustern; wer die
+//   abwählte, verlor unbemerkt sein `**/*.log`.
+// - `rules` deckt alle vier Karten des Regeln-Tabs ab. Sie beantworten gemeinsam
+//   „was ist ein Fehler und wie wichtig" — einzeln weiterzugeben ergibt selten
+//   Sinn (Prioritätsregeln ohne die zugehörigen Filter greifen ins Leere), und
+//   der Einrichtungsassistent führt sie ebenfalls als EINEN Punkt.
 const SECTION_KEYS = {
   general: ['port', 'autoOpen', 'debugLogging', 'authEnabled', 'maxErrorsPerFile',
-            'loadExistingErrors', 'maxLogFileSizeMB', 'trashAutoCleanupHours'],
-  patterns: ['filterPatterns', 'excludePatterns', 'filePattern'],
-  thresholds: ['thresholdRules'],
-  priorities: ['priorityRules'],
+            'loadExistingErrors', 'maxLogFileSizeMB', 'trashAutoCleanupHours', 'filePattern'],
+  rules: ['filterPatterns', 'excludePatterns', 'thresholdRules', 'priorityRules'],
   watchPaths: ['watchPaths'],
   email: ['email'],
   backup: ['backup']

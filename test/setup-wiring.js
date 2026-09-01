@@ -83,6 +83,26 @@ console.log('\n3) Standard-Filter erkennen (Auslieferungszustand)');
   check('deckt sich mit BASE_DEFAULTS in toolExport.js',
     /filterPatterns: \['Exception', 'Fehler'\]/.test(exp),
     'Weicht der Auslieferungswert ab, ist DEFAULT_FILTER in setupState.js nachzuziehen');
+
+  // Der Schritt "Regeln" steht fuer den ganzen Tab, nicht nur fuer die Filter:
+  // wer Schwellwerte anlegt und die Filter so laesst, hat ihn bearbeitet.
+  const cs = require(path.join(root, 'server', 'configStore'));
+  const sichern = JSON.parse(JSON.stringify(cs.config));
+  const basis = { filterPatterns: ['Exception', 'Fehler'], excludePatterns: [], thresholdRules: [], priorityRules: [] };
+  try {
+    cs.replaceConfig({ ...sichern, ...basis });
+    check('Auslieferung gilt als nicht angepasst', setupState.regelnAngepasst() === false);
+    for (const [feld, wert] of [['filterPatterns', ['Exception', 'Fehler', 'Timeout']],
+                                ['excludePatterns', ['WARNUNG']],
+                                ['thresholdRules', [{ name: 'x' }]],
+                                ['priorityRules', [{ name: 'y' }]]]) {
+      cs.replaceConfig({ ...sichern, ...basis, [feld]: wert });
+      check(`"${feld}" allein reicht`, setupState.regelnAngepasst() === true,
+        'Nur auf filterPatterns zu sehen war zu eng');
+    }
+  } finally {
+    cs.replaceConfig(sichern);
+  }
 }
 
 console.log('\n4) Server-Verdrahtung');
@@ -164,22 +184,13 @@ console.log('\n5) Client-Verdrahtung');
       'Fehlerliste ein, nicht den Einrichtungsstand');
   }
 
-  for (const fn of ['setupGoto', 'setupDismiss', 'setupDismissAll', 'setupReset', 'setupToggle']) {
+  for (const fn of ['setupGoto', 'setupDismiss', 'setupFertig', 'setupToggle']) {
     check(`${fn} ist global`, new RegExp('Object\\.assign\\(window,[^)]*' + fn).test(panel),
       'setupPanel.js liegt in einer IIFE -- ohne Export laeuft das onclick ins Leere');
   }
   check('Klick auf "brauche ich nicht" springt nicht mit',
     /function setupDismiss\(id, aus, event\) \{\s*\n\s*if \(event\) event\.stopPropagation\(\)/.test(panel),
     'Die Zeile selbst oeffnet den Tab -- ohne stopPropagation passiert beides');
-  // Die Pille darf nur erscheinen, wenn wirklich etwas versteckt IST. Nach der
-  // Bestands-Migration steht in setupDismissed alles drin, obwohl alles
-  // eingerichtet ist -- auf die rohe Liste zu pruefen liesse sie dauerhaft
-  // im Kopf haengen, ohne dass es etwas zurueckzuholen gaebe.
-  check('Pille prueft istAbgehakt, nicht die rohe Liste',
-    /return SCHRITTE\.some\(istAbgehakt\);/.test(panel),
-    'Sonst haengt "Einrichtung" dauerhaft im Kopf einer fertig eingerichteten Installation');
-  check('kein Test auf abgehakt.length', !/st\.abgehakt\.length > 0/.test(panel));
-
   check('erledigt gewinnt ueber abgehakt',
     /return !istErledigt\(s\) && Array\.isArray\(st\.abgehakt\)/.test(panel),
     'Wer E-Mail spaeter doch einrichtet, soll das sehen');
@@ -189,7 +200,7 @@ console.log('\n5) Client-Verdrahtung');
     'Beim Aufruf aus der Karte waere event.target die Karte, nicht der Tab');
   check('Tab wird ueber den Namen gefunden', /\.find\(t => \(t\.getAttribute\('onclick'\) \|\| ''\)\.includes\("'" \+ tab \+ "'"\)\)/.test(cfgPanel));
 
-  for (const klasse of ['.wz', '.wz-kopf', '.wz-koerper', '.wz-ring', '.wz-schritt', '.wz-weg', '.setup-pill']) {
+  for (const klasse of ['.wz', '.wz-kopf', '.wz-koerper', '.wz-ring', '.wz-schritt', '.wz-weg']) {
     check(`${klasse} definiert`, new RegExp('\\' + klasse + '[\\s,{:]').test(css));
   }
   check('eingeklappt bleibt nur der Kopf', /\.wz\.zu \.wz-koerper/.test(css));
@@ -310,12 +321,47 @@ console.log('\n6e) "Fertig" ist von den Einzelpunkten getrennt');
   const st = read('server/setupState.js');
 
   check('Status liefert ein eigenes fertig-Flag', /fertig: config\.setupCompleted === true/.test(st));
-  check('Karte bleibt weg, wenn fertig', /if \(!st\.zeigen \|\| st\.fertig\) return false;/.test(panel),
-    'Sonst kommt der Assistent nach "Nicht mehr anzeigen" wieder');
-  check('Pille bleibt weg, wenn fertig', /if \(!st\.zeigen \|\| st\.fertig \|\| istSichtbar\(\)\) return false;/.test(panel),
-    'Nach "fertig" gibt es keinen Ruecksprung in der Hauptansicht');
-  check('"Nicht mehr anzeigen" schickt fertig:true', /JSON\.stringify\(\{ fertig: true \}\)/.test(panel),
+  check('Karte bleibt weg, wenn fertig', /function istSichtbar\(\)[\s\S]{0,120}assistentAktiv\(\)/.test(panel),
+    'Sonst kommt der Assistent nach dem Abschluss wieder');
+  // Die Karte bleibt stehen, bis abgeschlossen wird -- nicht nur solange Punkte
+  // offen sind. Sonst wird sie einem unter der Hand weggerissen, sobald man den
+  // letzten offenen Punkt abhakt (2026-09-01 genau so gemeldet).
+  check('Karte haengt nicht an offenen Punkten',
+    /function istSichtbar\(\)[\s\S]{0,80}return assistentAktiv\(\);/.test(panel) &&
+    !/istSichtbar[\s\S]{0,120}offeneSchritte\(\)\.length > 0/.test(panel),
+    'Mit "&& offeneSchritte().length > 0" verschwindet sie beim Abhaken des letzten Punkts');
+  check('kein Ruecksprung mehr, der Abhakungen zuruecknimmt',
+    !/function setupReset/.test(panel) && !/istRueckwegNoetig/.test(panel),
+    'Die Pille holte beim Klick ALLE abgehakten Punkte zurueck');
+
+  // Die Frage "ist der Assistent aktiv?" wurde an vier Stellen unterschiedlich
+  // beantwortet -- die Tab-Punkte blieben nach dem Abschluss stehen, weil dort
+  // nur `zeigen` geprueft wurde. Jetzt gibt es EINE Funktion dafuer.
+  check('assistentAktiv() als gemeinsame Wahrheit',
+    /function assistentAktiv\(\)[\s\S]{0,120}!!st\.zeigen && !st\.fertig/.test(panel));
+  check('Tab-Punkte verschwinden nach dem Abschluss',
+    /const aktiv = assistentAktiv\(\);[\s\S]{0,200}if \(!aktiv\) continue;/.test(panel),
+    'Sonst bleiben die grauen Punkte an Allgemein, E-Mail und Backup stehen');
+  check('keine eigene zeigen-Pruefung in markiereTabs',
+    !/function markiereTabs\(\)[\s\S]{0,300}state\.setupState && state\.setupState\.zeigen/.test(panel),
+    'Eine zweite Wahrheit laeuft beim naechsten Umbau wieder auseinander');
+  check('Leerzustand verweist nur auf eine sichtbare Karte',
+    /Keasy\.setup\.istSichtbar\(\)[\s\S]{0,160}Einstellungen → Monitor|Keasy\.setup\.istSichtbar\(\)/.test(read('public/js/render.js')),
+    'Sonst zeigt der Text auf eine Karte, die es nicht mehr gibt');
+  check('Abschluss-Knopf schickt fertig:true', /JSON\.stringify\(\{ fertig: true \}\)/.test(panel),
     'Alle Punkte abzuhaken waere das alte Verhalten -- ein Zurueckholen nahm die Entscheidung mit');
+  // Der Knopf hiess "Nicht mehr anzeigen". Das klang nach Unterdruecken und
+  // wurde nicht als Abschluss erkannt: man geht die Punkte durch, entscheidet
+  // je Punkt und sagt am Ende einmal "fertig".
+  check('Knopf heisst "Einrichtung abgeschlossen"', /Einrichtung abgeschlossen/.test(panel),
+    'Die alte Beschriftung wurde nicht als Abschluss verstanden');
+  check('kein "Nicht mehr anzeigen" mehr', !/Nicht mehr anzeigen<\/button>/.test(panel));
+  // Abgehaktes sah blass-kursiv aus und wirkte dadurch weiter offen.
+  check('abgehakte Punkte werden durchgestrichen',
+    /\.wz-schritt\.unnoetig \.nm \{ text-decoration: line-through; \}/.test(read('public/style.css')),
+    'Erledigt und abgehakt sind beide abgearbeitet -- unterscheidbar bleiben sie am Zeichen');
+  check('Abschluss ist als Hauptaktion gestaltet', /\.wz-fertig \{/.test(read('public/style.css')),
+    'Als blasser Nebenknopf wurde er uebersehen');
   check('Route kennt das fertig-Flag', /body\.fertig !== undefined/.test(routes));
   check('Route schreibt setupCompleted', /setupCompleted: !!body\.fertig/.test(routes));
 }
@@ -344,7 +390,7 @@ console.log('\n6d) Das Weitergabe-Paket traegt keine internen Pfade');
     '(z. B. C:' + BS + 'Repos' + BS + 'Projekt_Develop)');
 
   // Die Start-Config darf die Pro-Benutzer-Felder ohnehin nie enthalten
-  const cfg = toolExport.buildExportConfig(['general', 'patterns', 'watchPaths', 'email', 'backup']);
+  const cfg = toolExport.buildExportConfig(['general', 'rules', 'watchPaths', 'email', 'backup']);
   for (const feld of ['copilotWorkingPathDevelop', 'copilotWorkingPathRelease', 'analyzePaths', 'setupDismissed']) {
     check(`"${feld}" nicht in der Auslieferungs-Config`, cfg[feld] === undefined);
   }
@@ -359,6 +405,18 @@ console.log('\n6d) Das Weitergabe-Paket traegt keine internen Pfade');
     'Gerade dieser Fall loest die Bestandserkennung sonst faelschlich aus');
   check('users/ ist vom Paket ausgeschlossen', !dateien.some(f => f.rel.startsWith('users/')),
     'Dort liegen die Pro-Benutzer-Pfade');
+
+  // filePattern steht in der Oberflaeche unter *Allgemein -> Dateien & Fehler*
+  // und gehoert deshalb in die Sektion "general". Frueher lag es bei den
+  // Mustern: wer die abwaehlte, verlor unbemerkt sein **/*.log.
+  const nurAllgemein = toolExport.buildExportConfig(['general']);
+  const nurRegeln = toolExport.buildExportConfig(['rules']);
+  check('filePattern haengt an "Allgemeine Optionen"',
+    nurAllgemein.filePattern === require(path.join(root, 'server', 'configStore')).config.filePattern,
+    'Sonst verliert man es beim Abwaehlen der Regeln');
+  check('"rules" deckt alle vier Karten des Tabs ab',
+    ['filterPatterns', 'excludePatterns', 'thresholdRules', 'priorityRules']
+      .every(k => nurRegeln[k] !== undefined));
 
   // Der Weitergabe-Dialog nennt je Sektion, was trotz Haken NICHT mitgeht.
   // Diese Zusagen muessen zum Verhalten von buildExportConfig passen -- sonst

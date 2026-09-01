@@ -94,9 +94,17 @@ check('Gap-Eintraege bekommen KEIN level (analysisService)',
   !/gapSeconds,[\s\S]{0,120}level:/.test(read('server/analysisService.js')));
 
 console.log('\n7) Tool-Export: Sektion beidseitig registriert');
-check('Server kennt Sektion "priorities"', /priorities: \['priorityRules'\]/.test(toolExportSrv));
+// Prioritaetsregeln haben keine eigene Sektion mehr: der Regeln-Tab hat vier
+// Karten, der Export hatte drei Haken -- einer davon fasste zwei zusammen, ohne
+// erkennbaren Grund. Seit 2026-09-01 deckt "rules" alle vier ab, passend zum
+// Einrichtungsassistenten, der sie ebenfalls als EINEN Punkt fuehrt.
+check('Server fuehrt priorityRules in der Sektion "rules"',
+  /rules: \[[^\]]*'priorityRules'[^\]]*\]/.test(toolExportSrv));
 check('Server-Default priorityRules: []', /priorityRules: \[\]/.test(toolExportSrv));
-check('Client kennt Sektion "priorities"', /id: 'priorities'/.test(toolExportCli));
+check('Client kennt Sektion "rules"', /id: 'rules'/.test(toolExportCli));
+check('keine Einzelsektion "priorities" mehr',
+  !/id: 'priorities'/.test(toolExportCli) && !/priorities: \[/.test(toolExportSrv),
+  'Zwei Aufteilungen desselben Themas sind schwerer zu erklaeren als eine');
 
 console.log('\n8) E-Mail: Sofortversand und Stufen-Dedupe');
 check('sendBufferedEmails nimmt onlyLabel', /async function sendBufferedEmails\(onlyLabel, isCriticalTrigger\)/.test(emailSrv));

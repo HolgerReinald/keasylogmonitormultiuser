@@ -32,7 +32,7 @@ const SCHRITTE = [
   { id: 'allg', tab: 'general', name: '⚙️ Allgemein',
     text: 'Port, Dateigrenzen, die <b>KI-Export-Pfade</b> (Develop / Release, gelten pro Benutzer) und das <b>Rechtesystem</b>. Wird es aktiviert, gilt zunächst <code>admin</code> / <code>admin</code> — dann das Passwort ändern.' },
   { id: 'reg', tab: 'monitorsettings', name: '📋 Regeln',
-    text: 'Fehlererkennung, Ausschlüsse, Schwellwerte, Priorität. <b>Eine Standardkonfiguration ist vorhanden</b> (<code>Exception</code> und <code>Fehler</code>) — Anpassen lohnt sich für eigene Log-Formate, nötig ist es nicht.' },
+    text: 'Fehlererkennung, Ausschlüsse, Schwellwerte, Priorität. <b>Eine Standardkonfiguration ist vorhanden</b> (<code>Exception</code> und <code>Fehler</code>) — Anpassen lohnt sich für eigene Log-Formate, nötig ist es nicht. Gilt als erledigt, sobald <i>eine</i> der vier Listen angepasst ist.' },
   { id: 'mail', tab: 'email', name: '✉️ E-Mail',
     text: 'Nur nötig, wenn Fehler auch ohne offenes Dashboard gemeldet werden sollen.' },
   { id: 'ana', tab: null, name: '📂 Log-Analyse',
@@ -55,10 +55,24 @@ function istOffen(s) { return !istErledigt(s) && !istAbgehakt(s); }
 
 function offeneSchritte() { return SCHRITTE.filter(istOffen); }
 
+// Ist der Assistent ueberhaupt noch aktiv? EINE Stelle fuer diese Frage -- sie
+// wird an vier Orten gebraucht (Karte, Pille, Tab-Punkte, Leerzustand), und
+// genau dort ist sie auseinandergelaufen: nach "Einrichtung abgeschlossen"
+// blieben die grauen Punkte an den Tabs stehen, weil dort nur `zeigen` geprueft
+// wurde und nicht `fertig`.
+function assistentAktiv() {
+  const st = state.setupState || {};
+  return !!st.zeigen && !st.fertig;
+}
+
 // Ist der Pflichtschritt offen, ist die Installation nicht betriebsbereit --
 // der Leerzustand darf dann kein "Keine Fehler" behaupten.
 function pflichtOffen() {
   const st = state.setupState || {};
+  // Bewusst OHNE assistentAktiv(): ohne Watchpath wird tatsaechlich nichts
+  // ueberwacht, und das bleibt wahr, auch wenn jemand die Einrichtung als
+  // abgeschlossen markiert hat. Der Leerzustand sagt weiter die Wahrheit --
+  // nur der Verweis auf die Karte entfaellt, wenn es sie nicht mehr gibt.
   if (!st.zeigen) return false;
   const p = SCHRITTE.find(x => x.pflicht);
   return !!p && istOffen(p);
@@ -66,24 +80,18 @@ function pflichtOffen() {
 
 // Sichtbar, solange irgendein Schritt offen ist. Nicht-Admins sehen nichts:
 // alle Ziele sind data-admin-only, die Karte würde zu Gesperrtem auffordern.
+// Die Karte bleibt sichtbar, bis "Einrichtung abgeschlossen" geklickt wird --
+// NICHT nur solange Punkte offen sind. Sonst verschwindet sie mitten in der
+// Arbeit: wer den letzten offenen Punkt abhakt, dem wird sie unter der Hand
+// weggerissen. Temporaer wegraeumen geht ueber das Einklappen (Kopf anklicken).
 function istSichtbar() {
-  const st = state.setupState || {};
-  // "fertig" beendet den Assistenten endgueltig -- gesetzt von der
-  // Bestands-Migration oder per "Nicht mehr anzeigen".
-  if (!st.zeigen || st.fertig) return false;
-  return offeneSchritte().length > 0;
+  return assistentAktiv();
 }
 
-// Dezenter Rückweg, wenn die Karte nur durch Abhaken verschwunden ist
-function istRueckwegNoetig() {
-  const st = state.setupState || {};
-  if (!st.zeigen || st.fertig || istSichtbar()) return false;
-  // Auf istAbgehakt() pruefen, NICHT auf die rohe Liste: "erledigt" gewinnt
-  // ueber "abgehakt", sonst haengt die Pille im Kopf, obwohl es nichts
-  // zurueckzuholen gibt. Nach "fertig" erscheint sie gar nicht -- diese
-  // Entscheidung wird nicht per Klick in der Hauptansicht rueckgaengig gemacht.
-  return SCHRITTE.some(istAbgehakt);
-}
+// Kein Rueckweg noetig: die Karte verschwindet nur noch durch "Einrichtung
+// abgeschlossen", und diese Entscheidung soll halten. Fuer "spaeter weiter"
+// gibt es das Einklappen. Die fruehere Pille im Kopf holte beim Klick alle
+// Abhakungen zurueck und setzte damit den halben Fortschritt zurueck.
 
 // Auf- oder zugeklappt. Startet GEOEFFNET -- beim ersten Start soll die Karte
 // nicht uebersehen werden. Der Zustand ist Ansichtssache des Einzelnen und
@@ -116,7 +124,7 @@ function buildSetupCardHtml() {
     const fertig = istErledigt(s), ab = istAbgehakt(s);
     const jetzt = naechster && naechster.id === s.id;
     const cls = (fertig ? ' fertig' : ab ? ' unnoetig' : '') + (jetzt ? ' jetzt' : '');
-    const marke = fertig ? '✓' : ab ? '–' : (i + 1);
+    const marke = fertig ? '✓' : ab ? '✕' : (i + 1);
     // Erledigtes braucht keine Aktion — da steht etwas, das bleibt.
     const weg = fertig ? ''
       : ab
@@ -139,14 +147,17 @@ function buildSetupCardHtml() {
         <span class="wz-ring" style="--p:${fs.prozent}"><span>${fs.fertig}/${fs.gesamt}</span></span>
         <span class="t">
           <b>Einrichtung</b>
-          <span>${offeneSchritte().length} offen${zu ? '' : ' · Klick klappt ein'}</span>
+          <span>${offeneSchritte().length === 0
+            ? 'alles entschieden · unten abschließen'
+            : offeneSchritte().length + ' offen' + (zu ? '' : ' · Klick klappt ein')}</span>
         </span>
         <span class="wz-pfeil">${zu ? '▴' : '▾'}</span>
       </div>
       <div class="wz-koerper">${zeilen}</div>
       <div class="wz-fuss">
         <span style="color:var(--text-secondary)">Nicht Benötigtes mit ✕ abhaken</span>
-        <button onclick="setupDismissAll(event)">Nicht mehr anzeigen</button>
+        <button class="wz-fertig" onclick="setupFertig(event)"
+                title="Beendet die Einrichtung — die Karte erscheint nicht wieder">✓ Einrichtung abgeschlossen</button>
       </div>
     </div>`;
 }
@@ -164,14 +175,11 @@ function setupToggle() {
   renderSetupCard();
 }
 
-// Kleiner Rückweg im Kopf, wenn die Karte weggehakt wurde
+// Karte und Tab-Punkte neu zeichnen. Der frueher hier gepflegte Ruecksprung im
+// Kopf ist entfallen -- siehe oben.
 function renderSetupPill() {
   const el = document.getElementById('setupPill');
-  if (el) {
-    el.innerHTML = istRueckwegNoetig()
-      ? `<button class="setup-pill" onclick="setupReset(event)" title="Ausgeblendete Einrichtungshinweise wieder zeigen">⚑ Einrichtung</button>`
-      : '';
-  }
+  if (el) el.innerHTML = '';
   renderSetupCard();
   markiereTabs();
 }
@@ -183,10 +191,10 @@ function renderSetupPill() {
 function markiereTabs() {
   const tabs = document.querySelectorAll('#configPanel .config-tab');
   if (!tabs.length) return;
-  const zeigen = !!(state.setupState && state.setupState.zeigen);
+  const aktiv = assistentAktiv();
   for (const t of tabs) {
     t.classList.remove('setup-todo', 'setup-todo-optional');
-    if (!zeigen) continue;
+    if (!aktiv) continue;
     const onclick = t.getAttribute('onclick') || '';
     const s = SCHRITTE.find(x => x.tab && onclick.includes("'" + x.tab + "'") && istOffen(x));
     if (!s) continue;
@@ -234,11 +242,13 @@ function setupDismiss(id, aus, event) {
   sendeDismiss(id, aus);
 }
 
-// "Nicht mehr anzeigen": beendet den Assistenten als Ganzes — für den, der das
-// Werkzeug bewusst nur für die Log-Analyse nutzt und nie einen Watchpath anlegt.
+// "Einrichtung abgeschlossen": beendet den Assistenten als Ganzes. Hieß früher
+// "Nicht mehr anzeigen" — das klang nach Unterdrücken und wurde deshalb nicht
+// als der Abschluss erkannt, der es ist: man geht die Punkte durch, entscheidet
+// je Punkt, und sagt am Ende einmal "fertig".
 // Setzt setupCompleted statt jeden Punkt abzuhaken; sonst nimmt ein Zurückholen
 // der Einzelpunkte diese Entscheidung mit zurück.
-async function setupDismissAll(event) {
+async function setupFertig(event) {
   if (event) event.stopPropagation();
   try {
     const resp = await fetch('/api/setup-dismiss', {
@@ -253,15 +263,9 @@ async function setupDismissAll(event) {
   }
 }
 
-function setupReset(event) {
-  if (event) event.stopPropagation();
-  const st = state.setupState || {};
-  (st.abgehakt || []).forEach(id => sendeDismiss(id, false));
-}
-
 window.Keasy.setup = {
   buildSetupCardHtml, renderSetupCard, renderSetupPill, markiereTabs, SCHRITTE,
-  istSichtbar, istOffen, istErledigt, istAbgehakt, fortschritt, pflichtOffen
+  istSichtbar, istOffen, istErledigt, istAbgehakt, fortschritt, pflichtOffen, assistentAktiv
 };
-Object.assign(window, { setupGoto, setupDismiss, setupDismissAll, setupReset, setupToggle });
+Object.assign(window, { setupGoto, setupDismiss, setupFertig, setupToggle });
 })();
