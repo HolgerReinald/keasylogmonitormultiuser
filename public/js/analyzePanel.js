@@ -114,16 +114,28 @@ function renderAnalyzePaths() {
   // nichts. Deshalb wird die Gruppe in beiden Zweigen angehaengt.
   const dropped = renderDroppedGroup();
   if (state.analyzePaths.length === 0) {
-    list.innerHTML = '<em style="color:var(--text-secondary);">Keine Pfade hinzugefügt</em>' + dropped;
+    list.innerHTML = '<div class="analyze-path-empty">Keine Pfade hinzugefügt</div>' + dropped;
     return;
   }
-  list.innerHTML = state.analyzePaths.map((p, i) =>
-    `<div style="display:flex; align-items:center; gap:6px; padding:3px 0;">
-      <code style="flex:1; font-size:0.85em; background:var(--bg-tertiary); padding:2px 6px; border-radius:3px; word-break:break-all;">${escapeHtml(p)}</code>
-      <button onclick="openAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Pfad im Explorer öffnen" aria-label="Pfad im Explorer öffnen">↗️</button>
-      <button onclick="removeAnalyzePath(${i})" style="background:none; border:none; cursor:pointer; font-size:1em;" title="Entfernen" aria-label="Pfad entfernen">❌</button>
+  // Groessen und Abstaende stehen in style.css (.analyze-path-row) -- inline
+  // waeren sie hier vergraben und wuerden jede CSS-Regel ueberstimmen.
+  const zeilen = state.analyzePaths.map((p, i) =>
+    `<div class="analyze-path-row">
+      <code>${escapeHtml(p)}</code>
+      <button class="x-btn" onclick="openAnalyzePath(${i})" title="Pfad im Explorer öffnen" aria-label="Pfad im Explorer öffnen">↗️</button>
+      <button class="x-btn" onclick="removeAnalyzePath(${i})" title="Entfernen" aria-label="Pfad entfernen">❌</button>
     </div>`
-  ).join('') + dropped;
+  ).join('');
+  // Der Kasten umfasst NUR die Pfade -- die Ablage ist ein eigener Kasten und
+  // gehoert nicht hinein: sie ist temporaer und steht nicht in der Config.
+  list.innerHTML =
+    `<div class="analyze-path-box">
+      <div class="analyze-path-head">
+        <span>📁 Analyse-Pfade</span>
+        <span class="analyze-path-count">${state.analyzePaths.length}</span>
+      </div>
+      ${zeilen}
+    </div>` + dropped;
 }
 
 // === Abgelegte Log-Dateien (Drag & Drop) ===

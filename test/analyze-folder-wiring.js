@@ -135,13 +135,76 @@ console.log('\n8) Die Ablage wird auch ohne konfigurierten Pfad gezeichnet');
   const emptyBranch = (fn.match(/if \(state\.analyzePaths\.length === 0\) \{[\s\S]*?\n  \}/) || [''])[0];
   check('leerer Zweig haengt die Ablage an', /dropped/.test(emptyBranch),
     'Ohne das sieht ein Ordner-Upload ohne konfigurierten Pfad aus, als waere nichts passiert');
-  check('voller Zweig haengt die Ablage an', /\)\.join\('\'\) \+ dropped;/.test(fn), null);
+  // Auf den Teil NACH dem leeren Zweig eingegrenzt statt auf die genaue
+  // Schreibweise: der Check hing an ").join('') + dropped;" und wurde rot,
+  // als die Pfadliste 2026-09-02 in .analyze-path-box gefasst wurde --
+  // obwohl die gepruefte Sache unveraendert stimmte.
+  const vollerZweig = fn.slice(fn.indexOf(emptyBranch) + emptyBranch.length);
+  check('voller Zweig haengt die Ablage an', /\+ dropped;/.test(vollerZweig), null);
   check('renderDroppedGroup wird nur einmal gerufen',
     (fn.match(/renderDroppedGroup\(\)/g) || []).length === 1,
     'Zwei Aufrufe waeren zwei Zustaende');
   check('Start-Knopf kennt den Fall ebenfalls',
     /state\.analyzePaths\.length > 0 \|\| \(state\.analyzeDropped \|\| \[\]\)\.length > 0/.test(js),
     '"nur Abgelegtes, kein Pfad" ist ein gueltiger Lauf');
+}
+
+console.log('\n9) Lesbarkeit: Groessen liegen im CSS, nicht im JS');
+{
+  // Anlass 2026-09-02: Pfade und Dateinamen waren mit 13,6 px die kleinste
+  // Schrift im Panel -- obwohl sie das sind, was hier gelesen wird. Geprueft
+  // wird nicht der px-Wert (der ist Geschmack und wuerde bei jeder Anpassung
+  // rot), sondern WO er steht und dass Markup und Regel zueinander passen.
+  const fn = (js.match(/function renderAnalyzePaths\(\) \{[\s\S]*?\n\}/) || [''])[0];
+  check('renderAnalyzePaths setzt keine font-size mehr', !/font-size/.test(fn),
+    'Inline gewinnt gegen jede Klasse: die Groesse waere wieder in einer ' +
+    'JS-Datei versteckt und .analyze-path-row still ausgehebelt');
+  check('Pfadzeile nutzt die Klasse', /class="analyze-path-row"/.test(fn), null);
+  check('.analyze-path-row code definiert', /\.analyze-path-row code \{/.test(css),
+    'Ohne die Regel faellt die Liste auf die Browser-Vorgabe fuer <code> zurueck');
+  check('.analyze-path-empty definiert', /\.analyze-path-empty \{/.test(css),
+    'Der Leerzustand hat sein Inline-Styling abgegeben und braucht die Klasse');
+
+  // Der Kasten um die Pfadliste (Variante B): er darf NUR die Pfade fassen.
+  // Waere die Ablage mit drin, sagte das Bild "gehoert zur Konfiguration" --
+  // sie ist aber temporaer und steht ausdruecklich nicht in der Config.
+  for (const klasse of ['.analyze-path-box', '.analyze-path-head', '.analyze-path-count']) {
+    check(`${klasse} definiert`, new RegExp('\\' + klasse + ' \\{').test(css), null);
+  }
+  check('Kasten wird gezeichnet', /class="analyze-path-box"/.test(fn), null);
+  check('Ablage bleibt ausserhalb des Kastens',
+    /<\/div>` \+ dropped;/.test(fn),
+    'Das schliessende </div> des Kastens muss VOR dem Anhaengen der Ablage stehen');
+  check('Kopfzeile nennt die Anzahl',
+    /analyze-path-count">\$\{state\.analyzePaths\.length\}/.test(fn),
+    'Eine feste Zahl oder ein fehlender Zaehler macht die Kopfzeile wertlos');
+  check('Kasten nur bei vorhandenen Pfaden',
+    !/analyze-path-box/.test((fn.match(/if \(state\.analyzePaths\.length === 0\) \{[\s\S]*?\n  \}/) || [''])[0]),
+    'Ein leerer Kasten mit einer 0 darin ist Ballast');
+
+  // Icon: beides oder keins. Ein 📄 ohne Regel ist ein normal grosses Emoji
+  // in eigener Zeile, eine Regel ohne Markup ist toter Code.
+  const imMarkup = /class="drop-icon"/.test(html);
+  const imCss = /\.drop-logs \.drop-icon \{/.test(css);
+  check('drop-icon steht in Markup UND CSS', imMarkup && imCss,
+    `Markup: ${imMarkup ? 'ja' : 'NEIN'}, CSS: ${imCss ? 'ja' : 'NEIN'}`);
+  check('Icon nicht doppelt: Titel traegt kein Emoji mehr',
+    !/class="drop-title">📄/.test(html),
+    'Sonst stehen zwei Blaetter uebereinander');
+
+  // Der Ruhezustand der Ablageflaeche muss ungefuellt bleiben, sonst ist die
+  // Rueckmeldung beim Ziehen (.is-over setzt background) nicht mehr sichtbar.
+  const ruhe = (css.match(/\.drop-logs \{[\s\S]*?\n\}/) || [''])[0];
+  check('.drop-logs ohne eigenen Hintergrund', !/\bbackground:/.test(ruhe),
+    'Mit Fuellung im Ruhezustand ist .is-over beim Ziehen nicht mehr zu erkennen');
+
+  // Gemeinsame Trefferflaeche fuer beide Listen -- zweimal dasselbe waere
+  // die Stelle, an der eine der beiden beim naechsten Mal vergessen wird.
+  check('Emoji-Knoepfe haben eine Trefferflaeche',
+    /\.analyze-path-row \.x-btn,\s*\.dropped-group \.x-btn \{[\s\S]*?min-height/.test(css),
+    'Vorher war nur die Glyphe klickbar (~14 px)');
+  check('und einen Tastatur-Fokusring',
+    /\.x-btn:focus-visible/.test(css), null);
 }
 
 console.log(failed ? `\n❌ ${failed} Problem(e)\n` : '\n✅ Verdrahtung vollstaendig\n');

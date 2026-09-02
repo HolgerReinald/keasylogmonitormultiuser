@@ -477,6 +477,7 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 
 1. **Einstellungen öffnen** → Tab **📂 Log-Analyse**
 2. **Pfade hinzufügen** — Datei- oder Ordnerpfade eingeben und mit „+" bestätigen
+   - Die Liste sitzt im Kasten **📁 Analyse-Pfade** und nennt in der Kopfzeile die Anzahl; jede Zeile hat **↗️** (im Explorer öffnen) und **❌** (entfernen)
    - Ordner werden rekursiv nach `.log`-Dateien durchsucht
    - Doppelte Pfade und ungültige Einträge werden automatisch übersprungen
    - **📂 wählt serverseitig** — der Ordner-Browser listet die Laufwerke des *Servers*. Alles, was er sieht (auch gemappte Laufwerke wie `Y:\`), gehört hierher und wird ohne Upload direkt von der Platte gelesen
@@ -502,6 +503,18 @@ Kompakte Sprungliste neben der Fehleranzeige. Sie zeigt **dieselbe gefilterte Me
 | 🗑️ Ergebnisse löschen | Ergebnisse vorhanden, keine Analyse läuft |
 
 > **Papierkorb:** Der Papierkorb (WatchPath) gilt nur für Live-Monitoring-Einträge. Analyse-Ergebnisse haben keinen Papierkorb — sie können jederzeit durch erneute Analyse wiederhergestellt werden.
+
+**Warum die Schriften hier größer sind als sonst im Panel.** Pfade und Dateinamen
+liegen bei **15,2 px**, die Panel-Labels daneben bei 13 px. Das ist Absicht: die
+Labels sind Beschriftung, die Pfade sind der Inhalt — und sie waren bis
+2026-09-02 die *kleinste* Schrift im ganzen Panel. Die Größen stehen in
+`style.css` (`.analyze-path-row`, `.dropped-row`) und **nicht** inline im
+Renderer; inline würden sie jede CSS-Regel überstimmen und wären in einer
+JS-Datei vergraben. Ein Test in `test/analyze-folder-wiring.js` hält das fest.
+
+Die **Ablagefläche** ist bewusst hoch und ohne eigene Füllung: der gefüllte
+Zustand (`.is-over`) ist die Rückmeldung beim Ziehen, und die wäre nicht mehr zu
+erkennen, wenn die Fläche schon im Ruhezustand gefärbt wäre.
 
 ### 📤 Weitergabe: was ins Paket wandert
 
@@ -631,6 +644,44 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-09-02 — 🔍 Log-Analyse: lesbare Schriften, große Ablagefläche, gefasste Pfadliste
+
+Das Panel **📂 Log-Analyse** ist über die letzten Wochen gewachsen — Pfadliste, Ablage per Drag & Drop, Ordner-Übergabe, drei Zahlenfelder mit Erklärzeile, vier Knöpfe, Fortschritt mit Lesestopp-Hinweis. Die Schriftgrößen sind nie mitgewachsen: sie stammen aus der Zeit, als dort nur ein Pfadfeld stand. Ergebnis war eine Schräglage — **das, was man in diesem Panel liest, war die kleinste Schrift darin.**
+
+| Element | vorher | jetzt |
+|---|---|---|
+| Pfad in der Liste | 13,6 px | **15,2 px** |
+| Abgelegte Datei | 13,6 px | **15,2 px** |
+| Dateigröße · Ablehnungsgrund | 12,2 px | **14,4 px** |
+| „temporär"-Pille | 11 px | 12 px |
+| Hinweiszeile der Ablagefläche | 11 px | 12,9 px |
+| Innenabstand der Ablagefläche | 14 px | **22 / 18 px** |
+| Trefferfläche von ↗️ und ❌ | ~14 px | **26 px** |
+
+Die Panel-Labels bleiben bei 13 px, und die Pfade liegen jetzt bewusst *darüber*: Labels sind Beschriftung, Pfade sind Inhalt. Die übrigen Config-Panels wurden nicht angefasst — abgestimmt, um den Eingriff klein und prüfbar zu halten.
+
+---
+
+**Die Größen standen im falschen Haus.** `renderAnalyzePaths()` schrieb `font-size`, Polster und Farben als Inline-`style` in jede Pfadzeile. Inline gewinnt gegen jede Klasse, also war die Schriftgröße des Panels in einer JS-Datei vergraben und hätte sich über `style.css` gar nicht ändern lassen. Die Zeile heißt jetzt `.analyze-path-row`, alles Optische liegt in `style.css`. Ein Test prüft, dass in dieser Funktion **kein** `font-size` mehr auftaucht — genau der Rückfall, der beim nächsten Anfassen passiert und die CSS-Regel still aushebelt.
+
+**Die Emoji-Knöpfe waren keine Knöpfe.** ↗️ (im Explorer öffnen) und ❌ (entfernen) hatten `font-size: 1em` und sonst nichts: klickbar war die Glyphe, bei 13,6 px Zeilenhöhe also rund 14 px. Beide Listen — Pfade und Ablage — teilen jetzt **eine** Regel mit 26 px Mindestfläche, Hover-Hintergrund und Tastatur-Fokusring. Bewusst eine gemeinsame Regel: zweimal dasselbe wäre die Stelle, an der eine der beiden beim nächsten Mal vergessen wird.
+
+**Die Ablagefläche hat ein Icon bekommen und bleibt ungefüllt.** Das 📄 stand vorher im Titeltext und war damit so groß wie die Zeile; es ist jetzt ein eigenes Element (`.drop-icon`, `2em`, `aria-hidden` — der Titel trägt die Aussage schon). Der Innenabstand ist verdoppelt, der Hinweistext auf `46ch` begrenzt, damit er im breiten Panel umbricht statt einzeilig zu verlaufen. **Der Ruhezustand bleibt ohne Hintergrund**, und das ist kein Versehen: `.is-over` meldet das Ziehen über `background` — wäre die Fläche schon in Ruhe gefärbt, wäre diese Rückmeldung weg. Ein Test hält beides fest: das Icon muss in Markup **und** CSS stehen (eins ohne das andere ist ein normal großes Emoji in eigener Zeile bzw. toter Code), und `.drop-logs` darf kein eigenes `background` haben.
+
+**Die Pfadliste war das einzige rahmenlose Element im Panel.** Sie schwebte zwischen Eingabefeld und Ablagefläche, während die Ablage direkt darunter einen Rahmen hat — zwei Listen, die dasselbe tun, sahen unterschiedlich aus. Sie sitzt jetzt in `.analyze-path-box` mit der Kopfzeile **📁 Analyse-Pfade** und der Anzahl als Pille. Grauer Rahmen statt `--accent`, damit die Ablage darunter als das Besondere lesbar bleibt. Zwei Entscheidungen dazu, beide durch Tests festgehalten: **die Ablage bleibt außerhalb des Kastens** — wäre sie drin, sagte das Bild „gehört zur Konfiguration", während sie tatsächlich temporär ist und ausdrücklich nicht in der Config steht — und **im Leerzustand gibt es keinen Kasten**, weil ein leerer Rahmen mit einer 0 darin Ballast ist.
+
+**Nebenbei gefunden: der Fortschrittsbalken der Analyse hatte nie eine Farbe.** `index.html` setzte `background: var(--accent-color)` — diese Variable ist nirgends definiert, die richtige heißt `--accent`. Der Balken lief also unsichtbar über seinen grauen Grund; zu sehen war nur der Text daneben. Aufgefallen beim Gegenprüfen der CSS-Variablen des Mockups gegen `style.css`.
+
+---
+
+**Ein bestehender Test wurde durch den Umbau rot — berechtigt, aber aus dem falschen Grund.** Der Check „voller Zweig hängt die Ablage an" prüfte wörtlich `).join('') + dropped;`. Durch den Kasten heißt die Stelle anders, die geprüfte Sache stimmte unverändert. Statt die neue Schreibweise einzutippen ist der Check jetzt auf den Funktionsteil *nach* dem Leer-Zweig eingegrenzt — sonst klebt er beim nächsten Umbau wieder an der Formulierung. Was ein Test festhält, sollte die Absicht sein, nicht der Wortlaut.
+
+**Vorgehen:** Mockup mit Ist-Zustand, A (Größen und Trefferflächen) und B (zusätzlich der gefasste Kasten) im direkten Vergleich, dazu Schalter für hell/dunkel, sieben Pfade und den Abweisungsfall — abgenommen, dann der Code, B als Nachtrag. Alle 13 Suiten grün. Die acht neuen Checks wurden gegen acht Mutationen gehalten (Inline-`font-size` zurück ins JS, `.drop-icon`-Regel weg, Füllung im Ruhezustand, Leerzustand-Klasse weg, Ablage in den Kasten geschoben, Zähler auf eine feste `3` erstarrt, Kasten-CSS weg, leerer Kasten im Leerzustand) — jede wird gefangen, und die Suite ist nach dem Zurückschreiben wieder grün. Nur `public/` betroffen: **F5 genügt**, kein Server-Neustart.
+
+**Aufgefallen bei der eigenen Messung:** ein `grep`-Zähler auf das CR-Zeichen ist hier nutzlos, um Zeilenenden zu bestimmen — über die Werkzeug-Übergabe wird daraus ein leeres Muster, das *jede* Zeile zählt, und „3425 / 3425" sieht dann wie „durchgehend CRLF" aus. `style.css` ist in Wahrheit LF. Verlässlich ist nur ein Byte-Zähler auf die Bytefolge CR+LF. Folgen hatte es keine: `index.html` und `analyzePanel.js` sind unverändert CRLF, `style.css` und die Tests LF, keine gemischten Zeilen.
+
+**Dateien:** public/index.html, public/style.css, public/js/analyzePanel.js, test/analyze-folder-wiring.js, README.md
 
 ### 2026-09-01 — 🚧 Einrichtungsassistent für frisch verteilte Pakete
 

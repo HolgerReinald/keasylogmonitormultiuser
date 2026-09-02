@@ -71,8 +71,9 @@
       </div>
       <div id="analyzePathList" style="margin:8px 0;"></div>
       <div id="analyzeLogDrop" class="drop-logs" title="Log-Dateien ablegen oder klicken zum Auswählen">
-        <span class="drop-title">📄 Log-Dateien hier ablegen</span>
-        <span class="drop-hint">.log, .json, .zip — auch mehrere auf einmal. Klick öffnet die Dateiauswahl.</span>
+        <span class="drop-icon" aria-hidden="true">📄</span>
+        <span class="drop-title">Log-Dateien hier ablegen</span>
+        <span class="drop-hint">.log · .json · .zip — auch mehrere auf einmal. Klick öffnet die Dateiauswahl.</span>
       </div>
       <input type="file" id="analyzeLogPicker" accept=".log,.json,.zip" multiple style="display:none">
       <!-- webkitdirectory: der Browser laeuft den Ordner selbst rekursiv ab. accept greift hier nicht, gefiltert wird im JS. -->
@@ -115,12 +116,12 @@
         <button class="config-reset-btn" id="analyzeClearBtn" onclick="clearAnalysis()">🗑️ Ergebnisse löschen</button>
         <button class="config-save-btn" id="analyzeSaveBtn" onclick="saveAnalyzePaths()" style="background:#10b981;" title="Pfade, Fehler-Limit und Gap-Einstellungen dauerhaft speichern">💾 Speichern</button>
       </div>
-      <span id="analyzeSaveMessage" style="font-size:0.85em; display:none; margin-top:4px;"></span>
+      <span id="analyzeSaveMessage" style="font-size:0.95em; display:none; margin-top:4px;"></span>
       <div id="analyzeProgress" style="margin-top:10px; display:none;">
         <div style="background:var(--bg-tertiary); border-radius:4px; overflow:hidden; height:20px;">
-          <div id="analyzeProgressBar" style="background:var(--accent-color); height:100%; width:0%; transition:width 0.3s;"></div>
+          <div id="analyzeProgressBar" style="background:var(--accent); height:100%; width:0%; transition:width 0.3s;"></div>
         </div>
-        <span id="analyzeStatus" style="font-size:0.85em; color:var(--text-secondary);"></span>
+        <span id="analyzeStatus" style="font-size:0.95em; color:var(--text-secondary);"></span>
         <!-- Lesestopp-Hinweis: eigenes Element, damit analyzeStatus reiner Text bleibt -->
         <div class="analyze-truncated-hint" id="analyzeTruncatedHint" style="display:none;"></div>
       </div>
