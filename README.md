@@ -668,24 +668,21 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ### 2026-09-03 — 🎯 Einrichtungsassistent markiert die Felder, und der Abschluss führt aufs Dashboard
 
-Rückmeldung von Kollegen: der Assistent kommt gut an, könnte aber intuitiver sein — vor allem sollte er markieren, wo man etwas eintragen kann. Bisher endete der Klick auf einen Schritt am Tab; welches der Felder gemeint war, stand dort nicht.
+**Feldmarkierung.** `SCHRITTE` führt je Punkt eine Liste von Feld-Selektoren; `setupGoto()` markiert nach dem Tab-Wechsel die **leeren** davon. Vorbelegtes bleibt unangetastet — unter *Allgemein* sind das allein die KI-Export-Pfade, „Regeln" markiert nichts, solange die Standarderkennung passt.
 
-**Markiert wird nur, was leer ist.** `SCHRITTE` führt jetzt je Punkt eine Liste von Feld-Selektoren; `setupGoto()` setzt nach dem Tab-Wechsel eine Klasse auf die leeren davon. Unter *Allgemein* sind das allein die KI-Export-Pfade — Port, Fehler-Limit, Datei-Muster und Papierkorb sind vorbelegt und damit keine Stelle, an der etwas einzutragen ist. Eine Marke dort würde zu Arbeit auffordern, die es nicht gibt. „Regeln" markiert entsprechend nichts, solange die Standarderkennung passt.
+| Schritt | markiert (wenn leer) |
+|---|---|
+| 🕵️ Monitor | Pfad-Feld der Watchpath-Zeile, sonst „+ Pfad hinzufügen" |
+| ⚙️ Allgemein | die beiden KI-Export-Pfade |
+| ✉️ E-Mail | SMTP-Host, Benutzer, Passwort, Absender |
+| 📂 Log-Analyse | das Pfad-Feld |
+| 🗄️ Backup | Pfad der Ziel-Karte und FTP-Host, sonst die „＋ Lokales Ziel"-Kachel |
 
-**Rückfall auf den Anlege-Knopf.** Bei null Pfaden rendert `renderWatchPathsTable()` keine Zeile — im Pflichtfall gäbe es also gar kein Feld zu markieren. Findet sich keins, markiert der Schritt „+ Pfad hinzufügen"; beim Backup entsprechend die „＋ Lokales Ziel"-Kachel.
+Der Rückfall auf den Anlege-Knopf ist nötig, weil bei null Pfaden keine Tabellenzeile gerendert wird — dann *ist* der Knopf die Stelle. Umgesetzt mit `outline` statt `border`, damit in der Watchpath-Tabelle und den Backup-Karten nichts verrutscht. Die Marke verschwindet beim ersten Tastendruck; der Abschluss räumt sie über `assistentAktiv()` mit ab, dieselbe Wahrheit wie bei den Tab-Punkten. Kein Server-Anteil: der Client liest die Feldwerte aus dem DOM.
 
-**Technisch `outline`, nicht `border`** — ein Rahmen würde die Watchpath-Tabelle und die Backup-Karten verschieben. Die Marke verschwindet beim ersten Tastendruck (ein delegierter `input`-Listener, nicht einer pro Feld), und der Abschluss räumt sie über `assistentAktiv()` mit ab — dieselbe Wahrheit, an der auch die Tab-Punkte hängen.
-
-**Kein Server-Anteil.** Der Client sieht die Feldwerte im DOM; `input.value === ''` genügt. `setupState.js` bleibt unberührt.
-
-**Der Abschluss führt jetzt aufs Dashboard.** „✓ Einrichtung abgeschlossen" schließt Einstellungen *und* Analyse-Panel — die Einstellungen waren das Werkzeug des Assistenten, nicht das Ziel. Bewusst `classList.remove('open')` statt `toggleConfigPanel()`: das Toggle hätte ein bereits geschlossenes Panel aufgezogen. Und nur bei erfolgreichem Speichern: schlägt der POST fehl, bleibt alles offen, weil die Karte beim nächsten Laden wiederkommt.
-
-**Vorgehen:** Drei Mockups waren nötig, weil die ersten beiden über das Ziel hinausschossen — sie haben den Assistenten umgebaut, statt nur zu markieren. Verworfen wurden: Markierung ganzer Feldgruppen (traf den vorbelegten Port), eine Umstellung von Themen- auf Aufgabenliste, und Aktionsknöpfe in der Karte, die sie auf über 500 px Höhe brachten. Umgesetzt ist die kleinste Fassung: eine Feldliste, 20 Zeilen Logik, eine CSS-Regel.
-
-Alle 14 Suiten grün, 31 neue Checks in `test/setup-wiring.js`. Zwei Testmängel kamen dabei heraus: `/input\.setup-hier/` matchte auch ein umbenanntes `input.setup-hierZZZ` und blieb grün, obwohl die CSS-Regel weg war (jetzt mit `[,{]` verankert); und ein bestehender Check hing an „innerhalb von 200 Zeichen" und wurde durch zwei Kommentarzeilen rot — er prüft jetzt den Funktionskörper. Nur `public/` betroffen: F5 genügt.
+**Abschluss führt aufs Dashboard.** „✓ Einrichtung abgeschlossen" schließt Einstellungen und Analyse-Panel — `classList.remove('open')`, kein Toggle, und nur bei erfolgreichem Speichern.
 
 **Dateien:** public/js/setupPanel.js, public/style.css, test/setup-wiring.js, README.md
-
 
 ### 2026-09-03 — 🧹 Leerzeilen in Fehler-Einträgen ausblenden
 
