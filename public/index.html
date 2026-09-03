@@ -185,6 +185,9 @@
             <div class="config-field config-field-checkbox">
               <label><input type="checkbox" id="cfg-loadExistingErrors" data-admin-only> Bestehende Fehler beim Start einlesen</label>
             </div>
+            <div class="config-field config-field-checkbox">
+              <label title="Zeilen, die nur Leerzeichen oder Tabs enthalten, erscheinen nicht in der Anzeige. Betrifft nur die Darstellung — die Log-Datei bleibt unberührt."><input type="checkbox" id="cfg-hideEmptyLines" data-admin-only title="Zeilen, die nur Leerzeichen oder Tabs enthalten, erscheinen nicht in der Anzeige. Betrifft nur die Darstellung — die Log-Datei bleibt unberührt."> Leerzeilen in Fehler-Einträgen ausblenden</label>
+            </div>
             <div class="config-field">
               <label>Max. Log-Dateigröße (MB):</label>
               <input type="text" id="cfg-maxLogFileSizeMB" maxlength="3" pattern="[0-9]*" inputmode="numeric" style="width:50px" oninput="this.value=this.value.replace(/[^0-9]/g,'')" title="Erlaubt: 1–99 MB. Dateien über diesem Limit werden nur ab dem Startzeitpunkt überwacht." data-admin-only>

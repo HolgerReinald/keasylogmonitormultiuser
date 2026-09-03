@@ -139,6 +139,7 @@ function populateConfigForm(cfg) {
   document.getElementById('cfg-debugLogging').checked = !!cfg.debugLogging;
   document.getElementById('cfg-authEnabled').checked = cfg.authEnabled !== false;
   document.getElementById('cfg-loadExistingErrors').checked = cfg.loadExistingErrors !== false;
+  document.getElementById('cfg-hideEmptyLines').checked = cfg.hideEmptyLines !== false;
   document.getElementById('cfg-maxLogFileSizeMB').value = cfg.maxLogFileSizeMB || 6;
   document.getElementById('cfg-trashAutoCleanupHours').value = cfg.trashAutoCleanupHours != null ? cfg.trashAutoCleanupHours : 48;
   document.getElementById('cfg-copilotWorkingPathDevelop').value = cfg.copilotWorkingPathDevelop || cfg.copilotWorkingPath || '';
@@ -264,6 +265,7 @@ function buildConfigFromForm() {
     authEnabled: document.getElementById('cfg-authEnabled').checked,
     maxErrorsPerFile: parseInt(document.getElementById('cfg-maxErrors').value) || 50,
     loadExistingErrors: document.getElementById('cfg-loadExistingErrors').checked,
+    hideEmptyLines: document.getElementById('cfg-hideEmptyLines').checked,
     maxLogFileSizeMB: Math.min(99, Math.max(1, parseInt(document.getElementById('cfg-maxLogFileSizeMB').value) || 6)),
     trashAutoCleanupHours: Math.max(0, parseInt(document.getElementById('cfg-trashAutoCleanupHours').value) || 48),
     copilotWorkingPathDevelop: document.getElementById('cfg-copilotWorkingPathDevelop').value.trim(),

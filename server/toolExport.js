@@ -22,6 +22,7 @@ const BASE_DEFAULTS = {
   authEnabled: true,
   maxErrorsPerFile: 50,
   loadExistingErrors: true,
+  hideEmptyLines: true,
   maxLogFileSizeMB: 6,
   trashAutoCleanupHours: 48,
   watchPaths: [],
@@ -51,7 +52,8 @@ const BASE_DEFAULTS = {
 //   der Einrichtungsassistent führt sie ebenfalls als EINEN Punkt.
 const SECTION_KEYS = {
   general: ['port', 'autoOpen', 'debugLogging', 'authEnabled', 'maxErrorsPerFile',
-            'loadExistingErrors', 'maxLogFileSizeMB', 'trashAutoCleanupHours', 'filePattern'],
+            'loadExistingErrors', 'hideEmptyLines', 'maxLogFileSizeMB',
+            'trashAutoCleanupHours', 'filePattern'],
   rules: ['filterPatterns', 'excludePatterns', 'thresholdRules', 'priorityRules'],
   watchPaths: ['watchPaths'],
   email: ['email'],

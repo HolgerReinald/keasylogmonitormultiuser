@@ -150,13 +150,34 @@ function evaluateGap(prevDate, curDate, warnSeconds, idleMinutes) {
   return Math.round(gapSeconds * 10) / 10;
 }
 
+// Einen Eintrag fuer die Anzeige eindicken.
+//
+// Zwei Dinge in einem Durchlauf:
+//   1. Stack-Trace-Zeilen ("   at ...") auf maxLines begrenzen
+//   2. Zeilen, die nur aus Whitespace bestehen, ganz weglassen
+//
+// Zu (2): parseLogEntries() haengt jede Zeile ohne Zeitstempel an den laufenden
+// Eintrag -- Leerzeilen inbegriffen. Im Keasy-Fehlerformat stehen die
+// strukturell (je eine nach "Der folgende #Fehler ist aufgetreten:", nach
+// "Stack trace:" und nach "InnerException:"), und da die Anzeige mit
+// white-space: pre-wrap arbeitet, zaehlt jede davon als Hoehe. Gemessen am
+// WorkflowServer-Log vom 2026-09-03: 114 von 966 angezeigten Zeilen leer.
+//
+// trim() statt "=== ''": es gibt Zeilen aus reinen Tabs -- optisch leer,
+// technisch nicht.
+//
+// Die Fehlererkennung bleibt davon unberuehrt: matchesFilter() laeuft in beiden
+// Aufrufern (watchService, analysisService) auf dem Rohtext, diese Funktion
+// erst danach.
 function limitStackTrace(text, maxLines = 5) {
   const lines = text.split('\n');
+  const leerzeilenAus = config.hideEmptyLines !== false;  // fehlend ⇒ an, nicht brechend
   const result = [];
   let stackCount = 0;
   let truncated = false;
 
   for (const line of lines) {
+    if (leerzeilenAus && line.trim() === '') continue;
     if (/^\s+at\s/.test(line)) {
       stackCount++;
       if (stackCount <= maxLines) {

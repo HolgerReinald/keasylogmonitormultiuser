@@ -244,6 +244,7 @@ module.exports = {
   ],
 
   loadExistingErrors: true,   // Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen
+  hideEmptyLines: true,       // Leerzeilen in Fehler-Einträgen nicht anzeigen
   maxLogFileSizeMB: 6         // Dateien über 6 MB werden übersprungen
 };
 ```
@@ -272,6 +273,7 @@ module.exports = {
 | `priorityRules[].level` | `kritisch` (🚨 Alarmknopf mit Sprung zum Eintrag, roter Blockrahmen, Browser-Titel, Sofort-Mail, Benachrichtigung auch bei sichtbarem Fenster, Schutz vor Verdrängung), `normal` (Standard, Darstellung unverändert), `gering` (gedimmt, keine Benachrichtigung — zählt aber weiter im Fehlerzähler). Unbekannte Werte werden zu `normal` |
 | `maxErrorsPerFile` | Aufbewahrung pro Datei im **Live-Monitoring** (Standard: `50`). Der Wert gilt wörtlich: Server **und** Dashboard halten genau so viele Einträge je Datei und verdrängen dabei immer den ältesten **nicht**-kritischen Eintrag zuerst — als `kritisch` eingestufte Fehler bleiben, solange normale vorhanden sind. Die Log-Datei selbst bleibt unberührt. **Nicht zu verwechseln mit `analyzeMaxErrors`**, dem Lesestopp der Log-Analyse |
 | `loadExistingErrors` | Bestehende Fehler aus heutigen Log-Dateien beim Start einlesen (Standard: `true`) |
+| `hideEmptyLines` | Zeilen, die nur aus Leerzeichen oder Tabs bestehen, werden nicht angezeigt (Standard: `true`). Betrifft Live-Überwachung, Analyse, E-Mail und KI-Export — die Log-Datei bleibt unberührt. Fehlt das Feld, gilt es als aktiviert |
 | `maxLogFileSizeMB` | Max. Dateigröße für das Einlesen bestehender Fehler in MB (Standard: `6`). Größere Dateien werden nur ab dem Startzeitpunkt überwacht |
 | `trashAutoCleanupHours` | Papierkorb Auto-Cleanup nach X Stunden (Standard: `48`). `0` = nie automatisch leeren |
 | `copilotWorkingPathDevelop` | Develop-Verzeichnis für den KI-Export. Leer = 🤖-Knopf gesperrt. Schlüsselname historisch — die Funktion hieß früher Copilot-Export |
@@ -617,6 +619,7 @@ beim eingeklappten Assistenten, als liefe alles.
 | Netzlaufwerk: Keine Fehler | Polling ist Standard. Falls deaktiviert: Einstellungen → Monitor → Polling ✓ |
 | Fehler erscheinen verzögert | Polling-Intervall ist 2s (lokal) bzw. 5s (Netzwerk) + 100ms Debounce + Flush (pollInterval + 200ms) = ~4,3s lokal / ~10,3s Netzwerk. Für Analyse: Debug-Logging aktivieren (Einstellungen → Allgemein → Debug-Logging ✓) — zeigt `[TIMING]`-Einträge in der Konsole |
 | Notifications erscheinen nicht | Browser-Berechtigung erforderlich. 🔔-Button im Dashboard prüfen |
+| Fehler-Eintrag mit großen Lücken | `hideEmptyLines` einschalten (Standard). Das Keasy-Fehlerformat setzt Leerzeilen nach „Stack trace:“ und „InnerException:“, und der Parser sammelt jede Zeile ohne Zeitstempel zum Eintrag |
 | Bestehende Fehler fehlen nach Neustart | `loadExistingErrors` muss `true` sein (Standard). Dateien über `maxLogFileSizeMB` (Standard: 6 MB) werden übersprungen — Limit ggf. erhöhen |
 
 ## E-Mail-Logging
@@ -638,6 +641,27 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-09-03 — 🧹 Leerzeilen in Fehler-Einträgen ausblenden
+
+Im WorkflowServer-Log des Live-Systems standen große Lücken in den Fehler-Einträgen. Zwei Dinge treffen dort zusammen: `parseLogEntries()` hängt **jede** Zeile ohne Zeitstempel an den laufenden Eintrag, und das Keasy-Fehlerformat setzt strukturell Leerzeilen — je eine nach „Der folgende #Fehler ist aufgetreten:“, nach „Stack trace:“ und nach „InnerException:“. Da die Anzeige mit `white-space: pre-wrap` arbeitet, zählt jede davon als Höhe.
+
+Gemessen an `KeasyServerService_KeasyWorkflowServerKeasyRelease_26_2026-09-03.log`: 66 erkannte Fehler, 966 angezeigte Zeilen, davon **114 leer (12 %)**.
+
+**Eine Zeile an einer Stelle.** `limitStackTrace()` in `logParser.js` ist die gemeinsame Endstelle von Live-Überwachung (`watchService.js`) und Analyse (`analysisService.js`) und lässt dort schon Stack-Zeilen über der Grenze weg. Die Leerzeile wird im selben Durchlauf übersprungen — keine zweite Passage, und keine Aufrufstelle kann vergessen werden. Ergebnis an derselben Datei: **966 → 852 Zeilen**, Trefferzahl unverändert 66.
+
+**Die Fehlererkennung bleibt unberührt.** `matchesFilter()` läuft in beiden Diensten auf dem Rohtext, gekürzt wird erst danach. Ein Fehler, dessen Kennwort in einer weggelassenen Zeile stünde, kann also nicht verschwinden. Ein Test prüft diese Reihenfolge in `watchService.js` und `analysisService.js`.
+
+**`trim()`, nicht `=== ''`.** Im echten Log gibt es Zeilen aus reinen Tabs — optisch leer, technisch nicht. Die strengere Prüfung hätte sie stehen gelassen.
+
+**Neue Option `hideEmptyLines`** unter *Allgemein → Dateien & Fehler*, Standard an, nur für Admins, im Weitergabe-Paket enthalten. Fehlt das Feld — und es fehlt in jeder bestehenden Installation, weil `config.js` gitignored ist — gilt es als aktiviert (`!== false`, dasselbe Muster wie `isAuthEnabled()`). Umschalten wirkt sofort auf den nächsten Eintrag: `config` ist ein Proxy, es braucht keinen Rebuild. Bereits gespeicherte Einträge behalten ihre Form, bis sie neu eingelesen werden.
+
+**Am laufenden System geprüft:** nach dem Neustart hielt der Monitor 305 Einträge aus 22 Dateien mit 2564 Zeilen — **keine einzige davon nur Whitespace**.
+
+**Vorgehen:** neue Suite `test/empty-lines.js` (21 Checks, schaltet die Option über `replaceConfig()` ohne `writeConfig`, damit `config.js` unberührt bleibt). Alle 14 Suiten grün. **Server-Neustart nötig**, `server/` ist geändert.
+
+**Dateien:** server/logParser.js, server/toolExport.js, public/index.html, public/js/configPanel.js, test/empty-lines.js (neu), README.md
+
 
 ### 2026-09-02 — 🔍 Log-Analyse: lesbare Schriften, große Ablagefläche, gefasste Pfadliste
 
