@@ -28,17 +28,28 @@ const { escapeHtml, escapeJs } = Keasy.utils;
 const SCHRITTE = [
   { id: 'paths', pflicht: true, tab: 'watchpaths', name: '🕵️ Monitor',
     titel: 'Mindestens einen Log-Pfad überwachen',
-    text: 'Ohne Pfad läuft der Monitor leer — er meldet „keine Fehler", weil er nichts ansieht.' },
+    text: 'Ohne Pfad läuft der Monitor leer — er meldet „keine Fehler", weil er nichts ansieht.',
+    felder: ['#cfg-watchpaths-body input[data-field="path"]'],
+    // Bei 0 Pfaden rendert renderWatchPathsTable() keine Zeile -- dann gibt es
+    // kein Feld zu markieren, und der Knopf, der eines anlegt, ist die Stelle.
+    fallback: 'button[onclick="addWatchPathRow()"]' },
   { id: 'allg', tab: 'general', name: '⚙️ Allgemein',
-    text: 'Port, Dateigrenzen, die <b>KI-Export-Pfade</b> (Develop / Release, gelten pro Benutzer) und das <b>Rechtesystem</b>. Wird es aktiviert, gilt zunächst <code>admin</code> / <code>admin</code> — dann das Passwort ändern.' },
+    text: 'Port, Dateigrenzen, die <b>KI-Export-Pfade</b> (Develop / Release, gelten pro Benutzer) und das <b>Rechtesystem</b>. Wird es aktiviert, gilt zunächst <code>admin</code> / <code>admin</code> — dann das Passwort ändern.',
+    // Nur die KI-Pfade: Port, Limits, Papierkorb und Datei-Muster sind vorbelegt
+    // und damit keine Stelle, an der man etwas eintragen muss.
+    felder: ['#cfg-copilotWorkingPathDevelop', '#cfg-copilotWorkingPathRelease'] },
   { id: 'reg', tab: 'monitorsettings', name: '📋 Regeln',
     text: 'Fehlererkennung, Ausschlüsse, Schwellwerte, Priorität. <b>Eine Standardkonfiguration ist vorhanden</b> (<code>Exception</code> und <code>Fehler</code>) — Anpassen lohnt sich für eigene Log-Formate, nötig ist es nicht. Gilt als erledigt, sobald <i>eine</i> der vier Listen angepasst ist.' },
   { id: 'mail', tab: 'email', name: '✉️ E-Mail',
-    text: 'Nur nötig, wenn Fehler auch ohne offenes Dashboard gemeldet werden sollen.' },
+    text: 'Nur nötig, wenn Fehler auch ohne offenes Dashboard gemeldet werden sollen.',
+    felder: ['#cfg-smtpHost', '#cfg-smtpUser', '#cfg-smtpPass', '#cfg-emailFrom'] },
   { id: 'ana', tab: null, name: '📂 Log-Analyse',
-    text: 'Für die einmalige Auswertung älterer Logs. Eigenes Panel im Kopf, nicht in den Einstellungen.' },
+    text: 'Für die einmalige Auswertung älterer Logs. Eigenes Panel im Kopf, nicht in den Einstellungen.',
+    felder: ['#analyzePath'] },
   { id: 'bak', tab: 'backup', name: '🗄️ Backup',
-    text: 'Sicherung der Konfiguration. <b>Nach einer Weitergabe fehlen FTP-Benutzer und -Passwort</b> — die werden beim Export entfernt.' }
+    text: 'Sicherung der Konfiguration. <b>Nach einer Weitergabe fehlen FTP-Benutzer und -Passwort</b> — die werden beim Export entfernt.',
+    felder: ['#backupLocalCards input[data-field="path"]', '#backupFtpHost'],
+    fallback: '.bk-addtile' }
 ];
 
 // "Erledigt" gewinnt über "abgehakt": wer E-Mail später doch einrichtet, soll
@@ -192,6 +203,9 @@ function markiereTabs() {
   const tabs = document.querySelectorAll('#configPanel .config-tab');
   if (!tabs.length) return;
   const aktiv = assistentAktiv();
+  // Eine Wahrheit fuer alle Markierungen: ist der Assistent abgeschlossen,
+  // verschwinden Tab-Punkte UND Feldmarken.
+  if (!aktiv) raeumeFeldmarken();
   for (const t of tabs) {
     t.classList.remove('setup-todo', 'setup-todo-optional');
     if (!aktiv) continue;
@@ -202,6 +216,44 @@ function markiereTabs() {
     if (!s.pflicht) t.classList.add('setup-todo-optional');
   }
 }
+
+// --- Feld-Markierung ---
+//
+// Der Assistent brachte einen in den Tab; WELCHES Feld gemeint war, stand dort
+// nicht. Markiert werden ausschliesslich LEERE Felder des angeklickten Punkts:
+// was vorbelegt ist (Port, Datei-Muster, Fehler-Limit), ist keine Stelle, an
+// der man etwas eintragen kann -- eine Markierung dort fordert zu Arbeit auf,
+// die es nicht gibt.
+const MARKE = 'setup-hier';
+
+function raeumeFeldmarken() {
+  document.querySelectorAll('.' + MARKE).forEach(el => el.classList.remove(MARKE));
+}
+
+function markiereFelder(s) {
+  raeumeFeldmarken();
+  if (!assistentAktiv() || !s) return;
+  let gesetzt = 0;
+  for (const sel of s.felder || []) {
+    for (const el of document.querySelectorAll(sel)) {
+      if ((el.value || '').trim() !== '') continue;   // vorbelegt: nichts zu tun
+      el.classList.add(MARKE);
+      gesetzt++;
+    }
+  }
+  if (!gesetzt && s.fallback) {
+    const el = document.querySelector(s.fallback);
+    if (el) el.classList.add(MARKE);
+  }
+}
+
+// Sobald getippt wird, ist die Stelle gefunden -- die Markierung hat ihren
+// Zweck erfuellt. Ein delegierter Listener statt einer pro Feld, damit sich
+// beim mehrfachen Markieren keine Listener ansammeln.
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el && el.classList && el.classList.contains(MARKE)) el.classList.remove(MARKE);
+});
 
 // --- Bedienung ---
 
@@ -219,6 +271,9 @@ function setupGoto(id) {
     const panel = document.getElementById('analyzePanel');
     if (panel && !panel.classList.contains('open')) toggleAnalyzePanel();
   }
+  // Erst im naechsten Frame: Watchpath-Zeilen und Backup-Karten werden per JS
+  // gerendert und stehen unmittelbar nach dem Tab-Wechsel noch nicht im DOM.
+  requestAnimationFrame(() => markiereFelder(s));
 }
 
 async function sendeDismiss(id, aus) {
@@ -248,6 +303,20 @@ function setupDismiss(id, aus, event) {
 // je Punkt, und sagt am Ende einmal "fertig".
 // Setzt setupCompleted statt jeden Punkt abzuhaken; sonst nimmt ein Zurückholen
 // der Einzelpunkte diese Entscheidung mit zurück.
+// Zurueck auf die Startseite. Die Einstellungen waren nur das Werkzeug des
+// Assistenten -- ist er durch, gehoert der Blick dem Dashboard.
+//
+// classList.remove statt toggleConfigPanel(): das Toggle wuerde ein bereits
+// geschlossenes Panel aufziehen. So ist der Aufruf idempotent, egal aus
+// welchem Tab abgeschlossen wurde.
+function zurueckZurStartseite() {
+  raeumeFeldmarken();
+  for (const id of ['configPanel', 'analyzePanel']) {
+    const p = document.getElementById(id);
+    if (p) p.classList.remove('open');
+  }
+}
+
 async function setupFertig(event) {
   if (event) event.stopPropagation();
   try {
@@ -257,7 +326,13 @@ async function setupFertig(event) {
       body: JSON.stringify({ fertig: true })
     });
     const r = await resp.json();
-    if (!r.ok && typeof showToast === 'function') showToast(r.message || 'Fehlgeschlagen', 'error');
+    if (!r.ok) {
+      // Nicht schliessen: der Abschluss ist nicht gespeichert, die Karte kommt
+      // beim naechsten Laden wieder -- dann soll man auch sehen, wo man war.
+      if (typeof showToast === 'function') showToast(r.message || 'Fehlgeschlagen', 'error');
+      return;
+    }
+    zurueckZurStartseite();
   } catch (err) {
     if (typeof showToast === 'function') showToast('Fehlgeschlagen: ' + err.message, 'error');
   }
@@ -265,7 +340,8 @@ async function setupFertig(event) {
 
 window.Keasy.setup = {
   buildSetupCardHtml, renderSetupCard, renderSetupPill, markiereTabs, SCHRITTE,
-  istSichtbar, istOffen, istErledigt, istAbgehakt, fortschritt, pflichtOffen, assistentAktiv
+  istSichtbar, istOffen, istErledigt, istAbgehakt, fortschritt, pflichtOffen, assistentAktiv,
+  markiereFelder, raeumeFeldmarken, zurueckZurStartseite
 };
 Object.assign(window, { setupGoto, setupDismiss, setupFertig, setupToggle });
 })();

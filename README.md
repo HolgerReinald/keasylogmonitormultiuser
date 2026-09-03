@@ -549,10 +549,10 @@ gemerkt.
 |---|---|
 | **Ring** (z. B. `2/7`) | Anteil der wirklich eingerichteten Schritte — auch eingeklappt sichtbar. Abgehaktes zählt **nicht** mit |
 | **Hervorgehobene Zeile** | der nächste offene Schritt |
-| Klick auf eine Zeile | öffnet die passende Stelle (Tab in den Einstellungen bzw. das Analyse-Panel) |
+| Klick auf eine Zeile | öffnet die passende Stelle (Tab in den Einstellungen bzw. das Analyse-Panel) und **markiert dort die leeren Felder** |
 | **✕** an einer Zeile | „brauche ich nicht" — der Punkt zählt nicht mehr als offen |
 | **↺** | nimmt einen abgehakten Punkt wieder auf |
-| **✓ Einrichtung abgeschlossen** | beendet den Assistenten dauerhaft (`setupCompleted`). **Der einzige Weg, die Karte loszuwerden** — danach kein Rückweg in der Hauptansicht |
+| **✓ Einrichtung abgeschlossen** | beendet den Assistenten dauerhaft (`setupCompleted`) und **schließt die Einstellungen** — zurück auf das Dashboard. **Der einzige Weg, die Karte loszuwerden**; danach kein Rückweg in der Hauptansicht |
 
 **Ein Pflichtschritt, fünf Angebote.** Nur ohne überwachten Pfad läuft der
 Monitor leer; alles andere — Allgemein, Regeln, E-Mail, Log-Analyse, Backup —
@@ -579,6 +579,30 @@ Zurücknehmen). Wird ein abgehakter Punkt später doch eingerichtet, gewinnt
 
 **Die Tabs tragen einen Punkt**, solange ihr Schritt offen ist — in der
 Akzentfarbe beim Pflichtschritt, gedimmt bei den optionalen.
+
+**Und im Tab sind die Felder markiert.** Der Punkt am Tab sagt „hier ist etwas
+offen", die Feldmarkierung sagt „und zwar hier": nach dem Klick auf einen
+Schritt bekommen dessen **leere** Felder einen farbigen Rahmen, der beim ersten
+Tastendruck verschwindet.
+
+**Markiert wird nur, was leer ist.** Unter *Allgemein* sind das allein die
+KI-Export-Pfade — Port, Fehler-Limit, Datei-Muster und Papierkorb sind
+vorbelegt und damit keine Stelle, an der man etwas eintragen muss. Eine Marke
+dort würde zu Arbeit auffordern, die es nicht gibt. „Regeln" markiert
+entsprechend nichts, solange die Standarderkennung passt.
+
+| Schritt | markiert (wenn leer) |
+|---|---|
+| 🕵️ Monitor | Pfad-Feld der Watchpath-Zeile — oder **„+ Pfad hinzufügen"**, wenn noch keine Zeile existiert |
+| ⚙️ Allgemein | die beiden KI-Export-Pfade |
+| ✉️ E-Mail | SMTP-Host, Benutzer, Passwort, Absender |
+| 📂 Log-Analyse | das Pfad-Feld |
+| 🗄️ Backup | Pfad der Ziel-Karte und FTP-Host — oder die **„＋ Lokales Ziel"**-Kachel |
+
+Der Rückfall auf den Anlege-Knopf ist nötig, weil bei null Pfaden gar keine
+Tabellenzeile gerendert wird: dann *ist* der Knopf die Stelle. Technisch ist es
+`outline` und kein `border`, damit in der Watchpath-Tabelle und den
+Backup-Karten nichts verrutscht.
 
 **Nur für Administratoren.** Alle Ziele sind admin-only; einem normalen Benutzer
 würde die Karte zu Gesperrtem auffordern und erscheint deshalb nicht.
@@ -641,6 +665,27 @@ Alle E-Mail-Aktivitäten werden in **`email.log`** im Projektverzeichnis protoko
 Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
+
+### 2026-09-03 — 🎯 Einrichtungsassistent markiert die Felder, und der Abschluss führt aufs Dashboard
+
+Rückmeldung von Kollegen: der Assistent kommt gut an, könnte aber intuitiver sein — vor allem sollte er markieren, wo man etwas eintragen kann. Bisher endete der Klick auf einen Schritt am Tab; welches der Felder gemeint war, stand dort nicht.
+
+**Markiert wird nur, was leer ist.** `SCHRITTE` führt jetzt je Punkt eine Liste von Feld-Selektoren; `setupGoto()` setzt nach dem Tab-Wechsel eine Klasse auf die leeren davon. Unter *Allgemein* sind das allein die KI-Export-Pfade — Port, Fehler-Limit, Datei-Muster und Papierkorb sind vorbelegt und damit keine Stelle, an der etwas einzutragen ist. Eine Marke dort würde zu Arbeit auffordern, die es nicht gibt. „Regeln" markiert entsprechend nichts, solange die Standarderkennung passt.
+
+**Rückfall auf den Anlege-Knopf.** Bei null Pfaden rendert `renderWatchPathsTable()` keine Zeile — im Pflichtfall gäbe es also gar kein Feld zu markieren. Findet sich keins, markiert der Schritt „+ Pfad hinzufügen"; beim Backup entsprechend die „＋ Lokales Ziel"-Kachel.
+
+**Technisch `outline`, nicht `border`** — ein Rahmen würde die Watchpath-Tabelle und die Backup-Karten verschieben. Die Marke verschwindet beim ersten Tastendruck (ein delegierter `input`-Listener, nicht einer pro Feld), und der Abschluss räumt sie über `assistentAktiv()` mit ab — dieselbe Wahrheit, an der auch die Tab-Punkte hängen.
+
+**Kein Server-Anteil.** Der Client sieht die Feldwerte im DOM; `input.value === ''` genügt. `setupState.js` bleibt unberührt.
+
+**Der Abschluss führt jetzt aufs Dashboard.** „✓ Einrichtung abgeschlossen" schließt Einstellungen *und* Analyse-Panel — die Einstellungen waren das Werkzeug des Assistenten, nicht das Ziel. Bewusst `classList.remove('open')` statt `toggleConfigPanel()`: das Toggle hätte ein bereits geschlossenes Panel aufgezogen. Und nur bei erfolgreichem Speichern: schlägt der POST fehl, bleibt alles offen, weil die Karte beim nächsten Laden wiederkommt.
+
+**Vorgehen:** Drei Mockups waren nötig, weil die ersten beiden über das Ziel hinausschossen — sie haben den Assistenten umgebaut, statt nur zu markieren. Verworfen wurden: Markierung ganzer Feldgruppen (traf den vorbelegten Port), eine Umstellung von Themen- auf Aufgabenliste, und Aktionsknöpfe in der Karte, die sie auf über 500 px Höhe brachten. Umgesetzt ist die kleinste Fassung: eine Feldliste, 20 Zeilen Logik, eine CSS-Regel.
+
+Alle 14 Suiten grün, 31 neue Checks in `test/setup-wiring.js`. Zwei Testmängel kamen dabei heraus: `/input\.setup-hier/` matchte auch ein umbenanntes `input.setup-hierZZZ` und blieb grün, obwohl die CSS-Regel weg war (jetzt mit `[,{]` verankert); und ein bestehender Check hing an „innerhalb von 200 Zeichen" und wurde durch zwei Kommentarzeilen rot — er prüft jetzt den Funktionskörper. Nur `public/` betroffen: F5 genügt.
+
+**Dateien:** public/js/setupPanel.js, public/style.css, test/setup-wiring.js, README.md
+
 
 ### 2026-09-03 — 🧹 Leerzeilen in Fehler-Einträgen ausblenden
 

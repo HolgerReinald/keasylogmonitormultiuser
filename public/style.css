@@ -3540,4 +3540,24 @@ input.ksw:focus-visible { outline: 2px solid var(--border-focus); outline-offset
 }
 .config-tab.setup-todo-optional::after { background: var(--text-muted); opacity: 0.65; }
 
+/* Feldmarkierung des Einrichtungsassistenten: zeigt die LEEREN Stellen des
+   angeklickten Punkts. Der Tab-Punkt sagt "hier ist was offen", diese Marke
+   sagt "und zwar hier".
+
+   outline statt border: verschiebt kein Layout, auch nicht in der
+   Watchpath-Tabelle und in den Backup-Karten.
+   Der Selektor ist so spezifisch wie .config-field input[type="text"] und
+   steht dahinter -- sonst gewinnt dort der Feld-Hintergrund. */
+input.setup-hier,
+.config-field input.setup-hier,
+button.setup-hier {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-secondary));
+}
+
+/* Der Knopf, der erst ein Feld anlegt (leere Watchpath-Tabelle, noch kein
+   Backup-Ziel) -- Schrift lesbar halten, der Rest kommt vom Knopf selbst. */
+button.setup-hier { color: var(--text-primary); }
+
 

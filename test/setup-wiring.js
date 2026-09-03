@@ -339,8 +339,13 @@ console.log('\n6e) "Fertig" ist von den Einzelpunkten getrennt');
   // nur `zeigen` geprueft wurde. Jetzt gibt es EINE Funktion dafuer.
   check('assistentAktiv() als gemeinsame Wahrheit',
     /function assistentAktiv\(\)[\s\S]{0,120}!!st\.zeigen && !st\.fertig/.test(panel));
+  // Auf den Funktionskoerper eingegrenzt statt auf ein Zeichenfenster: der
+  // Check hing an "innerhalb von 200 Zeichen" und wurde rot, als markiereTabs
+  // 2026-09-03 um das Raeumen der Feldmarken erweitert wurde -- obwohl die
+  // gepruefte Sache unveraendert stimmte.
+  const markTabs = (panel.match(/function markiereTabs\(\)[\s\S]*?\n\}/) || [''])[0];
   check('Tab-Punkte verschwinden nach dem Abschluss',
-    /const aktiv = assistentAktiv\(\);[\s\S]{0,200}if \(!aktiv\) continue;/.test(panel),
+    /const aktiv = assistentAktiv\(\);/.test(markTabs) && /if \(!aktiv\) continue;/.test(markTabs),
     'Sonst bleiben die grauen Punkte an Allgemein, E-Mail und Backup stehen');
   check('keine eigene zeigen-Pruefung in markiereTabs',
     !/function markiereTabs\(\)[\s\S]{0,300}state\.setupState && state\.setupState\.zeigen/.test(panel),
@@ -438,6 +443,93 @@ console.log('\n6d) Das Weitergabe-Paket traegt keine internen Pfade');
 }
 
 
+
+console.log('\n9) Feldmarkierung: zeigt, WO man etwas eintragen kann');
+{
+  // Anlass 2026-09-03 (Rueckmeldung von Kollegen): der Klick auf einen Punkt
+  // brachte einen in den Tab -- welches Feld gemeint war, stand dort nicht.
+  // Markiert werden ausschliesslich LEERE Felder: eine Marke am vorbelegten
+  // Port fordert zu Arbeit auf, die es nicht gibt.
+  const panel = read('public/js/setupPanel.js');
+  const css = read('public/style.css');
+  const html = read('public/index.html');
+
+  check('markiereFelder vorhanden', /function markiereFelder\(s\)/.test(panel), null);
+  check('nur leere Felder werden markiert',
+    /\(el\.value \|\| ''\)\.trim\(\) !== ''\) continue;/.test(panel),
+    'Ohne diese Zeile bekaeme auch der vorbelegte Port eine Marke');
+  check('setupGoto markiert nach dem Tab-Wechsel',
+    /requestAnimationFrame\(\(\) => markiereFelder\(s\)\)/.test(panel),
+    'Direkt danach stehen Watchpath-Zeilen und Backup-Karten noch nicht im DOM');
+  check('alte Marken werden vorher geraeumt',
+    /function markiereFelder[\s\S]{0,90}raeumeFeldmarken\(\)/.test(panel),
+    'Sonst sammeln sich Marken ueber mehrere Tabs hinweg');
+  check('Tippen loescht die Marke',
+    /addEventListener\('input'[\s\S]{0,220}classList\.remove\(MARKE\)/.test(panel),
+    'Ein delegierter Listener -- einer pro Feld wuerde sich ansammeln');
+  check('Abschluss raeumt die Marken mit ab',
+    /if \(!aktiv\) raeumeFeldmarken\(\);/.test(panel),
+    'assistentAktiv() ist die eine Wahrheit: Tab-Punkte und Feldmarken gehen gemeinsam');
+
+  // Fallback: bei 0 Watchpaths rendert renderWatchPathsTable() keine Zeile,
+  // dann gibt es kein Feld -- die Stelle ist der Knopf, der eines anlegt.
+  check('Fallback auf den Anlege-Knopf', /if \(!gesetzt && s\.fallback\)/.test(panel), null);
+  check('Pflichtschritt hat einen Fallback',
+    /fallback: 'button\[onclick="addWatchPathRow\(\)"\]'/.test(panel), null);
+  check('... und der Knopf existiert so im HTML',
+    /onclick="addWatchPathRow\(\)"/.test(html),
+    'Ein Selektor, den es nicht gibt, markiert stillschweigend nichts');
+  check('Backup faellt auf die Anlege-Kachel zurueck', /fallback: '\.bk-addtile'/.test(panel), null);
+  check('... und die Kachel existiert', /class="bk-addtile"/.test(html), null);
+
+  // Jede referenzierte ID muss es im HTML geben, sonst zeigt die Marke ins Leere.
+  // Auf den SCHRITTE-Block eingegrenzt statt auf "felder: [...]": ein Selektor
+  // wie '#backupLocalCards input[data-field="path"]' enthaelt selbst eine
+  // Klammer und wuerde eine [^\]]-Suche vorzeitig beenden.
+  const schritteBlock = (panel.match(/const SCHRITTE = \[[\s\S]*?\n\];/) || [''])[0];
+  const ids = schritteBlock.match(/'#[A-Za-z-]+/g) || [];
+  check('Feld-Selektoren gefunden', ids.length >= 8, 'gefunden: ' + ids.length);
+  for (const roh of [...new Set(ids)]) {
+    const id = roh.slice(2);
+    check('#' + id + ' existiert im HTML', new RegExp('id="' + id + '"').test(html),
+      'Selektor aus SCHRITTE.felder ohne Gegenstueck im Markup');
+  }
+
+  // Die Klassennamen mit [,{] abgeschlossen pruefen: ohne das matcht
+  // /input\.setup-hier/ auch ein umbenanntes "input.setup-hierZZZ" -- beim
+  // Mutationstest blieb der Check dadurch gruen, obwohl die Regel weg war.
+  check('CSS-Regel fuer .setup-hier', /input\.setup-hier\s*[,{]/.test(css), null);
+  check('outline statt border (kein Layout-Sprung)',
+    /input\.setup-hier\s*[,{][\s\S]{0,220}outline: 2px solid/.test(css),
+    'Ein border wuerde die Watchpath-Tabelle und die Backup-Karten verschieben');
+  check('Knopf-Variante mitgestylt', /button\.setup-hier\s*[,{]/.test(css), null);
+}
+
+console.log('\n10) Abschluss fuehrt zurueck auf die Startseite');
+{
+  // Wunsch 2026-09-03: nach "Einrichtung abgeschlossen" soll das Dashboard zu
+  // sehen sein -- nicht der Tab, in dem man zuletzt gearbeitet hat.
+  const panel = read('public/js/setupPanel.js');
+  const fn = (panel.match(/async function setupFertig[\s\S]*?\n\}/) || [''])[0];
+
+  check('zurueckZurStartseite vorhanden', /function zurueckZurStartseite\(\)/.test(panel), null);
+  check('schliesst beide Panels',
+    /\['configPanel', 'analyzePanel'\][\s\S]{0,160}classList\.remove\('open'\)/.test(panel),
+    'Der Analyse-Schritt oeffnet ein eigenes Panel -- das muss mit zu');
+  check('classList.remove statt toggleConfigPanel',
+    !/function zurueckZurStartseite[\s\S]{0,320}toggleConfigPanel\(\)/.test(panel),
+    'Ein Toggle wuerde ein bereits geschlossenes Panel aufziehen');
+  check('Feldmarken werden mit abgeraeumt',
+    /function zurueckZurStartseite[\s\S]{0,140}raeumeFeldmarken\(\)/.test(panel), null);
+
+  check('setupFertig ruft es auf', /zurueckZurStartseite\(\);/.test(fn), null);
+  check('nur bei Erfolg geschlossen',
+    /if \(!r\.ok\) \{[\s\S]{0,260}return;/.test(fn),
+    'Bei fehlgeschlagenem Speichern kommt die Karte wieder -- dann soll man auch noch sehen, wo man war');
+  check('Abbruch steht vor dem Schliessen',
+    fn.indexOf('return;') !== -1 && fn.indexOf('return;') < fn.indexOf('zurueckZurStartseite();'),
+    'Sonst wird trotz Fehler geschlossen');
+}
 
 console.log(failed === 0 ? '\n✅ Einrichtungskarte ist korrekt verdrahtet\n' : `\n❌ ${failed} Problem(e)\n`);
 process.exit(failed === 0 ? 0 : 1);
