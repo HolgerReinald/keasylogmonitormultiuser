@@ -30,9 +30,39 @@ function openFileAtError(filePath, searchText, event) {
   });
 }
 
+// Datei-Block auf-/zuklappen. Der Zustand wird gemerkt, sonst faellt der Block
+// beim naechsten renderAll() wieder zu — und das passiert bei jedem
+// eingehenden Fehler.
 function toggleGroup(header) {
   const list = header.nextElementSibling;
-  list.style.display = list.style.display === 'none' ? 'block' : 'none';
+  if (list.style.display === 'none') openFileList(list);
+  else closeFileList(list);
+}
+
+// Gespeichert werden nur die OFFENEN Bloecke; die Vorgabe „zu" gilt damit ohne
+// Sonderfall. Der Schluessel steht am Kopf (data-open-key) und unterscheidet
+// Live, ⏱️ Performance und Analyse. Bloecke ohne Schluessel — der Papierkorb
+// baut sein Markup selbst — klappen wie bisher nur optisch, ohne Gedaechtnis.
+function persistOpenFiles() {
+  localStorage.setItem('keasy-open-files', JSON.stringify(state.openFiles));
+}
+
+function openFileList(list) {
+  if (!list) return;
+  list.style.display = 'block';
+  const key = list.previousElementSibling?.dataset.openKey;
+  if (!key) return;
+  state.openFiles[key] = true;
+  persistOpenFiles();
+}
+
+function closeFileList(list) {
+  if (!list) return;
+  list.style.display = 'none';
+  const key = list.previousElementSibling?.dataset.openKey;
+  if (!key) return;
+  delete state.openFiles[key];
+  persistOpenFiles();
 }
 
 function toggleSource(header, label) {
@@ -86,8 +116,7 @@ function updateCollapseAllButton() {
 
 // Eintragsliste einer Datei einblenden und den ersten kritischen Eintrag zurückgeben
 function expandAndFindCritical(fileGroup) {
-  const list = fileGroup.querySelector('.error-list');
-  if (list) list.style.display = 'block';
+  openFileList(fileGroup.querySelector('.error-list'));
   return fileGroup.querySelector('.error-entry.sev-kritisch');
 }
 
@@ -111,8 +140,7 @@ function expandAnalyzeWrap(target) {
 function focusEntry(target) {
   if (!target) return;
   expandAnalyzeWrap(target);
-  const list = target.closest('.error-list');
-  if (list) list.style.display = 'block';
+  openFileList(target.closest('.error-list'));
 
   // Dauerhafte Markierung über die Objektreferenz merken — sie überlebt den
   // Neuaufbau durch renderAll(), eine Element-ID täte das nicht.

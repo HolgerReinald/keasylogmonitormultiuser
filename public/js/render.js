@@ -120,10 +120,15 @@ const ANALYZE_WRAP_KEY = 'analyze-wrap';
 // Datei-Block mit Header (Name, Pfad, Aktionen) und ausklappbarer Eintragsliste
 // noticeHtml steht in der Fehlerliste vor den Eintraegen — fuer Hinweise, die zur
 // ganzen Datei gehoeren und nicht zu einem einzelnen Fehler (z. B. Lesestopp).
-function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '', noticeHtml = '') {
+// openKey ist der Schluessel, unter dem toggleGroup() das Aufklappen merkt.
+// Vorgabe ist der Dateipfad (Live); Performance und Analyse geben einen eigenen
+// Praefix mit, weil dieselbe Datei in mehreren Bereichen stehen kann und sonst
+// alle drei Bloecke gemeinsam auf- und zuklappen wuerden.
+function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '', noticeHtml = '', openKey = filePath) {
+  const isOpen = state.openFiles[openKey] === true;
   return `
         <div class="file-group${extraClass}">
-          <div class="file-header" onclick="toggleGroup(this)">
+          <div class="file-header" data-open-key="${attr(openKey)}" onclick="toggleGroup(this)">
             <div>
               ${fileNameHtml}
               <div class="file-path">${escapeHtml(filePath)}</div>
@@ -132,7 +137,7 @@ function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, ex
               ${actionsHtml}
             </div>
           </div>
-          <div class="error-list" style="display:none">${noticeHtml}${entriesHtml}</div>
+          <div class="error-list" style="display:${isOpen ? 'block' : 'none'}">${noticeHtml}${entriesHtml}</div>
         </div>`;
 }
 
@@ -197,8 +202,62 @@ function buildGapEntryHtml(filePath, entry) {
           </div>`;
 }
 
+// --- Ansicht festhalten (Anker) ---------------------------------------------
+// renderAll() ersetzt das komplette HTML des Containers. Ohne Gegenmassnahme
+// steht die Seite danach an einer anderen Stelle — beim Lesen eines Fehlers
+// reisst einen jeder eingehende neue Fehler heraus.
+// Ein gemerkter Scrollwert reicht dafuer nicht: Quellen und Dateien sind nach
+// neuestem Fehler sortiert, ein neuer Eintrag verschiebt also auch die
+// Reihenfolge OBERHALB der gelesenen Stelle. Gemerkt wird deshalb das oberste
+// sichtbare Element und sein Abstand zur Fensteroberkante; danach wird genau
+// dieses Element wieder dorthin geschoben.
+// Wiedergefunden wird es ueber die Objektreferenz (state.navEntries) bzw. den
+// Datei-Schluessel — die Element-IDs sind ueber einen Neuaufbau hinweg nicht
+// stabil.
+function captureViewAnchor() {
+  // Ganz oben heisst: live mitlesen. Dann darf der neueste Fehler auch oben
+  // erscheinen, statt die Ansicht vom Anker weggeschoben zu bekommen.
+  if (window.scrollY <= 4) return null;
+  const container = document.getElementById('container');
+  if (!container) return null;
+
+  for (const el of container.querySelectorAll('.error-entry[id], .file-header[data-open-key]')) {
+    const rect = el.getBoundingClientRect();
+    // Zugeklappte Bloecke sind display:none und liefern ein Null-Rechteck —
+    // sie fallen damit ueber dieselbe Pruefung heraus wie weggescrollte.
+    if (rect.bottom <= 0) continue;
+    if (rect.top > window.innerHeight) break;
+    const nav = el.id ? state.navEntries.find(n => n.id === el.id) : null;
+    if (nav) return { ref: nav.ref, top: rect.top };
+    if (el.dataset.openKey) return { fileKey: el.dataset.openKey, top: rect.top };
+  }
+  return null;
+}
+
+function restoreViewAnchor(anchor) {
+  if (!anchor) return;
+  let el = null;
+  if (anchor.ref) {
+    const nav = state.navEntries.find(n => n.ref === anchor.ref);
+    el = nav ? document.getElementById(nav.id) : null;
+  } else if (anchor.fileKey) {
+    // Attributvergleich in JS statt im Selektor: Dateipfade enthalten
+    // Backslashes und Anfuehrungszeichen waeren im Selektor zu maskieren.
+    el = [...document.querySelectorAll('#container .file-header[data-open-key]')]
+      .find(h => h.dataset.openKey === anchor.fileKey) || null;
+  }
+  // Weggefiltert oder in einer zugeklappten Quelle: dann gibt es nichts,
+  // worauf man zurueckspringen koennte — die Ansicht bleibt, wie sie ist.
+  if (!el || el.offsetParent === null) return;
+  const delta = el.getBoundingClientRect().top - anchor.top;
+  if (delta) window.scrollBy(0, delta);
+}
+
 function renderAll() {
   const container = document.getElementById('container');
+  // Ansicht festhalten, BEVOR state.navEntries geleert wird — der Anker
+  // braucht die Zuordnung id → Fehlerobjekt des noch stehenden Aufbaus.
+  const anchor = captureViewAnchor();
   // Index-Daten bei jedem Durchlauf neu sammeln — sie entstehen in
   // buildErrorEntryHtml() und spiegeln damit exakt die angezeigte Menge.
   state.navEntries = [];
@@ -394,7 +453,7 @@ function renderAll() {
 
         const actionsHtml = `${buildOpenButtonsHtml(filePath)}
               <span class="file-badge gap-badge" title="Anzahl Performance-Gaps in dieser Datei">⏱️ ${filtered.length}</span>`;
-        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml);
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, '', '', 'perf:' + filePath);
       }
 
       if (groupCount > 0) {
@@ -488,7 +547,7 @@ function renderAll() {
 
         const actionsHtml = `${buildOpenButtonsHtml(filePath)}
               ${buildAlarmButtonHtml(fileCriticalCount)}${truncBadge}<span class="file-badge" title="Anzahl Fehler in dieser Datei">${fileErrCount}</span>${fileGapBadge}`;
-        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, critClass, truncNotice);
+        groupHtml += buildFileGroupHtml(filePath, `<div class="file-name">📄 ${escapeHtml(fileName)}</div>`, actionsHtml, entriesHtml, critClass, truncNotice, 'analyze:' + filePath);
       }
 
       if (groupCount > 0) {
@@ -588,6 +647,9 @@ function renderAll() {
   if (window.Keasy && window.Keasy.auth && window.Keasy.auth.applyUserRole) {
     window.Keasy.auth.applyUserRole();
   }
+  // Ganz zum Schluss: erst wenn auch Papierkorb und Seitenleiste stehen,
+  // ist die Hoehe aller Elemente endgueltig.
+  restoreViewAnchor(anchor);
 }
 
 function renderTrash() {

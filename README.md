@@ -666,6 +666,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-09-08 — 🧷 Ansicht bleibt beim Lesen stehen
+
+**Aufgeklappte Dateien bleiben offen.** `buildFileGroupHtml()` rendert die Eintragsliste jetzt nach `state.openFiles` statt hart mit `display:none`. Gespeichert werden nur die offenen Blöcke (`keasy-open-files`) — dasselbe invertierte Muster wie beim Analyse-Sammelblock. Der Schlüssel steht als `data-open-key` am Kopf und trägt je Bereich ein eigenes Präfix (`perf:`, `analyze:`), weil dieselbe Datei unter Live, ⏱️ Performance und Analyse gleichzeitig stehen kann. Auch die Sprungziele — 🚨-Alarmknopf und Fehler-Index — gehen über dieselbe Stelle (`openFileList()`); vorher drehten sie direkt am DOM, und ihr Aufklappen war beim nächsten Fehler wieder weg.
+
+**Die Ansicht hält die Position.** `captureViewAnchor()` merkt vor dem Neuaufbau das oberste sichtbare Element und seinen Abstand zur Fensteroberkante, `restoreViewAnchor()` schiebt es danach genau dorthin zurück. Wiedergefunden wird es über die Objektreferenz aus `state.navEntries`, nicht über die Element-ID — die wird bei jedem Aufbau neu vergeben. Ein gemerkter Scrollwert reicht dafür nicht: Quellen und Dateien sind nach neuestem Fehler sortiert, ein neuer Eintrag verschiebt also auch die Reihenfolge oberhalb der gelesenen Stelle. Ausnahme ist der Kopf der Seite (≤ 4 px) — dort liest man live mit, und der neueste Fehler darf oben erscheinen.
+
+**Offen:** neue Fehler ganz zurückhalten und als Hinweis „3 neue Fehler — anzeigen" sammeln, statt sofort neu aufzubauen.
+
+**Dateien:** public/js/state.js, public/js/render.js, public/js/actions.js, test/view-anchor-wiring.js (neu), README.md
+
 ### 2026-09-03 — 🎯 Einrichtungsassistent markiert die Felder, und der Abschluss führt aufs Dashboard
 
 **Feldmarkierung.** `SCHRITTE` führt je Punkt eine Liste von Feld-Selektoren; `setupGoto()` markiert nach dem Tab-Wechsel die **leeren** davon. Vorbelegtes bleibt unangetastet — unter *Allgemein* sind das allein die KI-Export-Pfade, „Regeln" markiert nichts, solange die Standarderkennung passt.

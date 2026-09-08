@@ -21,6 +21,14 @@ window.Keasy.state = {
   emailConfiguredSources: new Set(),
   nextEmailSendTime: null,
   collapsedSources: JSON.parse(localStorage.getItem('keasy-collapsed-sources') || '{}'),
+  // Auf-/Zu-Zustand der Datei-Bloecke — eine Ebene unter den Quellen.
+  // Gespeichert werden nur die OFFENEN; die Vorgabe „zu" gilt damit ohne
+  // Sonderfall, auch fuer Dateien, die erst spaeter dazukommen. Ohne dieses
+  // Gedaechtnis fiel jede aufgeklappte Datei wieder zu, sobald ein neuer
+  // Fehler renderAll() ausgeloest hat — man verlor beim Lesen dauernd
+  // die Stelle. Der Schluessel unterscheidet Live, ⏱️ Performance und
+  // Analyse, weil dieselbe Datei in mehreren Bereichen stehen kann.
+  openFiles: JSON.parse(localStorage.getItem('keasy-open-files') || '{}'),
 
   // Copilot-Export: ist der jeweilige Zielpfad konfiguriert? Kommt mit der
   // init-Nachricht (pro Benutzer) und steuert, ob die 🤖/🚀-Knöpfe bedienbar
