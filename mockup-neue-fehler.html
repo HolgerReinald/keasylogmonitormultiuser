@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mockup: Neue Fehler zurückhalten (Stufe 3)</title>
+  <!-- Das echte Stylesheet, damit Schrift, Farben und Abstände stimmen und das
+       Urteil über die Pille auch für die echte Anwendung gilt. -->
+  <link rel="stylesheet" href="public/style.css">
+  <style>
+    /* ==== Nur für das Mockup — kommt NICHT in die Anwendung ==== */
+    .mk-panel {
+      position: fixed; right: 14px; bottom: 14px; z-index: 9000;
+      width: 290px; max-height: 88vh; overflow: auto;
+      background: var(--bg-secondary); color: var(--text-primary);
+      border: 2px dashed var(--accent); border-radius: 10px;
+      padding: 12px 13px 14px; font-size: 12.5px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.28);
+    }
+    .mk-panel h4 { margin: 0 0 4px; font-size: 13px; }
+    .mk-panel .mk-hint { color: var(--text-secondary); font-size: 11.5px; margin: 0 0 10px; line-height: 1.45; }
+    .mk-block { border-top: 1px solid var(--border-color); padding-top: 9px; margin-top: 9px; }
+    .mk-block > label { display: block; font-weight: 600; margin-bottom: 5px; }
+    .mk-panel select, .mk-panel input[type=range] { width: 100%; }
+    .mk-panel select {
+      background: var(--bg-input); color: var(--text-primary);
+      border: 1px solid var(--border-color); border-radius: 5px; padding: 4px 5px; font-size: 12.5px;
+    }
+    .mk-row { display: flex; gap: 6px; margin-top: 7px; }
+    .mk-row button {
+      flex: 1; cursor: pointer; padding: 5px 6px; font-size: 12px;
+      background: var(--bg-tertiary); color: var(--text-primary);
+      border: 1px solid var(--border-color); border-radius: 5px;
+    }
+    .mk-row button:hover { border-color: var(--accent); }
+    .mk-val { float: right; font-weight: 400; color: var(--text-secondary); }
+    .mk-mode-info {
+      margin-top: 6px; padding: 6px 7px; border-radius: 5px; line-height: 1.4;
+      background: var(--bg-tertiary); color: var(--text-secondary); font-size: 11.5px;
+    }
+    .mk-tag {
+      position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+      z-index: 9000; background: var(--accent); color: #fff;
+      font-size: 11px; padding: 2px 12px; border-radius: 0 0 7px 7px; letter-spacing: .04em;
+    }
+
+    /* ==== Der Entwurf: die Pille ====
+       Fixiert, damit ihr Erscheinen NICHTS im Seitenfluss verschiebt — das ist
+       der ganze Punkt der Stufe. Ein Element im Fluss würde beim Einblenden
+       alles nach unten drücken und damit genau das tun, was wir abstellen. */
+    #neuHost { position: fixed; z-index: 500; pointer-events: none; }
+    /* Kopfzeile und Werkzeugleiste sind NICHT fixiert — sie sind weggescrollt,
+       sobald die Pille überhaupt erscheinen kann. Sie richtet sich deshalb am
+       Fensterrand aus, nicht an einer Leiste. */
+    #neuHost[data-platz="oben-mitte"]  { top: 14px; left: 50%; transform: translateX(-50%); }
+    #neuHost[data-platz="oben-rechts"] { top: 14px; right: 24px; }
+    #neuHost[data-platz="unten-mitte"] { bottom: 22px; left: 50%; transform: translateX(-50%); }
+
+    .neu-pille {
+      pointer-events: auto; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 9px 17px; border-radius: 999px;
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      color: #fff; background: var(--accent);
+      border: 1px solid rgba(0,0,0,.15);
+      box-shadow: 0 4px 16px rgba(0,0,0,.30);
+    }
+    .neu-pille:hover { filter: brightness(1.08); }
+    .neu-pille:focus-visible { outline: 3px solid var(--border-focus); outline-offset: 2px; }
+    /* Kritisch färbt, bricht aber nicht durch: ein kritischer Fehler, der die
+       Ansicht umbaut, wäre genau die Störung, um die es hier geht. */
+    .neu-pille.is-kritisch { background: var(--sev-critical); }
+    .neu-krit { font-weight: 700; padding-left: 9px; border-left: 1px solid rgba(255,255,255,.45); }
+    .neu-tipp { font-weight: 400; opacity: .85; font-size: 12.5px; }
+  </style>
+</head>
+<body class="theme-light">
+
+<div class="mk-tag">MOCKUP — keine echten Daten</div>
+
+<header>
+  <h3>🔍 Keasy Log Monitor <span style="font-size:0.5em;color:#888;font-weight:normal">Mockup</span></h3>
+  <div class="status">
+    <div class="status-dot" style="background:#44aa44"></div>
+    <span>Verbunden</span>
+    <span class="error-count" id="totalCount" title="Gesamtanzahl der angezeigten Fehler">0</span>
+  </div>
+</header>
+
+<div class="controls">
+  <button class="time-filter-btn active">Heute</button>
+  <span class="controls-separator"></span>
+  <button>⏸️ Pause</button>
+  <button>⊟ Alle zu</button>
+  <button>🧭 Index</button>
+  <!-- Der zu erprobende Schalter. Steht bewusst bei den anderen persoenlichen
+       Schaltern (🔔, 🧭) und nicht in den Einstellungen: es ist eine
+       Lesegewohnheit, keine Anlagenkonfiguration. -->
+  <button id="holdToggle" onclick="haltenUmschalten()" aria-pressed="true">📌 Ansicht festhalten</button>
+  <input type="text" placeholder="Suche in Fehler & Dateiname... (Strg+K)">
+  <select id="themeSelect" onchange="document.body.className = this.value">
+    <option value="theme-light">☀️ Hell</option>
+    <option value="theme-dark">🌙 Dunkel</option>
+    <option value="theme-blue">🔵 Blau</option>
+  </select>
+</div>
+
+<!-- Der fixierte Host für die Pille -->
+<div id="neuHost" data-platz="oben-mitte" aria-live="polite"></div>
+
+<div class="app-main" data-side="left">
+  <div id="container"></div>
+</div>
+
+<!-- ==================== Mockup-Bedienung ==================== -->
+<div class="mk-panel">
+  <h4>🧪 Mockup-Bedienung</h4>
+  <p class="mk-hint">
+    Scroll in die Fehlerliste hinein, öffne einen Eintrag und lass nebenbei
+    Fehler eintrudeln. Der Unterschied zeigt sich erst, wenn du <b>nicht</b>
+    ganz oben stehst.
+  </p>
+
+  <div class="mk-block">
+    <label for="mkModus">Verhalten</label>
+    <select id="mkModus" onchange="modusGewechselt()">
+      <option value="alt">1 — vor Stufe 1+2 (klappt zu, springt)</option>
+      <option value="heute">2 — heute: Stufe 1+2 (Anker hält)</option>
+      <option value="stufe3" selected>3 — mit Stufe 3 (zurückhalten)</option>
+    </select>
+    <div class="mk-mode-info" id="mkModusInfo"></div>
+  </div>
+
+  <div class="mk-block">
+    <label for="mkRate">Fehlerrate <span class="mk-val" id="mkRateVal">12 / min</span></label>
+    <input type="range" id="mkRate" min="0" max="60" value="12" oninput="rateGeaendert(this.value)">
+    <label for="mkKrit" style="margin-top:8px">Anteil kritisch <span class="mk-val" id="mkKritVal">20 %</span></label>
+    <input type="range" id="mkKrit" min="0" max="100" value="20" oninput="kritGeaendert(this.value)">
+    <div class="mk-row">
+      <button onclick="einFehler()">+ 1 Fehler</button>
+      <button onclick="schwall()">Schwall (8)</button>
+    </div>
+  </div>
+
+  <div class="mk-block">
+    <label for="mkPlatz">Platzierung der Pille</label>
+    <select id="mkPlatz" onchange="document.getElementById('neuHost').dataset.platz = this.value">
+      <option value="oben-mitte" selected>oben mittig</option>
+      <option value="oben-rechts">oben rechts</option>
+      <option value="unten-mitte">unten mittig</option>
+    </select>
+    <label for="mkWort" style="margin-top:8px">Wortlaut</label>
+    <select id="mkWort" onchange="pilleZeichnen()">
+      <option value="a" selected>🔴 3 neue Fehler · 🚨 1 kritisch</option>
+      <option value="b">🔴 3 neue Fehler — anzeigen</option>
+      <option value="c">↑ 3 neue Fehler</option>
+      <option value="d">🔴 3 neue Fehler (Klick baut ein)</option>
+    </select>
+  </div>
+
+  <div class="mk-block">
+    <div class="mk-row">
+      <button onclick="zuruecksetzen()">↺ Zurücksetzen</button>
+      <button onclick="window.scrollTo({top:0})">↑ nach oben</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// Mockup-Daten — erfundener, aber realistisch geformter Fehlerstrom.
+// ============================================================================
+const QUELLEN = [
+  { label: 'Keasy Server',    dateien: ['KeasyServerService_KeasyWorkflowServerKeasyRelease_26_2026-09-08.log',
+                                        'KeasyServerService_KeasyDokumentDienst_11_2026-09-08.log'] },
+  { label: 'Workflow Server', dateien: ['WorkflowEngine_2026-09-08.log',
+                                        'WorkflowEngine_Archiv_2026-09-08.log'] },
+  { label: 'KI-Schnittstelle',dateien: ['ki-anfragen_2026-09-08.json'] }
+];
+
+const TEXTE = [
+  'Der folgende #Fehler ist aufgetreten: System.NullReferenceException: Der Objektverweis wurde nicht auf eine Objektinstanz festgelegt.\n   bei Keasy.Workflow.Schritt.Ausfuehren(Kontext ctx)\n   bei Keasy.Workflow.Motor.Naechster()',
+  'System.Data.SqlClient.SqlException: Timeout ist abgelaufen. Das Zeitlimit wurde vor dem Beenden des Vorgangs überschritten oder der Server reagiert nicht.\n   bei Keasy.Daten.Verbindung.Oeffnen()',
+  'Cannot access a disposed object. Object name: \'KeasyWorkflowContext\'.\n   bei Keasy.Workflow.Kontext.Pruefen()',
+  'System.IO.IOException: Der Prozess kann nicht auf die Datei zugreifen, da sie von einem anderen Prozess verwendet wird.\n   bei System.IO.FileStream.Init(String path)',
+  'Der folgende #Fehler ist aufgetreten: InnerException: System.TimeoutException: Der Wartevorgang wurde beendet.\n   bei Keasy.Dienste.Anfrage.Senden(String ziel)'
+];
+
+let daten = [];          // [{ label, dateien: [{ name, eintraege: [] }] }]
+let laufNr = 0;
+let modus = 'stufe3';   // der zu erprobende Stand ist die Vorgabe
+let rate = 12;
+let kritAnteil = 20;
+let offeneDateien = {};  // Stufe 1: gemerkter Auf-/Zu-Zustand
+let pending = { fehler: 0, kritisch: 0 };
+let timer = null;
+
+function jetzt(minusSekunden) {
+  return new Date(Date.now() - minusSekunden * 1000);
+}
+
+function neuerEintrag(kritisch) {
+  return {
+    id: 'e' + (++laufNr),
+    zeit: new Date(),
+    text: TEXTE[Math.floor(Math.random() * TEXTE.length)],
+    kritisch: !!kritisch
+  };
+}
+
+function grunddatenAufbauen() {
+  laufNr = 0;
+  daten = QUELLEN.map(q => ({
+    label: q.label,
+    dateien: q.dateien.map(name => {
+      const anzahl = 5 + Math.floor(Math.random() * 6);
+      const eintraege = [];
+      for (let i = 0; i < anzahl; i++) {
+        const e = neuerEintrag(Math.random() * 100 < 25);
+        e.zeit = jetzt(120 + i * 90 + Math.floor(Math.random() * 60));
+        eintraege.push(e);
+      }
+      // chronologisch, ältester zuerst — wie state.errors in der Anwendung
+      eintraege.sort((a, b) => a.zeit - b.zeit);
+      return { name, eintraege };
+    })
+  }));
+}
+
+// ============================================================================
+// Aufbau — spiegelt renderAll() der Anwendung, inklusive Sortierung nach
+// neuestem Fehler. Genau diese Sortierung schiebt beim Lesen die Umgebung um.
+// ============================================================================
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uhr = d => d.toLocaleTimeString('de-DE');
+
+function neuesteZeit(datei) { return datei.eintraege[datei.eintraege.length - 1].zeit; }
+
+function aufbauen() {
+  // --- Stufe 2: Anker merken, BEVOR neu gebaut wird ---
+  const anker = (modus === 'alt') ? null : ankerMerken();
+
+  pending = { fehler: 0, kritisch: 0 };
+  pilleZeichnen();
+
+  const quellen = [...daten].sort((a, b) => {
+    const na = Math.max(...a.dateien.map(neuesteZeit));
+    const nb = Math.max(...b.dateien.map(neuesteZeit));
+    return nb - na;
+  });
+
+  let html = '';
+  let gesamt = 0;
+
+  for (const q of quellen) {
+    const dateien = [...q.dateien].sort((a, b) => neuesteZeit(b) - neuesteZeit(a));
+    let qHtml = '';
+    let qAnzahl = 0, qKrit = 0;
+    let ersteDatei = true;
+
+    for (const d of dateien) {
+      const krit = d.eintraege.filter(e => e.kritisch).length;
+      qAnzahl += d.eintraege.length;
+      qKrit += krit;
+
+      // Stufe 1: der gemerkte Zustand entscheidet. Im Modus "alt" gibt es kein
+      // Gedächtnis — jede Datei startet zugeklappt, so wie es vorher war.
+      const schluessel = q.label + '|' + d.name;
+      const offen = (modus !== 'alt') && offeneDateien[schluessel] === true;
+
+      let eHtml = '';
+      for (const e of [...d.eintraege].reverse()) {
+        eHtml += `
+          <div class="error-entry${e.kritisch ? ' sev-kritisch' : ''}" id="${e.id}">
+            <div class="error-time">
+              ${e.kritisch ? '<span class="sev-badge sev-badge-kritisch" title="Dringlichkeit: kritisch">🔴 kritisch</span>' : ''}${uhr(e.zeit)}
+              <button class="action-btn error-jump-btn" title="In Datei springen">↗ Zeile öffnen</button>
+              <button class="action-btn copy-btn" title="In Zwischenablage kopieren">📋</button>
+              <button class="action-btn copilot-btn" title="An die KI (Develop)">🤖</button>
+              <button class="action-btn copilot-release-btn" title="An die KI (Release)">🚀</button>
+            </div>
+            <div class="error-text">${esc(e.text)}</div>
+          </div>`;
+      }
+
+      const letzte = neuesteZeit(d).toLocaleString('de-DE', {
+        day:'2-digit', month:'2-digit', year:'2-digit',
+        hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+      qHtml += `
+        <div class="file-group${ersteDatei ? ' file-group-newest' : ''}${krit > 0 ? ' has-kritisch' : ''}">
+          <div class="file-header" data-open-key="${esc(schluessel)}" onclick="klappen(this)">
+            <div>
+              <div class="file-name">📄 ${esc(d.name)}</div>
+              <div class="file-path">C:\\Keasy\\Logs\\${esc(d.name)}</div>
+            </div>
+            <div class="file-actions">
+              <span class="file-last-error" title="Zeitpunkt des letzten Fehlers">🕒 ${letzte}</span>
+              <button class="action-btn" title="Ordner öffnen">📂</button>
+              <button class="action-btn" title="Datei öffnen">📝</button>
+              ${krit > 0
+                ? `<button class="alarm-btn is-active" title="${krit} kritische Fehler">🚨 <span class="alarm-count">${krit}</span></button>`
+                : `<button class="alarm-btn is-idle" title="Keine kritischen Fehler" disabled>🚨 <span class="alarm-count">0</span></button>`}
+              <span class="file-badge" title="Anzahl Fehler in dieser Datei">${d.eintraege.length}</span>
+            </div>
+          </div>
+          <div class="error-list" style="display:${offen ? 'block' : 'none'}">${eHtml}</div>
+        </div>`;
+      ersteDatei = false;
+    }
+
+    gesamt += qAnzahl;
+    html += `
+      <div class="source-group">
+        <div class="source-header">
+          <span><span class="toggle-arrow">▼</span> ${esc(q.label)}</span>
+          <div class="source-actions">
+            <button class="action-btn">⏸️ Monitor</button>
+            <button class="action-btn">🗑️</button>
+            ${qKrit > 0
+              ? `<button class="alarm-btn is-active" title="${qKrit} kritische Fehler">🚨 <span class="alarm-count">${qKrit}</span></button>`
+              : `<button class="alarm-btn is-idle" disabled>🚨 <span class="alarm-count">0</span></button>`}
+            <span class="source-badge" title="Anzahl Fehler in dieser Quelle">${qAnzahl}</span>
+          </div>
+        </div>
+        <div class="source-content">${qHtml}</div>
+      </div>`;
+  }
+
+  document.getElementById('container').innerHTML = html;
+  document.getElementById('totalCount').textContent = gesamt;
+
+  if (anker) ankerWiederherstellen(anker);
+}
+
+// --- Stufe 1: Auf-/Zu merken -------------------------------------------------
+function klappen(kopf) {
+  const liste = kopf.nextElementSibling;
+  const offen = liste.style.display === 'none';
+  liste.style.display = offen ? 'block' : 'none';
+  const key = kopf.dataset.openKey;
+  if (modus === 'alt') return;             // vorher gab es kein Gedächtnis
+  if (offen) offeneDateien[key] = true; else delete offeneDateien[key];
+}
+
+// --- Stufe 2: Anker ----------------------------------------------------------
+function ankerMerken() {
+  if (window.scrollY <= 4) return null;
+  for (const el of document.querySelectorAll('#container .error-entry[id], #container .file-header[data-open-key]')) {
+    const r = el.getBoundingClientRect();
+    if (r.bottom <= 0) continue;
+    if (r.top > window.innerHeight) break;
+    return { id: el.id || null, key: el.dataset.openKey || null, top: r.top };
+  }
+  return null;
+}
+function ankerWiederherstellen(a) {
+  let el = a.id ? document.getElementById(a.id) : null;
+  if (!el && a.key) {
+    el = [...document.querySelectorAll('#container .file-header[data-open-key]')]
+      .find(h => h.dataset.openKey === a.key) || null;
+  }
+  if (!el || el.offsetParent === null) return;
+  const delta = el.getBoundingClientRect().top - a.top;
+  if (delta) window.scrollBy(0, delta);
+}
+
+// --- Stufe 3: zurückhalten ---------------------------------------------------
+function liestGeradeOben() { return window.scrollY <= 4; }
+
+// Stufe 3c: persoenlicher Schalter, im localStorage wie 🔔 und 🧭.
+let haltenAn = localStorage.getItem('keasy-hold-new') !== 'off';
+
+function haltenKnopfZeichnen() {
+  const btn = document.getElementById('holdToggle');
+  const nutzbar = modus === 'stufe3';
+  btn.disabled = !nutzbar;
+  btn.setAttribute('aria-pressed', String(nutzbar && haltenAn));
+  btn.style.opacity = (nutzbar && haltenAn) ? '1' : '0.5';
+  btn.title = !nutzbar
+    ? 'Nur im Modus „mit Stufe 3" wirksam — die anderen Modi bauen immer sofort auf'
+    : haltenAn
+      ? 'Die Ansicht wird beim Lesen festgehalten, neue Fehler warten in der Pille. Klick: abschalten'
+      : 'Neue Fehler werden sofort eingebaut. Klick: Ansicht wieder festhalten';
+}
+
+function haltenUmschalten() {
+  haltenAn = !haltenAn;
+  localStorage.setItem('keasy-hold-new', haltenAn ? 'on' : 'off');
+  haltenKnopfZeichnen();
+  // Abschalten muss SOFORT einbauen. Sonst verschwindet die Pille und die
+  // bereits gesammelten Fehler blieben unsichtbar, bis zufaellig der naechste
+  // eintrifft — genau die Zeile, die man beim Nachruesten vergisst.
+  if (!haltenAn && pending.fehler > 0) aufbauen();
+  else pilleZeichnen();
+}
+
+function eintragEingegangen(e) {
+  // Der Fehler ist da und liegt bereit — nur der Aufbau wartet.
+  if (modus !== 'stufe3' || !haltenAn || liestGeradeOben()) { aufbauen(); return; }
+  pending.fehler++;
+  if (e.kritisch) pending.kritisch++;
+  pilleZeichnen();
+}
+
+function pilleZeichnen() {
+  const host = document.getElementById('neuHost');
+  if (modus !== 'stufe3' || !haltenAn || pending.fehler === 0) { host.innerHTML = ''; return; }
+
+  const n = pending.fehler;
+  const wort = n === 1 ? '1 neuer Fehler' : n + ' neue Fehler';
+  const kritTeil = pending.kritisch > 0
+    ? `<span class="neu-krit">🚨 ${pending.kritisch} kritisch</span>` : '';
+
+  let inhalt;
+  switch (document.getElementById('mkWort').value) {
+    case 'b': inhalt = `🔴 ${wort} — anzeigen${kritTeil}`; break;
+    case 'c': inhalt = `↑ ${wort}${kritTeil}`; break;
+    case 'd': inhalt = `🔴 ${wort} <span class="neu-tipp">(Klick baut ein)</span>${kritTeil}`; break;
+    default:  inhalt = `🔴 ${wort}${kritTeil}`;
+  }
+
+  host.innerHTML = `<button class="neu-pille${pending.kritisch > 0 ? ' is-kritisch' : ''}"
+     onclick="aufbauen()" title="Neue Fehler einbauen — die Ansicht bleibt stehen">${inhalt}</button>`;
+}
+
+// Hochscrollen baut automatisch ein — dort liest man wieder live mit.
+let scrollGeplant = false;
+window.addEventListener('scroll', () => {
+  if (scrollGeplant) return;
+  scrollGeplant = true;
+  requestAnimationFrame(() => {
+    scrollGeplant = false;
+    if (modus === 'stufe3' && haltenAn && pending.fehler > 0 && liestGeradeOben()) aufbauen();
+  });
+});
+
+// ============================================================================
+// Mockup-Bedienung
+// ============================================================================
+const MODUS_TEXT = {
+  alt: 'Wie vor dem 08.09.: jeder neue Fehler baut neu auf, aufgeklappte Dateien fallen zu, die Seite springt.',
+  heute: 'Gebauter Stand: Dateien bleiben offen, der Anker hält die Lesestelle — aber es wird weiter bei jedem Fehler neu aufgebaut.',
+  stufe3: 'Entwurf: unterhalb der obersten Zeile wird gar nicht mehr aufgebaut. Die Pille sammelt, der Klick baut ein.'
+};
+
+function einFehler() {
+  const q = daten[Math.floor(Math.random() * daten.length)];
+  const d = q.dateien[Math.floor(Math.random() * q.dateien.length)];
+  const e = neuerEintrag(Math.random() * 100 < kritAnteil);
+  d.eintraege.push(e);
+  eintragEingegangen(e);
+}
+function schwall() { for (let i = 0; i < 8; i++) setTimeout(einFehler, i * 120); }
+
+function taktSetzen() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  if (rate > 0) timer = setInterval(einFehler, 60000 / rate);
+}
+function rateGeaendert(v) {
+  rate = Number(v);
+  document.getElementById('mkRateVal').textContent = rate === 0 ? 'aus' : rate + ' / min';
+  taktSetzen();
+}
+function kritGeaendert(v) {
+  kritAnteil = Number(v);
+  document.getElementById('mkKritVal').textContent = kritAnteil + ' %';
+}
+function modusGewechselt() {
+  modus = document.getElementById('mkModus').value;
+  document.getElementById('mkModusInfo').textContent = MODUS_TEXT[modus];
+  pending = { fehler: 0, kritisch: 0 };
+  haltenKnopfZeichnen();
+  aufbauen();
+}
+function zuruecksetzen() {
+  offeneDateien = {};
+  pending = { fehler: 0, kritisch: 0 };
+  grunddatenAufbauen();
+  aufbauen();
+  window.scrollTo({ top: 0 });
+}
+
+document.getElementById('mkModusInfo').textContent = MODUS_TEXT[modus];
+haltenKnopfZeichnen();
+grunddatenAufbauen();
+aufbauen();
+taktSetzen();
+</script>
+</body>
+</html>
