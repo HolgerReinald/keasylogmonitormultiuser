@@ -127,15 +127,7 @@
     const card = btn.closest('.backup-card');
     const pathVal = card.querySelector('[data-field="path"]').value.trim();
     if (!pathVal) { if (showToast) showToast('Kein Pfad eingetragen', 'error'); return; }
-    try {
-      await fetch('/api/open-folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: pathVal })
-      });
-    } catch (err) {
-      if (showToast) showToast('Fehler: ' + err.message, 'error');
-    }
+    openFolder(pathVal);
   }
 
   function addLocalTarget() {

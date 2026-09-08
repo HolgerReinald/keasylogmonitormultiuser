@@ -751,6 +751,22 @@ body.theme-blue .performance-header {
   margin-top: 2px;
 }
 
+/* Datei vom Watcher als entfernt gemeldet. Der Block bleibt bewusst stehen —
+   die gesammelten Einträge sind echte Funde, und bei einer Log-Rotation würden
+   hier sonst Meldungen verschwinden, die noch niemand gelesen hat. Gedämpft
+   wird nur die Kopfzeile; die Einträge selbst behalten ihre volle Lesbarkeit.
+   Die gesperrten Knöpfe erben .action-btn:disabled. */
+.file-group-missing .file-header {
+  opacity: 0.8;
+}
+
+.file-missing {
+  font-size: 0.72rem;
+  color: var(--error-text-color);
+  margin-top: 3px;
+  font-weight: 600;
+}
+
 .file-badge {
   background: var(--badge-bg);
   color: white;

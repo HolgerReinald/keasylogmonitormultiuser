@@ -21,7 +21,7 @@ const dropStore = require('./server/analyzeDropStore');
 const { restartEmailTimer, getNextEmailSendTime } = require('./server/emailService');
 const { getAnalyzeErrors } = require('./server/analysisService');
 const { getOrCreateAnalyzeUser } = require('./server/runtimeStore');
-const { startWatching, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus } = require('./server/watchService');
+const { startWatching, getAllErrors, getAllPerformance, getOversizedFiles, getMissingFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus } = require('./server/watchService');
 const createRouter = require('./server/httpRouter');
 const backupService = require('./server/backupService');
 const healthCheck = require('./server/healthCheck');
@@ -131,6 +131,9 @@ wss.on('connection', (ws, req) => {
     data: filteredErrors,
     performanceData: filterMapByLabels(getAllPerformance(), ws.visibleLabels),
     oversizedFiles: filterMapByLabels(getOversizedFiles(), ws.visibleLabels),
+    // Dateien, die der Watcher als geloescht gemeldet hat. Ohne sie in der
+    // init-Nachricht waere die Kennzeichnung nach einem F5 wieder weg.
+    missingFiles: filterMapByLabels(getMissingFiles(), ws.visibleLabels),
     maxLogFileSizeMB: config.maxLogFileSizeMB,
     // Der Client kürzt mit derselben Regel und derselben Obergrenze wie der
     // Server (capKeepCritical in utils.js) — deshalb wird der Wert mitgeschickt

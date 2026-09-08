@@ -27,6 +27,11 @@ const analyzeLabelMap = new Map();      // DEPRECATED
 const oversizedFiles = new Map();       // filePath → sizeMB (Dateien > maxLogFileSizeMB)
 const performanceStore = new Map();     // filePath → Array<{timestamp, prevTimestamp, gapSeconds, line, file}>
 const lastEntryTimestamps = new Map();  // filePath → Date des letzten Log-Eintrags (Gap-Erkennung)
+// filePath → label: Dateien, die der Watcher als geloescht gemeldet hat. Die
+// gesammelten Fehler und ⏱️-Luecken bleiben bewusst stehen — bei einer
+// Log-Rotation wuerden sonst Funde verschwinden, die noch niemand gelesen hat.
+// Stattdessen wird die Datei in der Anzeige gekennzeichnet.
+const missingFiles = new Map();
 // Per-User Analyse: Map<username, { store: Map, labelMap: Map, running, aborted, runId }>
 const analyzeUsers = new Map();
 
@@ -88,6 +93,7 @@ function resetWatcherRuntime() {
   oversizedFiles.clear();
   performanceStore.clear();
   lastEntryTimestamps.clear();
+  missingFiles.clear();
   // Preload resetten
   preload.generation++;
   preload.queue.length = 0;
@@ -112,6 +118,7 @@ module.exports = {
   oversizedFiles,
   performanceStore,
   lastEntryTimestamps,
+  missingFiles,
   analyzeUsers,
   getOrCreateAnalyzeUser,
   trashStore,

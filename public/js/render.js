@@ -9,6 +9,11 @@ const { escapeHtml, escapeJs, highlightPatterns, highlightSearch } = Keasy.utils
 // data-collapse-key-Attribut sprengen.
 const attr = s => escapeHtml(String(s)).replace(/"/g, '&quot;');
 
+// Vom Watcher als entfernt gemeldete Datei (gelöscht, rotiert, Laufwerk weg).
+// Die Einträge bleiben stehen — gesperrt wird nur, was die Datei braucht.
+const istWeg = fp => !!(state.missingFiles && state.missingFiles[fp]);
+const WEG_TITEL = 'Datei ist nicht mehr vorhanden — die gefundenen Einträge bleiben erhalten';
+
 
 // Laufende Nummer der Eintrags-IDs, bei jedem renderAll() zurückgesetzt.
 // Die IDs müssen über einen Neuaufbau hinweg NICHT stabil sein — der
@@ -88,6 +93,15 @@ function buildCopilotBtnHtml(target, onclick, aria) {
 }
 
 function buildOpenButtonsHtml(filePath) {
+  // Ist die Datei weg, zeigen 📂/📝 und der Datei-Export ins Leere. Sie bleiben
+  // sichtbar (sonst verrutschen die Spalten über die Zeilen hinweg), sind aber
+  // gesperrt und sagen im Titel, warum.
+  if (istWeg(filePath)) {
+    return `<button class="action-btn" title="${WEG_TITEL}" disabled>📂</button>
+              <button class="action-btn" title="${WEG_TITEL}" disabled>📝</button>
+              <button class="action-btn copilot-btn" title="${WEG_TITEL}" disabled>🤖</button>
+              <button class="action-btn copilot-release-btn" title="${WEG_TITEL}" disabled>🚀</button>`;
+  }
   return `<button class="action-btn" title="Ordner öffnen" onclick="openFolder('${escapeJs(filePath)}', event)">📂</button>
               <button class="action-btn" title="Datei öffnen" onclick="openFile('${escapeJs(filePath)}', event)">📝</button>
               ${buildCopilotBtnHtml('develop', `exportFileToCopilot('${escapeJs(filePath)}', 'develop', event)`, 'Komplette Datei ins KI-Verzeichnis Develop kopieren')}
@@ -126,12 +140,16 @@ const ANALYZE_WRAP_KEY = 'analyze-wrap';
 // alle drei Bloecke gemeinsam auf- und zuklappen wuerden.
 function buildFileGroupHtml(filePath, fileNameHtml, actionsHtml, entriesHtml, extraClass = '', noticeHtml = '', openKey = filePath) {
   const isOpen = state.openFiles[openKey] === true;
+  const wegHinweis = istWeg(filePath)
+    ? `<div class="file-missing" title="${WEG_TITEL}">⚠ Datei nicht mehr vorhanden</div>`
+    : '';
   return `
-        <div class="file-group${extraClass}">
+        <div class="file-group${extraClass}${istWeg(filePath) ? ' file-group-missing' : ''}">
           <div class="file-header" data-open-key="${attr(openKey)}" onclick="toggleGroup(this)">
             <div>
               ${fileNameHtml}
               <div class="file-path">${escapeHtml(filePath)}</div>
+              ${wegHinweis}
             </div>
             <div class="file-actions">
               ${actionsHtml}
@@ -177,7 +195,9 @@ function buildErrorEntryHtml(filePath, err, origIdx, isAnalyze, label) {
           <div class="error-entry${sevClass}" id="${entryId}">
             <div class="error-time">
               ${sevBadge}${time}
-              <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>
+              ${istWeg(filePath)
+                ? `<button class="action-btn error-jump-btn" title="${WEG_TITEL}" disabled>↗ Zeile öffnen</button>`
+                : `<button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${errTextEscaped}', event)">↗ Zeile öffnen</button>`}
               <button class="action-btn copy-btn" aria-label="Fehler kopieren" title="In Zwischenablage kopieren" onclick="copyErrorToClipboard('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, event)">📋</button>
               ${buildCopilotBtnHtml('develop', `exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'develop', event)`, 'Einzelnen Fehler an die KI (Develop) exportieren')}
               ${buildCopilotBtnHtml('release', `exportToCopilot('${escapeJs(filePath)}', ${origIdx}, ${isAnalyze}, 'release', event)`, 'Einzelnen Fehler an die KI (Release) exportieren')}
@@ -196,7 +216,9 @@ function buildGapEntryHtml(filePath, entry) {
           <div class="error-entry gap-entry">
             <div class="error-time">
               <span class="gap-duration" title="Gap (Zeitabstand) zwischen zwei Log-Einträgen">⏱️ Gap: ${gapLabel} (${prevTime} → ${time})</span>
-              <button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${entryTextEscaped}', event)">↗ Zeile öffnen</button>
+              ${istWeg(filePath)
+                ? `<button class="action-btn error-jump-btn" title="${WEG_TITEL}" disabled>↗ Zeile öffnen</button>`
+                : `<button class="action-btn error-jump-btn" title="In Datei springen" onclick="openFileAtError('${escapeJs(filePath)}', '${entryTextEscaped}', event)">↗ Zeile öffnen</button>`}
             </div>
             <div class="error-text gap-entry-line">${highlightSearch(escapeHtml(entry.line))}</div>
           </div>`;

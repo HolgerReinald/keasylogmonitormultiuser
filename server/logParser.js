@@ -139,6 +139,18 @@ function parseEntryTimestamp(entry) {
   return null;
 }
 
+// Eine Zeile ohne eigene Aussage: nach dem Zeitstempel bleibt nichts uebrig
+// oder nur eine Trennlinie aus Strichen. Keasy schreibt solche Trenner mit
+// vollem Zeitstempel — fuer die Gap-Erkennung sind sie keine Aktivitaet, und
+// als Text eines ⏱️-Eintrags waeren sie inhaltsleer ("10:24:02.269  ———").
+// Zeilen mit Buchstaben oder Ziffern fallen NICHT darunter ("---> Fehler").
+const nurTrennzeichen = /^[-=_*~#.\s]*$/;
+function isContentFreeLine(text) {
+  if (!text) return true;
+  const erste = String(text).trim().split('\n')[0];
+  return nurTrennzeichen.test(erste.replace(timestampCaptureRegex, '').trim());
+}
+
 // Lücke zwischen zwei Einträgen bewerten: Sekunden zurückgeben, wenn sie die Warn-Schwelle erreicht
 // und unter der Idle-Grenze liegt (längere Lücken = Leerlauf/Nacht, kein Performance-Problem)
 function evaluateGap(prevDate, curDate, warnSeconds, idleMinutes) {
@@ -332,5 +344,5 @@ function evaluateJsonEntry(block) {
 }
 
 
-module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, rebuildPriorityRules, classifySeverity, SEVERITY_LEVELS, DEFAULT_LEVEL, timestampRegex, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap };
+module.exports = { matchesFilter, matchesThresholdRule, rebuildFilterRegex, rebuildExcludeRegex, rebuildThresholdRules, rebuildPriorityRules, classifySeverity, SEVERITY_LEVELS, DEFAULT_LEVEL, timestampRegex, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap, isContentFreeLine };
 

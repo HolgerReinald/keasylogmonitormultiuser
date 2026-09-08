@@ -78,6 +78,7 @@ function connect() {
       state.fileLabels = {};
       state.visibleLabels = msg.visibleLabels || null; // null = alle sichtbar
       state.oversizedFiles = msg.oversizedFiles || {};
+      state.missingFiles = msg.missingFiles || {};
       state.maxLogFileSizeMB = msg.maxLogFileSizeMB ?? state.maxLogFileSizeMB;
       state.maxErrorsPerFile = msg.maxErrorsPerFile ?? state.maxErrorsPerFile;
       state.copilotDevelopSet = !!msg.copilotDevelopSet;
@@ -257,6 +258,9 @@ function connect() {
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'oversized-files') {
       state.oversizedFiles = msg.data || {};
+      if (!state.paused) scheduleRender();
+    } else if (msg.type === 'missing-files') {
+      state.missingFiles = msg.data || {};
       if (!state.paused) scheduleRender();
     } else if (msg.type === 'preload-start') {
       showPreloadBanner(msg.data);

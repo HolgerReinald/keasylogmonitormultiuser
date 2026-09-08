@@ -79,11 +79,7 @@ async function addAnalyzePath() {
 function openAnalyzePath(index) {
   const p = state.analyzePaths[index];
   if (!p) return;
-  fetch('/api/open-folder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filePath: p })
-  }).catch(err => showToast('Öffnen fehlgeschlagen: ' + err.message, 'error'));
+  openFolder(p);
 }
 
 function removeAnalyzePath(index) {

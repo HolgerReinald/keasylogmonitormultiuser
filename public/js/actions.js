@@ -3,31 +3,41 @@ window.Keasy = window.Keasy || {};
 
 const { state } = Keasy;
 
+// Gemeinsamer Weg für 📂 / 📝 / ↗ Zeile öffnen.
+//
+// Die Antwort wurde früher an allen drei Stellen weggeworfen. Zusammen damit,
+// dass der Server auch bei fehlender Datei { ok: true } meldete, gab es keinen
+// Weg, auf dem ein Fehlschlag auf den Bildschirm kommen konnte — der Klick tat
+// einfach nichts. Das betraf nicht nur gelöschte Logs, sondern genauso ein
+// kurz nicht erreichbares Netzlaufwerk.
+async function oeffnenAnfordern(url, body, event) {
+  if (event) event.stopPropagation();
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.ok) return;
+    const info = await res.json().catch(() => ({}));
+    const pfad = info.filePath ? ' — ' + info.filePath : '';
+    Keasy.utils.showToast((info.error || 'Öffnen fehlgeschlagen') + pfad, 'error');
+  } catch {
+    // Netzwerk-/Verbindungsfehler: der Monitor ist nicht erreichbar.
+    Keasy.utils.showToast('Der Monitor antwortet nicht — Öffnen fehlgeschlagen', 'error');
+  }
+}
+
 function openFolder(filePath, event) {
-  event.stopPropagation();
-  fetch('/api/open-folder', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filePath })
-  });
+  oeffnenAnfordern('/api/open-folder', { filePath }, event);
 }
 
 function openFile(filePath, event) {
-  event.stopPropagation();
-  fetch('/api/open-file-at-line', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filePath })
-  });
+  oeffnenAnfordern('/api/open-file-at-line', { filePath }, event);
 }
 
 function openFileAtError(filePath, searchText, event) {
-  if (event) event.stopPropagation();
-  fetch('/api/open-file-at-line', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filePath, searchText })
-  });
+  oeffnenAnfordern('/api/open-file-at-line', { filePath, searchText }, event);
 }
 
 // Datei-Block auf-/zuklappen. Der Zustand wird gemerkt, sonst faellt der Block

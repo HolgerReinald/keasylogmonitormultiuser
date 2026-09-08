@@ -6,10 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 const chokidar = require('chokidar');
-const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps } = require('./runtimeStore');
+const { errorStore, filePositions, pendingBuffers, pendingFlushTimers, fileLabelMap, pausedLabels, normalizedWatchPaths, preload, oversizedFiles, performanceStore, lastEntryTimestamps, missingFiles } = require('./runtimeStore');
 const { broadcast, broadcastFiltered, filterMapByLabels, labelMessageFilter } = require('./wsBroadcast');
 const { config } = require('./configStore');
-const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap, isContentFreeLine } = require('./logParser');
 const { bufferErrorForEmail } = require('./emailService');
 
 // --- Tail-Logik ---
@@ -197,6 +197,12 @@ function trackEntryGap(filePath, entry, settings, silent) {
   const ts = parseEntryTimestamp(entry);
   if (!ts) return; // Einträge ohne Timestamp überspringen (kein Wall-Clock-Fallback)
 
+  // Trennzeilen sind keine Aktivität. Sie dürfen weder eine Lücke beenden noch
+  // die Grundlinie fortschreiben: sonst entstehen ⏱️-Einträge, deren Text nur
+  // aus Strichen besteht, und eine echte Wartezeit zerfällt in zwei kürzere
+  // Hälften, von denen keine die Schwelle erreichen muss.
+  if (isContentFreeLine(entry)) return;
+
   const prev = lastEntryTimestamps.get(filePath);
   lastEntryTimestamps.set(filePath, ts);
   if (!prev) return;
@@ -211,6 +217,9 @@ function trackEntryGap(filePath, entry, settings, silent) {
 // rückwärts scannen, erster Treffer genügt (i. d. R. der letzte Eintrag)
 function updateGapBaseline(filePath, entries) {
   for (let i = entries.length - 1; i >= 0; i--) {
+    // Dieselbe Regel wie in trackEntryGap — sonst stünde die Grundlinie nach
+    // dem Einschalten des Features auf einer Trennzeile.
+    if (isContentFreeLine(entries[i])) continue;
     const ts = parseEntryTimestamp(entries[i]);
     if (ts) {
       lastEntryTimestamps.set(filePath, ts);
@@ -545,6 +554,12 @@ function registerWatcherHandlers(watcher, wp, flushDelay, options) {
     fileLabelMap.delete(filePath);
     lastEntryTimestamps.delete(filePath);
     if (oversizedFiles.delete(filePath)) broadcastOversized();
+    // Die gesammelten Fehler und ⏱️-Lücken bleiben stehen — sie sind echte
+    // Funde, und bei einer Log-Rotation würden hier sonst Meldungen
+    // verschwinden, die noch niemand gelesen hat. Gekennzeichnet wird nur,
+    // dass die Datei weg ist, damit 📂/📝/↗ nicht ins Leere zeigen.
+    missingFiles.set(filePath, getLabelForFile(filePath));
+    broadcastMissing();
   });
 
   let errorCount = 0;
@@ -677,6 +692,23 @@ function getOversizedFiles() {
   return result;
 }
 
+// Verschwundene Dateien: gleiche Form wie getOversizedFiles(), damit
+// filterMapByLabels() beide gleich behandeln kann.
+function getMissingFiles() {
+  const result = {};
+  for (const [filePath, label] of missingFiles) {
+    result[filePath] = { label: label || getLabelForFile(filePath) || '' };
+  }
+  return result;
+}
+
+function broadcastMissing() {
+  broadcastFiltered(
+    { type: 'missing-files', data: getMissingFiles() },
+    (msg, visibleLabels) => ({ type: 'missing-files', data: filterMapByLabels(msg.data, visibleLabels) })
+  );
+}
+
 function broadcastOversized() {
   broadcastFiltered(
     { type: 'oversized-files', data: getOversizedFiles() },
@@ -712,4 +744,4 @@ function reevaluateOversized() {
   if (changed) broadcastOversized();
 }
 
-module.exports = { startWatching, getLabelForFile, getAllErrors, getAllPerformance, getOversizedFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus };
+module.exports = { startWatching, getLabelForFile, getAllErrors, getAllPerformance, getOversizedFiles, getMissingFiles, reevaluateOversized, preloadReset, startReachabilityMonitor, getWatchPathStatus };

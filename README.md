@@ -666,6 +666,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-09-08 — 🧭 Verwaiste Log-Dateien kennzeichnen, Öffnen meldet Fehlschläge
+
+**Verschwundene Dateien.** Meldet der Watcher eine Datei als entfernt, wird sie in `missingFiles` eingetragen und an die Oberfläche gemeldet — gleiche Form, gleiche Label-Filterung und derselbe Weg über die init-Nachricht wie bei `oversizedFiles`. Im Datei-Kopf steht dann „⚠ Datei nicht mehr vorhanden"; gesperrt werden 📂, 📝, der Datei-Export und der ↗-Sprung. **📋 Kopieren bleibt bedienbar** — der Fehlertext liegt im Speicher und ist ohne Datei der einzige Weg an den Fund. Die gesammelten Einträge werden bewusst nicht gelöscht: bei einer Log-Rotation verschwänden sonst Meldungen, die noch niemand gelesen hat.
+
+**Öffnen meldet Fehlschläge.** `open-folder`, `open-file` und `open-file-at-line` prüfen `fs.existsSync`, bevor sie etwas starten, und antworten sonst mit 404 statt `{ ok: true }`. Alle Aufrufer gehen über die gemeinsame Stelle `oeffnenAnfordern()`, die die Antwort auswertet und die Absage als Toast zeigt; `analyzePanel` und `backupTargetsPanel` hatten dafür eigene Wege, die die Antwort verwarfen. Betrifft nicht nur gelöschte Logs, sondern ebenso ein kurz nicht erreichbares Netzlaufwerk.
+
+**Trennzeilen zählen nicht als Aktivität.** `isContentFreeLine()` erkennt Zeilen, von denen nach dem Zeitstempel nur eine Strichlinie oder nichts übrig bleibt. Sie beenden keine ⏱️-Lücke und schreiben die Grundlinie nicht fort. Bisher zerfiel eine echte Wartezeit an einer solchen Zeile in zwei kürzere Hälften, von denen keine den Schwellwert erreichen musste — die Lücke konnte also ganz durchrutschen. Zeilen wie `---> Fehler` fallen nicht darunter. Live-Überwachung und Analyse benutzen dieselbe Funktion.
+
+**Dateien:** server/logParser.js, server/watchService.js, server/runtimeStore.js, server/analysisService.js, server/routes/processRoutes.js, server.js, public/js/state.js, public/js/wsClient.js, public/js/render.js, public/js/actions.js, public/js/analyzePanel.js, public/js/backupTargetsPanel.js, public/style.css, test/verwaiste-dateien.js (neu), README.md
+
 ### 2026-09-08 — 🧷 Ansicht bleibt beim Lesen stehen
 
 **Aufgeklappte Dateien bleiben offen.** `buildFileGroupHtml()` rendert die Eintragsliste jetzt nach `state.openFiles` statt hart mit `display:none`. Gespeichert werden nur die offenen Blöcke (`keasy-open-files`) — dasselbe invertierte Muster wie beim Analyse-Sammelblock. Der Schlüssel steht als `data-open-key` am Kopf und trägt je Bereich ein eigenes Präfix (`perf:`, `analyze:`), weil dieselbe Datei unter Live, ⏱️ Performance und Analyse gleichzeitig stehen kann. Auch die Sprungziele — 🚨-Alarmknopf und Fehler-Index — gehen über dieselbe Stelle (`openFileList()`); vorher drehten sie direkt am DOM, und ihr Aufklappen war beim nächsten Fehler wieder weg.

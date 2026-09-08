@@ -9,7 +9,7 @@ const path = require('path');
 const readline = require('readline');
 const { getOrCreateAnalyzeUser } = require('./runtimeStore');
 const { broadcastToUser } = require('./wsBroadcast');
-const { matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
+const { isContentFreeLine, matchesFilter, classifySeverity, limitStackTrace, parseLogEntries, parseJsonLogEntries, evaluateJsonEntry, parseEntryTimestamp, evaluateGap } = require('./logParser');
 
 function getAnalyzeErrors(username) {
   if (!username) return {};
@@ -55,6 +55,10 @@ async function analyzeFile(filePath, label, maxErrorsPerFile, username, runId, g
 
     function trackGapAt(ts, firstLine) {
       if (!ts) return;
+      // Dieselbe Regel wie in watchService.trackEntryGap: Trennzeilen sind
+      // keine Aktivitaet und duerfen die Grundlinie nicht fortschreiben.
+      // Zwei Regeln fuer dieselbe Frage liefen sonst auseinander.
+      if (isContentFreeLine(firstLine)) return;
       const prev = lastTs;
       lastTs = ts;
       if (!prev || gapWarnSeconds <= 0 || gapCount >= maxErrorsPerFile) return;

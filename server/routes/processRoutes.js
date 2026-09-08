@@ -33,8 +33,17 @@ module.exports = function processRoutes(deps) {
         // beides ueber /select, — bei einem Verzeichnis oeffnete das den
         // ELTERN-Ordner mit dem Verzeichnis markiert, statt hineinzugehen.
         // Betrifft auch die Backup-Ziele, die Verzeichnisse schicken.
+        // Fehlt der Pfad, wird der Explorer gar nicht erst gerufen und die
+        // Absage geht an den Client. Vorher kam auch dann { ok: true } zurueck
+        // und der Anwender sah ein stummes Nichts -- bei geloeschten Logs
+        // ebenso wie bei einem kurz nicht erreichbaren Netzlaufwerk.
+        if (!fs.existsSync(filePath)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Pfad nicht gefunden', filePath }));
+          return;
+        }
         let isDir = false;
-        try { isDir = fs.statSync(filePath).isDirectory(); } catch { /* nicht vorhanden: wie bisher versuchen */ }
+        try { isDir = fs.statSync(filePath).isDirectory(); } catch { /* Wettlauf: gerade entfernt */ }
         execFile('explorer.exe', isDir ? [filePath] : ['/select,' + filePath], () => {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
@@ -47,6 +56,11 @@ module.exports = function processRoutes(deps) {
         if (!filePath) {
           res.writeHead(400);
           res.end('filePath fehlt');
+          return;
+        }
+        if (!fs.existsSync(filePath)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Pfad nicht gefunden', filePath }));
           return;
         }
         execFile('explorer.exe', [filePath], () => {});
@@ -205,6 +219,16 @@ module.exports = function processRoutes(deps) {
         const filePath = body && body.filePath;
         const searchText = body && body.searchText;
         if (!filePath) { res.writeHead(400); res.end('filePath fehlt'); return; }
+
+        // Die Datei ist weg (Keasy raeumt seine Sitzungslogs ab, Rotation,
+        // Netzlaufwerk offline): dann oeffnet der Editor sonst ein leeres
+        // Fenster auf einen Pfad, den es nicht gibt -- und der Monitor meldet
+        // trotzdem Erfolg.
+        if (!fs.existsSync(filePath)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'Datei nicht gefunden', filePath }));
+          return;
+        }
 
         let lineNumber = 1;
         try {

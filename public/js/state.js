@@ -5,6 +5,10 @@ window.Keasy.state = {
   errors: {},
   fileLabels: {},
   oversizedFiles: {},
+  // filePath → { label }: vom Watcher als entfernt gemeldete Dateien. Die
+  // gefundenen Einträge bleiben stehen (echte Funde), nur die Knöpfe, die die
+  // Datei brauchen, werden gesperrt.
+  missingFiles: {},
   maxLogFileSizeMB: 6,
   // Wird beim init vom Server überschrieben — Grundlage der Kürzung im Client
   // (Obergrenze maxErrorsPerFile, identisch zum Server: der Wert gilt wörtlich)
