@@ -756,6 +756,62 @@ body.theme-blue .performance-header {
    hier sonst Meldungen verschwinden, die noch niemand gelesen hat. Gedämpft
    wird nur die Kopfzeile; die Einträge selbst behalten ihre volle Lesbarkeit.
    Die gesperrten Knöpfe erben .action-btn:disabled. */
+/* === Hinweis auf zurückgehaltene Einträge (Stufe 3) ===
+   Fixiert und damit AUSSERHALB des Seitenflusses. Ein Element im Fluss würde
+   beim Erscheinen alles nach unten drücken — genau die Bewegung, die diese
+   Stufe abstellt.
+   Kopfzeile und Werkzeugleiste sind nicht fixiert und längst weggescrollt,
+   wenn die Pille überhaupt erscheinen kann; sie richtet sich deshalb am
+   Fensterrand aus, nicht an einer Leiste.
+   z-index 120: über der Anzeige, aber unter Dialogen (1000+) und Toasts. */
+#neuHost {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  pointer-events: none;
+}
+
+.neu-pille {
+  pointer-events: auto;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 17px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.neu-pille:hover {
+  filter: brightness(1.08);
+}
+
+.neu-pille:focus-visible {
+  outline: 3px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Kritische Fehler färben die Pille, brechen aber nicht durch — ein
+   kritischer Fehler, der die Ansicht umbaut, wäre genau die Störung, um die es
+   hier geht. Gemeldet wird er weiterhin sofort per Benachrichtigung. */
+.neu-pille.is-kritisch {
+  background: var(--sev-critical);
+}
+
+.neu-krit {
+  font-weight: 700;
+  padding-left: 9px;
+  border-left: 1px solid rgba(255, 255, 255, 0.45);
+}
+
 .file-group-missing .file-header {
   opacity: 0.8;
 }

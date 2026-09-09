@@ -280,6 +280,23 @@ function initApp() {
   });
 
   // Keyboard shortcuts: Ctrl+K → Suchfeld, Escape → verlassen + leeren
+  // Hochscrollen baut die zurückgehaltenen Einträge automatisch ein: oben
+  // liest man wieder live mit. Gedrosselt über rAF, weil scroll sonst
+  // dutzendfach pro Sekunde feuert.
+  updateHoldButton();
+  let scrollGeplant = false;
+  window.addEventListener('scroll', () => {
+    if (scrollGeplant) return;
+    scrollGeplant = true;
+    requestAnimationFrame(() => {
+      scrollGeplant = false;
+      const p = state.pendingNew;
+      if (state.holdNewErrors && (p.errors > 0 || p.gaps > 0) && Keasy.render.liestGeradeOben()) {
+        renderAll();
+      }
+    });
+  }, { passive: true });
+
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 'k') {
       e.preventDefault();

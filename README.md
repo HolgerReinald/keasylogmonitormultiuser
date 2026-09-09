@@ -666,6 +666,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-09-09 — 📌 Neue Einträge warten, bis du sie anzeigst
+
+**Zurückgehalten wird nur der Empfangspfad.** Steht der Anwender nicht ganz oben, bauen eingehende Fehler und ⏱️-Lücken die Anzeige nicht mehr neu auf. Sie sammeln sich in `state.pendingNew` und erscheinen als Pille „🔴 3 neue Fehler — anzeigen", bei kritischen rot eingefärbt. Umgestellt sind genau zwei Aufrufe in `wsClient.js`; Filter, Suche, Zeitraum, Löschen und Analyse bauen weiter sofort auf, weil der Anwender sie selbst auslöst. Der Klick baut ein, der Anker hält dabei die Lesestelle. Hochscrollen baut automatisch ein — oben liest man wieder live mit.
+
+**Der Zähler wird in `renderAll()` selbst zurückgesetzt**, vor dem ersten `return`. Damit räumt jeder Weg, der einen Aufbau auslöst, die Pille mit ab, und kein künftiger Aufrufer kann es vergessen. Die Schwelle „steht der Anwender oben?" liegt in `liestGeradeOben()`, die sich Anker und Zurückhalten teilen — zwei Schwellen für dieselbe Frage liefen auseinander. Der Fehlerzähler im Kopf zählt die **angezeigten** Einträge und bleibt damit ohne Zutun richtig. Die Pille sitzt in einem fixierten Host: im Seitenfluss würde sie beim Erscheinen alles nach unten drücken.
+
+**📌 Ansicht festhalten** in der Werkzeugleiste schaltet das Zurückhalten ab, gespeichert im localStorage wie 🔔 und 🧭 — eine persönliche Lesegewohnheit, keine Anlagenkonfiguration. Abschalten baut sofort ein, sonst blieben die gesammelten Einträge unsichtbar. Kritische Fehler färben die Pille, brechen aber nicht durch; die Desktop-Benachrichtigung geht unabhängig davon sofort raus.
+
+**Dateien:** public/js/state.js, public/js/wsClient.js, public/js/render.js, public/js/actions.js, public/js/boot.js, public/index.html, public/style.css, test/zurueckhalten-wiring.js (neu), test/view-anchor-wiring.js, README.md
+
 ### 2026-09-08 — 🧭 Verwaiste Log-Dateien kennzeichnen, Öffnen meldet Fehlschläge
 
 **Verschwundene Dateien.** Meldet der Watcher eine Datei als entfernt, wird sie in `missingFiles` eingetragen und an die Oberfläche gemeldet — gleiche Form, gleiche Label-Filterung und derselbe Weg über die init-Nachricht wie bei `oversizedFiles`. Im Datei-Kopf steht dann „⚠ Datei nicht mehr vorhanden"; gesperrt werden 📂, 📝, der Datei-Export und der ↗-Sprung. **📋 Kopieren bleibt bedienbar** — der Fehlertext liegt im Speicher und ist ohne Datei der einzige Weg an den Fund. Die gesammelten Einträge werden bewusst nicht gelöscht: bei einer Log-Rotation verschwänden sonst Meldungen, die noch niemand gelesen hat.

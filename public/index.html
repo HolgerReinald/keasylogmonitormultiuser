@@ -678,6 +678,7 @@
     <button onclick="pauseToggle()" id="pauseBtn" title="Live-Aktualisierung pausieren (nur Live-Monitoring)">⏸️ Pause</button>
     <button id="collapseAllBtn" onclick="toggleAllSources()" title="Alle Quellen zuklappen">⊟ Alle zu</button>
     <button id="indexToggleBtn" onclick="toggleIndexPanel()" aria-pressed="true" title="Fehler-Index ausblenden">🧭 Index</button>
+    <button id="holdToggle" onclick="toggleHoldNewErrors()" aria-pressed="true">📌 Ansicht festhalten</button>
     <input type="text" id="searchInput" placeholder="Suche in Fehler & Dateiname... (Strg+K)" title="Strg+K: Suchfeld fokussieren | Escape: Suche leeren | Wildcard: * (z.B. Exc*tion, KeasyServer*)" oninput="onSearch(this.value)">
     <select id="themeSelect" onchange="onThemeChange(this.value)">
       <option value="theme-light">☀️ Hell</option>
@@ -686,6 +687,11 @@
     </select>
     <button id="notifToggle" onclick="toggleNotifications()" title="Desktop-Benachrichtigungen ein/aus">🔔</button>
   </div>
+
+  <!-- Hinweis auf zurueckgehaltene Eintraege. Fixiert und damit ausserhalb des
+       Seitenflusses: ein Element im Fluss wuerde beim Erscheinen alles nach
+       unten druecken -- genau das, was hier abgestellt werden soll. -->
+  <div id="neuHost" aria-live="polite"></div>
 
   <div class="app-main" id="appMain" data-side="left">
     <!-- Fehler-Index: Sprungliste, nach Quelle gruppiert -->

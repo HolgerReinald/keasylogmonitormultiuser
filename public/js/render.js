@@ -236,10 +236,56 @@ function buildGapEntryHtml(filePath, entry) {
 // Wiedergefunden wird es ueber die Objektreferenz (state.navEntries) bzw. den
 // Datei-Schluessel — die Element-IDs sind ueber einen Neuaufbau hinweg nicht
 // stabil.
+// Die Pille "🔴 3 neue Fehler — anzeigen".
+//
+// Sie sitzt in einem fixierten Host (#neuHost) und NICHT im Seitenfluss: ein
+// Element im Fluss würde beim Erscheinen alles nach unten drücken und damit
+// genau das tun, was diese Stufe abstellen soll.
+//
+// Kopfzeile und Werkzeugleiste scrollen mit und sind längst weg, wenn die
+// Pille überhaupt erscheinen kann — sie richtet sich deshalb am Fensterrand
+// aus, nicht an einer Leiste.
+function renderPendingPill() {
+  const host = document.getElementById('neuHost');
+  if (!host) return;
+  const p = state.pendingNew || { errors: 0, gaps: 0, critical: 0 };
+  const gesamt = p.errors + p.gaps;
+  if (gesamt === 0) { host.innerHTML = ''; return; }
+
+  // ⏱️-Lücken sind keine Fehler und dürfen nicht so aussehen. Kamen nur
+  // Lücken, sagt die Pille das auch.
+  let wort;
+  if (p.errors === 0) {
+    wort = p.gaps === 1 ? '1 neue Lücke' : `${p.gaps} neue Lücken`;
+    wort = '⏱️ ' + wort;
+  } else {
+    wort = p.errors === 1 ? '1 neuer Fehler' : `${p.errors} neue Fehler`;
+    wort = '🔴 ' + wort;
+    if (p.gaps > 0) wort += ` · ⏱️ ${p.gaps}`;
+  }
+
+  // Kritische Fehler färben die Pille, brechen aber nicht durch: ein
+  // kritischer Fehler, der die Ansicht umbaut, wäre genau die Störung, um die
+  // es hier geht. Gemeldet wird er weiterhin sofort per Benachrichtigung.
+  const krit = p.critical > 0
+    ? `<span class="neu-krit">🚨 ${p.critical} kritisch</span>` : '';
+
+  host.innerHTML = `<button class="neu-pille${p.critical > 0 ? ' is-kritisch' : ''}" type="button"
+     title="Neue Einträge einbauen — die Ansicht bleibt dabei an der gelesenen Stelle stehen"
+     onclick="neueEintraegeAnzeigen()">${wort} — anzeigen${krit}</button>`;
+}
+
+// Steht der Anwender ganz oben? Dann liest er live mit: der neueste Fehler
+// darf sofort erscheinen und die Ansicht nicht vom Anker festgehalten werden.
+// EINE Funktion für beide Fragen — zwei Schwellen für dasselbe liefen
+// auseinander, und dann hielte der Anker fest, was das Zurückhalten längst
+// durchgelassen hat.
+function liestGeradeOben() {
+  return window.scrollY <= 4;
+}
+
 function captureViewAnchor() {
-  // Ganz oben heisst: live mitlesen. Dann darf der neueste Fehler auch oben
-  // erscheinen, statt die Ansicht vom Anker weggeschoben zu bekommen.
-  if (window.scrollY <= 4) return null;
+  if (liestGeradeOben()) return null;
   const container = document.getElementById('container');
   if (!container) return null;
 
@@ -280,6 +326,13 @@ function renderAll() {
   // Ansicht festhalten, BEVOR state.navEntries geleert wird — der Anker
   // braucht die Zuordnung id → Fehlerobjekt des noch stehenden Aufbaus.
   const anchor = captureViewAnchor();
+  // Was aufgebaut wird, ist nicht mehr ausstehend. Der Reset steht hier und
+  // nicht im Klick-Handler: damit räumt JEDER Weg, der einen Aufbau auslöst
+  // (Pille, Filter, Suche, Löschen, Analyse), die Pille automatisch mit ab —
+  // und kein künftiger Aufrufer kann es vergessen. Vor dem ersten return,
+  // sonst bliebe die Pille im Leerzustand stehen.
+  state.pendingNew = { errors: 0, gaps: 0, critical: 0 };
+  renderPendingPill();
   // Index-Daten bei jedem Durchlauf neu sammeln — sie entstehen in
   // buildErrorEntryHtml() und spiegeln damit exakt die angezeigte Menge.
   state.navEntries = [];
@@ -796,7 +849,7 @@ function updateLiveControlStates(visibleLiveCount) {
   }
 }
 
-window.Keasy.render = { renderAll, renderTrash, isInDateRange, updateBrowserTitle };
+window.Keasy.render = { renderAll, renderTrash, isInDateRange, updateBrowserTitle, renderPendingPill, liestGeradeOben };
 
 Object.assign(window, {
   renderAll, renderTrash, isInDateRange

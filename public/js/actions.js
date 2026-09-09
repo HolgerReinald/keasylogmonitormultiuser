@@ -89,6 +89,36 @@ function toggleSource(header, label) {
   updateCollapseAllButton();
 }
 
+// Die zurückgehaltenen Einträge jetzt einbauen. renderAll() setzt den Zähler
+// selbst zurück und lässt den Anker aus Stufe 2 die Lesestelle halten — es
+// braucht hier also weder ein Aufräumen noch eine eigene Sprungmechanik.
+function neueEintraegeAnzeigen() {
+  renderAll();
+}
+
+// Stufe 3c: persönlicher Schalter, gespeichert wie 🔔 und 🧭.
+function updateHoldButton() {
+  const btn = document.getElementById('holdToggle');
+  if (!btn) return;
+  btn.setAttribute('aria-pressed', String(state.holdNewErrors));
+  btn.style.opacity = state.holdNewErrors ? '1' : '0.5';
+  btn.title = state.holdNewErrors
+    ? 'Die Ansicht bleibt beim Lesen stehen — neue Einträge warten, bis du sie anzeigst. Klick: abschalten'
+    : 'Neue Einträge werden sofort eingebaut. Klick: Ansicht wieder festhalten';
+}
+
+function toggleHoldNewErrors() {
+  state.holdNewErrors = !state.holdNewErrors;
+  localStorage.setItem('keasy-hold-new', state.holdNewErrors ? 'on' : 'off');
+  updateHoldButton();
+  // Abschalten muss SOFORT einbauen. Sonst verschwindet die Pille und die
+  // bereits gesammelten Einträge blieben unsichtbar, bis zufällig der nächste
+  // eintrifft.
+  const p = state.pendingNew;
+  if (!state.holdNewErrors && (p.errors > 0 || p.gaps > 0)) renderAll();
+  else Keasy.render.renderPendingPill();
+}
+
 // Alle Quellen auf einmal zu- oder aufklappen. Zielzustand: ist irgendeine
 // Quelle offen, werden alle zugeklappt — sonst alle aufgeklappt.
 // Setzt den Zustand gebündelt und schreibt einmal in den localStorage,
@@ -473,7 +503,8 @@ window.Keasy.actions = {
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
   copyErrorToClipboard, exportToCopilot, exportFileToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
-  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
+  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton,
+  neueEintraegeAnzeigen, toggleHoldNewErrors, updateHoldButton
 };
 
 Object.assign(window, {
@@ -481,6 +512,7 @@ Object.assign(window, {
   clearAll, stopServer, restartWatcher, pauseSource, resumeSource,
   clearSource, disableEmail, enableEmail, pauseToggle,
   copyErrorToClipboard, exportToCopilot, exportFileToCopilot, onSearch, clearAnalyzeSource, clearPerformanceSource,
-  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton
+  jumpToCritical, jumpToEntry, toggleAllSources, updateCollapseAllButton,
+  neueEintraegeAnzeigen, toggleHoldNewErrors, updateHoldButton
 });
 })();

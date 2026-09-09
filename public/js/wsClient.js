@@ -14,6 +14,32 @@ function scheduleRender() {
   });
 }
 
+// Neuer Eintrag vom Server. Anders als jeder andere Aufbau ist dieser NICHT
+// vom Anwender ausgelöst — er darf deshalb warten, solange gelesen wird.
+// Alle übrigen Aufrufer von renderAll() bleiben unangetastet: eine
+// Filteränderung muss sofort wirken.
+//
+// Die Einträge selbst sind längst da (state.errors / state.performanceEntries);
+// zurückgehalten wird nur der Aufbau. Der Fehlerzähler im Kopf zählt die
+// ANGEZEIGTEN Einträge und bleibt damit richtig, ohne Zutun.
+// gedrosselt: fuer ⏱️-Luecken, die ihre 300-ms-Drossel behalten sollen, wenn
+// doch sofort aufgebaut wird. GEZAEHLT wird trotzdem je Eintrag — durch die
+// Drossel zu zaehlen haette mehrere Luecken zu einer einzigen gemacht.
+function scheduleRenderForNewEntry(art, gedrosselt) {
+  if (!state.holdNewErrors || Keasy.render.liestGeradeOben()) {
+    if (gedrosselt) schedulePerformanceRender();
+    else scheduleRender();
+    return;
+  }
+  const p = state.pendingNew;
+  if (art === 'gap') p.gaps++;
+  else {
+    p.errors++;
+    if (art === 'kritisch') p.critical++;
+  }
+  Keasy.render.renderPendingPill();
+}
+
 // Gedrosseltes Render für Performance-Lücken: Gaps sind informativ, nicht dringend —
 // bei Nachrichten-Fluten reicht ein Rebuild alle ~300ms statt bis zu 60/s per rAF
 let perfRenderTimer = null;
@@ -157,7 +183,9 @@ function connect() {
       // damit das Dashboard nicht weniger kritische Fehler zeigt als vorhanden
       Keasy.utils.capKeepCritical(state.errors[filePath], state.maxErrorsPerFile || 50);
       if (!state.paused) {
-        scheduleRender();
+        scheduleRenderForNewEntry(Keasy.utils.entryLevel(error) === 'kritisch' ? 'kritisch' : 'fehler');
+        // Die Benachrichtigung geht unabhängig davon sofort raus — wer nicht
+        // hinsieht, soll vom Fehler trotzdem erfahren.
         notifyNewError(error, label || state.fileLabels[filePath]);
       }
     } else if (msg.type === 'performance') {
@@ -169,7 +197,7 @@ function connect() {
         state.performanceEntries[filePath] = state.performanceEntries[filePath].slice(-10);
       }
       // Keine Desktop-Notification — Performance-Einträge sind keine Fehler
-      if (!state.paused) schedulePerformanceRender();
+      if (!state.paused) scheduleRenderForNewEntry('gap', true);
     } else if (msg.type === 'performance-snapshot') {
       // Gebündelter Stand nach dem Preload — kompletten Performance-State ersetzen
       state.performanceEntries = {};

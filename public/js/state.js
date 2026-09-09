@@ -14,6 +14,15 @@ window.Keasy.state = {
   // (Obergrenze maxErrorsPerFile, identisch zum Server: der Wert gilt wörtlich)
   maxErrorsPerFile: 50,
   paused: false,
+  // Stufe 3: eingegangen, aber noch nicht eingebaut — solange der Anwender
+  // weiter unten liest. Wird AUSSCHLIESSLICH in renderAll() zurückgesetzt,
+  // damit jeder Weg, der einen Aufbau auslöst, die Pille mit abräumt.
+  // Bewusst nicht im localStorage: nach einem F5 ist alles neu aufgebaut,
+  // ein überlebender Zähler wäre eine Lüge.
+  pendingNew: { errors: 0, gaps: 0, critical: 0 },
+  // Persönlicher Schalter wie 🔔 und 🧭 — eine Lesegewohnheit, keine
+  // Anlagenkonfiguration, und im Mehrbenutzerbetrieb pro Person verschieden.
+  holdNewErrors: localStorage.getItem('keasy-hold-new') !== 'off',
   totalErrors: 0,
   criticalErrors: 0,
   searchTerm: '',

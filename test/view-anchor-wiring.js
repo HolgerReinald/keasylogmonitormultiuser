@@ -98,9 +98,17 @@ console.log('\n5) Der Anker haelt die Ansicht');
   // Die Reihenfolge ist der Kern: state.navEntries traegt die Zuordnung
   // id -> Fehlerobjekt des NOCH STEHENDEN Aufbaus. Wird erst geleert und dann
   // gemerkt, findet der Anker nichts und die Seite springt weiter wie zuvor.
-  check('Anker wird VOR dem Leeren von navEntries genommen',
-    /function renderAll\(\)[\s\S]{0,600}?const anchor = captureViewAnchor\(\);[\s\S]{0,400}?state\.navEntries = \[\];/.test(render),
-    'Nach dem Leeren gemerkt liefert captureViewAnchor() nie einen Treffer -- der Anker waere still wirkungslos');
+  {
+    // Ueber Positionen statt ueber ein Zeichenfenster: zwischen beide Zeilen
+    // darf beliebig viel treten (Stufe 3 hat dort den pendingNew-Reset
+    // eingefuegt), die Reihenfolge bleibt die Bedingung.
+    const rA = render.slice(render.indexOf('function renderAll()'));
+    const iAnker = rA.indexOf('const anchor = captureViewAnchor();');
+    const iLeeren = rA.indexOf('state.navEntries = [];');
+    check('Anker wird VOR dem Leeren von navEntries genommen',
+      iAnker !== -1 && iLeeren !== -1 && iAnker < iLeeren,
+      'Nach dem Leeren gemerkt liefert captureViewAnchor() nie einen Treffer -- der Anker waere still wirkungslos');
+  }
   check('Wiederherstellen am Ende von renderAll',
     /restoreViewAnchor\(anchor\);\s*\}\s*\n\s*function renderTrash/.test(render),
     'Frueher aufgerufen stimmen die Hoehen noch nicht -- Papierkorb und Seitenleiste kommen danach');
@@ -114,8 +122,11 @@ console.log('\n5) Der Anker haelt die Ansicht');
     /\{ fileKey: el\.dataset\.openKey, top: rect\.top \}/.test(render),
     'Bei zugeklappten Dateien gibt es keine Eintraege, an denen man sich festhalten koennte');
 
-  check('ganz oben wird nicht verankert', /if \(window\.scrollY <= 4\) return null;/.test(render),
-    'Wer oben steht, liest live mit -- dort soll der neueste Fehler erscheinen duerfen');
+  check('ganz oben wird nicht verankert',
+    /function captureViewAnchor\(\)[\s\S]{0,200}if \(liestGeradeOben\(\)\) return null;/.test(render) &&
+    /function liestGeradeOben\(\)[\s\S]{0,150}window\.scrollY <= 4/.test(render),
+    'Wer oben steht, liest live mit -- dort soll der neueste Fehler erscheinen duerfen. ' +
+    'Seit Stufe 3 steht die Schwelle in liestGeradeOben(), gemeinsam mit dem Zurueckhalten.');
   check('unsichtbares Ziel wird nicht angesprungen',
     /if \(!el \|\| el\.offsetParent === null\) return;/.test(render),
     'Weggefiltert oder in einer zugeklappten Quelle: dann gibt es nichts, worauf man zurueckspringen koennte');
