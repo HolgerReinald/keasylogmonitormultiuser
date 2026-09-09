@@ -25,6 +25,21 @@ const DEFAULT_FILTER = ['Exception', 'Fehler'];
 // admin/admin steht deshalb im Text des Allgemein-Schritts.
 const SETUP_IDS = ['paths', 'allg', 'reg', 'mail', 'ana', 'bak'];
 
+// Config-Felder, die AUSSCHLIESSLICH der Server pflegt — sie haben kein
+// Bedienelement in den Einstellungen.
+//
+// buildConfigFromForm() im Client baut die Config bei jedem Speichern aus den
+// Formularfeldern NEU auf. Alles, wofuer es kein Feld gibt, faellt dabei weg.
+// Genau das ist am 2026-09-09 passiert: nach dem Entfernen einer
+// Fehlererkennung stand der Einrichtungsassistent wieder da, weil
+// setupCompleted aus der config.js verschwunden war. Beim naechsten Neustart
+// setzte migriereBestandsinstallation() das Feld still wieder — das Verhalten
+// wirkte deshalb zufaellig.
+//
+// Die Liste steht hier, weil dieses Modul die Felder besitzt; POST /api/config
+// rettet sie darueber hinweg.
+const SERVER_FELDER = ['setupCompleted', 'setupDismissed'];
+
 // Abhakbar ist ALLES -- auch der Pflichtschritt. Er wird zwar nicht einzeln
 // zum Wegklicken angeboten (die Karte zeigt bei ihm kein "brauche ich nicht"),
 // aber "Nicht mehr anzeigen" muss die Karte auch dann schliessen koennen, wenn
@@ -130,4 +145,5 @@ function getSetupState(istAdmin, username) {
 }
 
 module.exports = { getSetupState, migriereBestandsinstallation,
-                   istStandardFilter, regelnAngepasst, DEFAULT_FILTER, SETUP_IDS, ABHAKBAR };
+                   istStandardFilter, regelnAngepasst, DEFAULT_FILTER, SETUP_IDS, ABHAKBAR,
+                   SERVER_FELDER };

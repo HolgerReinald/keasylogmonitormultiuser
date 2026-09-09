@@ -15,6 +15,7 @@ const healthCheck = require('../healthCheck');
 const userConfigStore = require('../userConfigStore');
 const { errorStore, performanceStore } = require('../runtimeStore');
 const { getAnalyzeErrors } = require('../analysisService');
+const { SERVER_FELDER } = require('../setupState');
 const { getLabelForFile } = require('../watchService');
 const dropStore = require('../analyzeDropStore');
 const toolExport = require('../toolExport');
@@ -191,6 +192,18 @@ module.exports = function configRoutes(deps) {
 
             // Globale Config bereinigen (User-Felder entfernen)
             const globalConfig = userConfigStore.stripUserFieldsFromGlobal(newConfig);
+
+            // Vom Server verwaltete Felder ueberleben das Speichern.
+            // Der Client baut die Config aus den Formularfeldern neu auf; was
+            // kein Bedienelement hat, kommt im Body gar nicht erst vor und
+            // wuerde hier stillschweigend geloescht. Bewusst eine benannte
+            // Liste statt einer pauschalen Zusammenfuehrung: nur so bleibt das
+            // Leeren einer Liste durch den Anwender weiterhin moeglich.
+            for (const feld of SERVER_FELDER) {
+              if (globalConfig[feld] === undefined && config[feld] !== undefined) {
+                globalConfig[feld] = config[feld];
+              }
+            }
 
             applyConfigChanges(globalConfig);
             configStore.writeConfig(globalConfig);
