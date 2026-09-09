@@ -666,6 +666,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-09-09 — 🔧 Vom Server verwaltete Config-Felder überleben das Speichern
+
+**Der Fehler.** `buildConfigFromForm()` baut die Config bei jedem Speichern aus den Formularfeldern neu auf. `setupCompleted` und `setupDismissed` haben kein Bedienelement, standen also gar nicht erst im Body — und `POST /api/config` schrieb den Body ungeprüft in die `config.js`. Die Entscheidung „Einrichtung abgeschlossen" war damit nach **jedem** Speichern in **jedem** Tab verloren, und der Einrichtungsassistent stand wieder da. Sprunghaft wirkte es, weil `migriereBestandsinstallation()` das Feld bei jedem Serverstart still wieder setzt: nach dem Neustart weg, nach dem nächsten Speichern da.
+
+**Der Fix liegt beim Server**, weil ihm die Felder gehören. `SERVER_FELDER` in `setupState.js` benennt sie; `POST /api/config` ergänzt sie vor dem Schreiben aus der bestehenden Config. Bewusst eine benannte Liste und nur für **fehlende** Felder — eine pauschale Zusammenführung würde verhindern, dass sich eine Liste je wieder leeren lässt. Eine betroffene Installation räumt ein Neustart auf: die Migration setzt `setupCompleted` wieder, und ab dann überlebt es das Speichern. Einzeln abgehakte Punkte sind verloren.
+
+**Ablage.** Pläne liegen jetzt unter `temp-plan/`, Bildmaterial unter `temp-screenshot/`; beide sind gitignoriert, `*.png` zusätzlich global. Sie sind Arbeitsmaterial und kein Auslieferungsbestandteil.
+
+**Dateien:** server/setupState.js, server/routes/configRoutes.js, test/server-felder.js (neu), .gitignore, README.md
+
 ### 2026-09-09 — 📌 Neue Einträge warten, bis du sie anzeigst
 
 **Zurückgehalten wird nur der Empfangspfad.** Steht der Anwender nicht ganz oben, bauen eingehende Fehler und ⏱️-Lücken die Anzeige nicht mehr neu auf. Sie sammeln sich in `state.pendingNew` und erscheinen als Pille „🔴 3 neue Fehler — anzeigen", bei kritischen rot eingefärbt. Umgestellt sind genau zwei Aufrufe in `wsClient.js`; Filter, Suche, Zeitraum, Löschen und Analyse bauen weiter sofort auf, weil der Anwender sie selbst auslöst. Der Klick baut ein, der Anker hält dabei die Lesestelle. Hochscrollen baut automatisch ein — oben liest man wieder live mit.

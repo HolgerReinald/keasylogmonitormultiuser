@@ -1,6 +1,6 @@
 {
   "name": "keasy-log-monitor",
-  "version": "2026.09.09-08:09",
+  "version": "2026.09.09-11:50",
   "description": "Lokales Log-Monitoring-Dashboard für Keasy Log-Dateien",
   "main": "server.js",
   "scripts": {
