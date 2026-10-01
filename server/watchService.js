@@ -480,6 +480,16 @@ function registerWatcherHandlers(watcher, wp, flushDelay, options) {
   if (!skipPreload) preloadRegisterWatcher();
 
   watcher.on('add', (filePath) => {
+    // Die Datei ist (wieder) da — eine frühere „entfernt"-Meldung gilt nicht
+    // mehr. Ganz oben, VOR den beiden frühen returns weiter unten (Zeitstempel
+    // von gestern, Duplikat): sonst bliebe die Markierung ausgerechnet in den
+    // Fällen stehen, in denen sie am längsten sichtbar wäre.
+    //
+    // Ohne dieses Gegenstück war die Markierung endgültig. Bei Watchpaths auf
+    // Netzlaufwerken (X:, Y:) genügt ein kurzer Aussetzer: der Watcher meldet
+    // alle Dateien als entfernt, und nach der Rückkehr blieben sie bis zum
+    // nächsten Neustart als „nicht mehr vorhanden" markiert.
+    if (missingFiles.delete(filePath)) broadcastMissing();
     try {
       const stat = fs.statSync(filePath);
       const today = new Date();
@@ -523,6 +533,10 @@ function registerWatcherHandlers(watcher, wp, flushDelay, options) {
   });
 
   watcher.on('change', (filePath) => {
+    // Wer beschrieben wird, existiert. Zweiter Weg zurück, falls das
+    // 'add'-Ereignis ausbleibt — beim Polling auf Netzlaufwerken kommt genau
+    // das vor.
+    if (missingFiles.delete(filePath)) broadcastMissing();
     const changeDetectedAt = Date.now();
     if (!fileLabelMap.has(filePath)) {
       const label = getLabelForFile(filePath);

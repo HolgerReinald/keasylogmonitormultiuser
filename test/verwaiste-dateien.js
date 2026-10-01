@@ -86,6 +86,35 @@ console.log('\n3) Verschwundene Dateien werden gekennzeichnet, nicht geleert');
   check('unlink löscht KEINE Fehler', !/errorStore\.delete/.test(unlinkBody),
     'Gesammelte Fehler sind echte Funde — sie dürfen mit der Datei nicht verschwinden');
   check('unlink löscht KEINE Performance-Einträge', !/performanceStore\.delete/.test(unlinkBody));
+
+  // Gegenstück. Ohne das war die Markierung endgültig: ein kurzer Aussetzer
+  // eines Netzlaufwerks meldet ALLE Dateien als entfernt, und nach der
+  // Rückkehr blieben sie bis zum nächsten Neustart falsch markiert.
+  const teil = (von, bis) => {
+    const i = watch.indexOf(von);
+    const rest = watch.slice(i);
+    const j = rest.indexOf(bis);
+    return rest.slice(0, j === -1 ? rest.length : j);
+  };
+  const addBody = teil("watcher.on('add'", "watcher.on('change'");
+  const changeBody = teil("watcher.on('change'", "watcher.on('unlink'");
+
+  check('add nimmt die Markierung zurück',
+    /if \(missingFiles\.delete\(filePath\)\) broadcastMissing\(\);/.test(addBody),
+    'Sonst bleibt eine wieder aufgetauchte Datei für immer als entfernt markiert');
+  check('change nimmt sie ebenfalls zurück',
+    /if \(missingFiles\.delete\(filePath\)\) broadcastMissing\(\);/.test(changeBody),
+    'Zweiter Weg zurück, falls das add-Ereignis ausbleibt — beim Polling kommt das vor');
+
+  // Die beiden frühen returns im add-Zweig (Zeitstempel von gestern, Duplikat)
+  // würden die Rücknahme überspringen, stünde sie weiter unten.
+  check('Rücknahme steht VOR dem Zeitstempel-Ausstieg',
+    addBody.indexOf('missingFiles.delete') !== -1 &&
+    addBody.indexOf('missingFiles.delete') < addBody.indexOf('stat.mtime < today'),
+    'Eine Datei von gestern bliebe sonst markiert, obwohl sie da ist');
+  check('Rücknahme steht VOR der Duplikat-Prüfung',
+    addBody.indexOf('missingFiles.delete') < addBody.indexOf('fileLabelMap.has(filePath)'),
+    'Eine bereits bekannte Datei bliebe sonst markiert');
 }
 
 console.log('\n4) Der Zustand kommt beim Client an');
