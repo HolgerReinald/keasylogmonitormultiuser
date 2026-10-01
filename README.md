@@ -666,6 +666,16 @@ Die Datei wird automatisch auf 500 Zeilen begrenzt (Rotation beim Start).
 
 ## Historie
 
+### 2026-10-01 — 🧭 Markierung „Datei nicht mehr vorhanden" wird wieder zurückgenommen
+
+**Das Gegenstück fehlte.** Die Kennzeichnung verschwundener Dateien setzte `missingFiles` im `unlink`-Zweig, leerte es aber nie wieder — die Markierung war damit endgültig. Bissig wird das bei Watchpaths auf Netzlaufwerken im Polling-Betrieb: ein kurzer Aussetzer meldet **sämtliche** Dateien als entfernt, und nach der Rückkehr blieben sie bis zum nächsten Neustart falsch markiert.
+
+**`add` und `change` nehmen sie zurück** — wer neu auftaucht oder beschrieben wird, existiert. Im `add`-Zweig steht die Rücknahme ganz oben, **vor** den beiden frühen `return`s (Zeitstempel von gestern, Duplikat): weiter unten bliebe sie ausgerechnet in den Fällen stehen, in denen sie am längsten sichtbar wäre. `change` ist der zweite Weg zurück, falls das `add`-Ereignis beim Polling ausbleibt.
+
+**Wirkt nur bei wiederkehrenden Pfaden.** Logdateien mit stabilem Tagesnamen kommen unter demselben Pfad zurück. Keasys eigene Sitzungslogs tragen dagegen pro Start eine neue GUID — deren Markierung bleibt zu Recht stehen und sammelt sich mit jeder geschlossenen Sitzung an; wegräumen lässt sie sich über das 🗑️ in der Kopfzeile der Quelle.
+
+**Dateien:** server/watchService.js, test/verwaiste-dateien.js, README.md
+
 ### 2026-09-09 — 🔧 Vom Server verwaltete Config-Felder überleben das Speichern
 
 **Der Fehler.** `buildConfigFromForm()` baut die Config bei jedem Speichern aus den Formularfeldern neu auf. `setupCompleted` und `setupDismissed` haben kein Bedienelement, standen also gar nicht erst im Body — und `POST /api/config` schrieb den Body ungeprüft in die `config.js`. Die Entscheidung „Einrichtung abgeschlossen" war damit nach **jedem** Speichern in **jedem** Tab verloren, und der Einrichtungsassistent stand wieder da. Sprunghaft wirkte es, weil `migriereBestandsinstallation()` das Feld bei jedem Serverstart still wieder setzt: nach dem Neustart weg, nach dem nächsten Speichern da.
